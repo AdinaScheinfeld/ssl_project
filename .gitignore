@@ -54,6 +54,9 @@ desktop.ini
 id_rsa*
 *.remote-sync.json
 
+# wandb
+wandb/
+
 
 
 
