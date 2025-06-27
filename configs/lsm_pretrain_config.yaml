@@ -1,0 +1,37 @@
+# config file for lsm pretraining
+
+data:
+  train_dir: "/midtier/paetzollab/scratch/ads4015/data_selma3d/lsm_fm/train"
+  val_dir: "/midtier/paetzollab/scratch/ads4015/data_selma3d/lsm_fm/val"
+  train_samp_size: 500
+  val_samp_size: 50
+  batch_size: 8
+
+model:
+  image_size: 96
+  mask_ratio: 0.6
+  lr: 0.0001
+  ema_decay: 0.996
+
+training:
+  seed: 100
+  max_epochs: 100
+  patience: 10
+  log_every_n_steps: 5
+  project_name: 'ibot-pretrain-lsm'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
