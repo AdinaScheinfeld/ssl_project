@@ -92,6 +92,15 @@ def get_train_transforms():
 def get_val_transforms():
     return Compose([
         LoadTiffd(keys=['image']),
+        ScaleIntensityRangePercentilesd(keys=['image'], lower=1, upper=99, b_min=0.0, b_max=1.0, clip=True),
+        ToTensord(keys=['image'])
+    ])
+
+
+# get loading transforms
+def get_load_transforms():
+    return Compose([
+        LoadTiffd(keys=['image']),
         ToTensord(keys=['image'])
     ])
     
