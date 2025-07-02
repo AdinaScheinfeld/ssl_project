@@ -56,7 +56,7 @@ class TiffPatchDataset(Dataset):
         img = self.transforms(self.file_paths[idx])
 
         # print min/max intensity in image for debugging
-        print(f'[DEBUG] Image {idx} shape: {img.shape}, min: {img.min().item():.2f}, max: {img.max().item():.2f}')
+        # print(f'[DEBUG] Image {idx} shape: {img.shape}, min: {img.min().item():.2f}, max: {img.max().item():.2f}')
 
         return {'image': img} # return dict
     
@@ -79,15 +79,17 @@ def log_intensity_histogram(img_tensor, prefix, logger, step_or_epoch):
     # flatten image
     img_flat = img_tensor.detach().cpu().numpy().flatten()
     logger.experiment.log({
-        f'{prefix} Intensity histogram (step {step_or_epoch})': wandb.Histogram(img_flat)
+        f'{prefix} Intensity histogram (epoch {step_or_epoch})': wandb.Histogram(img_flat)
     })
 
 # function to log images to wandb table
-def log_images_to_wandb_table(logger, originals, maskeds, student_preds, prefix, step_or_epoch, max_rows=4):
+def log_images_to_wandb_table(logger, originals, maskeds, student_preds, prefix, step_or_epoch, max_rows=4, log_histograms=True):
 
+    # # create table
+    # table = wandb.Table(columns=['Original RAW', 'Masked RAW', 'Student RAW', 
+    #                              'Original NORM', 'Masked NORM', 'Student NORM'])
     # create table
-    table = wandb.Table(columns=['Original RAW', 'Masked RAW', 'Student RAW', 
-                                 'Original NORM', 'Masked NORM', 'Student NORM'])
+    table = wandb.Table(columns=['Original', 'Masked', 'Student'])
 
     # loop through number of entries to plot and get images for plotting
     for i in range(min(max_rows, originals.shape[0])):
@@ -97,23 +99,26 @@ def log_images_to_wandb_table(logger, originals, maskeds, student_preds, prefix,
         pred_img = student_preds[i, 0].detach().cpu().numpy()[center_z]
 
         # log intensity histogram for first sample in each batch
-        if i == 0:
+        if i == 0 and log_histograms:
             log_intensity_histogram(originals[i, 0], f'{prefix} Original', logger, step_or_epoch)
             log_intensity_histogram(maskeds[i, 0], f'{prefix} Masked', logger, step_or_epoch)
             log_intensity_histogram(student_preds[i, 0], f'{prefix} Student', logger, step_or_epoch)
 
         # create table
         table.add_data(
-            wandb.Image(original_img, caption=f'Original RAW {i}'),
-            wandb.Image(masked_img, caption=f'Masked RAW {i}'),
-            wandb.Image(pred_img, caption=f'Predicted RAW {i}'),
-            wandb.Image(normalize_for_visualization(original_img), caption=f'Original NORM {i}'),
-            wandb.Image(normalize_for_visualization(masked_img), caption=f'Masked NORM {i}'),
-            wandb.Image(normalize_for_visualization(pred_img), caption=f'Predicted NORM {i}'),
+            wandb.Image(original_img, caption=f'Original {i}'),
+            wandb.Image(masked_img, caption=f'Masked {i}'),
+            wandb.Image(pred_img, caption=f'Predicted {i}')
+            # wandb.Image(original_img, caption=f'Original RAW {i}'),
+            # wandb.Image(masked_img, caption=f'Masked RAW {i}'),
+            # wandb.Image(pred_img, caption=f'Predicted RAW {i}'),
+            # wandb.Image(normalize_for_visualization(original_img), caption=f'Original NORM {i}'),
+            # wandb.Image(normalize_for_visualization(masked_img), caption=f'Masked NORM {i}'),
+            # wandb.Image(normalize_for_visualization(pred_img), caption=f'Predicted NORM {i}'),
         )
     
     # log table
-    logger.experiment.log({f'{prefix} Samples (step {step_or_epoch})': table})
+    logger.experiment.log({f'{prefix} Samples (epoch {step_or_epoch})': table})
 
 
 # --- Model ---
@@ -245,7 +250,7 @@ class IBOTPretrainModule(pl.LightningModule):
 
         # input volume, shape (B, 1, D, H, W)
         x = batch['image']
-        print(f'[DEBUG] Training batch shape: {x.shape}')
+        # print(f'[DEBUG] Training batch shape: {x.shape}')
 
         # generate patch level mask and apply to input
         mask = self.generate_patch_mask(x, self.mask_patch_size)
@@ -263,32 +268,11 @@ class IBOTPretrainModule(pl.LightningModule):
         train_loss = self.compute_loss(student_features, teacher_features, x, mask)
         self.log('train_loss', train_loss, prog_bar=True, on_step=True, on_epoch=True)
 
-        # log original, masked, and student prediction images to wanb every 100 steps
-        if self.global_step % 100 == 0 and x.shape[0] > 0:
-
-            # log images to wandb table
-            log_images_to_wandb_table(self.logger, x, x_masked, student_features, 'Train', self.global_step)
-
-            # # create plot
-            # fig, axs = plt.subplots(1, 3, figsize=(12, 4))
-            # axs[0].imshow(original_img, cmap='gray')
-            # axs[0].set_title('Original')
-            # axs[1].imshow(masked_img, cmap='gray')
-            # axs[1].set_title('Masked Input')
-            # axs[2].imshow(pred_img, cmap='gray')
-            # axs[2].set_title('Student Output')
-            
-            # # format plot
-            # for ax in axs:
-            #     ax.axis('off')
-            # plt.tight_layout()
-
-            # # log images to wandb
-            # self.logger.experiment.log({
-            #     'Input vs. Masked vs. Output': wandb.Image(fig),
-            #     'global_step': self.global_step
-            # })
-            # plt.close(fig)
+        # cache last batch info for logging to wandb
+        self.last_train_batch = batch
+        self.last_train_mask = mask
+        self.last_train_masked = x_masked
+        self.last_train_output = student_features
 
         return train_loss
     
@@ -297,7 +281,7 @@ class IBOTPretrainModule(pl.LightningModule):
 
         # input volume, shape (B, 1, D, H, W)
         x = batch['image']
-        print(f'[DEBUG] Validation batch shape: {x.shape}')
+        # print(f'[DEBUG] Validation batch shape: {x.shape}')
 
         # generate mask and apply it to create masked input for student
         mask = self.generate_patch_mask(x, self.mask_patch_size)
@@ -313,16 +297,45 @@ class IBOTPretrainModule(pl.LightningModule):
         val_loss = self.compute_loss(student_features, teacher_features, x, mask)
         self.log('val_loss', val_loss, prog_bar=True, on_step=False, on_epoch=True)
 
+        # cache last batch info for wandb logging
+        self.last_val_batch = batch
+        self.last_val_mask = mask
+        self.last_val_masked = x_masked
+        self.last_val_output = student_features
 
         # visualize 1 batch at the start of each val epoch
         if batch_idx == 0 and x.shape[0] > 0:
 
             # log images to wandb table
-            log_images_to_wandb_table(self.logger, x, x_masked, student_features, 'Val', self.current_epoch)
+            log_images_to_wandb_table(self.logger, x, x_masked, student_features, 'Val', self.current_epoch, log_histograms=(self.current_epoch == 0))
 
         return val_loss
     
-    # after backward
+    # after train epoch
+    def on_train_epoch_end(self):
+
+        # log images to wandb
+        if hasattr(self, 'last_train_batch'):
+            log_images_to_wandb_table(logger=self.logger, 
+                                      originals=self.last_train_batch['image'], 
+                                      maskeds=self.last_train_masked, 
+                                      student_preds=self.last_train_output, 
+                                      prefix='Train', 
+                                      step_or_epoch=self.current_epoch, 
+                                      log_histograms=(self.current_epoch == 0))
+            
+    # after val epoch
+    def on_validation_epoch_end(self):
+        if hasattr(self, 'last_val_batch'):
+            log_images_to_wandb_table(logger=self.logger,
+                                      originals=self.last_val_batch['image'],
+                                      maskeds=self.last_val_masked,
+                                      student_preds=self.last_val_output,
+                                      prefix='Val',
+                                      step_or_epoch=self.current_epoch,
+                                      log_histograms=(self.current_epoch == 0))
+
+    # after backwards
     def on_after_backward(self):
 
         # update ema teacher parameters from student
@@ -364,8 +377,8 @@ def get_data_loaders(train_dir, val_dir, batch_size, train_samp_size, val_samp_s
     val_ds = TiffPatchDataset(val_files)
 
     # print dataset sizes and steps per epoch for debugging
-    print(f'[DEBUG] Num train samples: {len(train_ds)}')
-    print(f'[DEBUG] Num val samples: {len(val_ds)}')
+    # print(f'[DEBUG] Num train samples: {len(train_ds)}')
+    # print(f'[DEBUG] Num val samples: {len(val_ds)}')
     print(f'[DEBUG] Train steps per epoch: {len(train_ds) // batch_size}')
 
     return DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=4), \

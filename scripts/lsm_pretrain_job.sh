@@ -28,7 +28,7 @@ wandb login $WANDB_API_KEY
 CONFIG_PATH="/home/ads4015/ssl_project/configs/lsm_pretrain_config.yaml"
 
 # run script
-python /home/ads4015/ssl_project/src/lsm_pretrain2.py --config $CONFIG_PATH
+python /home/ads4015/ssl_project/src/lsm_pretrain.py --config $CONFIG_PATH
 
 
 
