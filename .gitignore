@@ -20,7 +20,7 @@ venv/
 
 # vs code
 .vscode/
-.code-workspace
+*.code-workspace
 
 # logs and runtime
 *.log
