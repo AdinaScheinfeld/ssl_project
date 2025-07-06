@@ -1,235 +1,182 @@
-# Script to extract labeled patches from selma3d for foundation model finetuning
-
-
-# --- Setup ---
-
-# imports
-from collections import defaultdict
-import glob as glob
+import os
 import nibabel as nib
 import numpy as np
-import os
-import random
 import torch
+from pathlib import Path
 from tqdm import tqdm
 
+import argparse
 
-# --- Config ---
-
-# config
-
+# Configuration
+INPUT_ROOT = Path("/midtier/paetzollab/scratch/ads4015/data_selma3d/SELMA3D")
+OUTPUT_ROOT = Path("/midtier/paetzollab/scratch/ads4015/data_selma3d/lsm_fm_selma3d_finetune2")
 PATCH_SIZE = (96, 96, 96)
 PATCHES_PER_CLASS = 25
 
-OUTPUT_DIR = '/midtier/paetzollab/scratch/ads4015/data_selma3d/lsm_fm_selma3d_finetune'
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-# image and label sources per class
-classes = {
-    'cfos': {
-        'img_dir': '/midtier/paetzollab/scratch/ads4015/data_selma3d/SELMA3D/brain_c_fos_positive_patches/cFos-Active_Neurons/raw',
-        'label_dir': '/midtier/paetzollab/scratch/ads4015/data_selma3d/SELMA3D/annotation_brain_c_fos_positive/cFos-Active_Neurons/gt'
+# Mapping from class folder to full label and image paths
+DATA_CLASSES = {
+    "brain_amyloid_plaque_patches": {
+        "label": "annotation_brain_amyloid_plaque/AD_plaques/gt",
+        "image": "brain_amyloid_plaque_patches/AD_plaques/raw"
     },
-    'vessel': {
-        'img_dir': '/midtier/paetzollab/scratch/ads4015/data_selma3d/SELMA3D/brain_vessels_patches/VessAP_vessel/raw',
-        'label_dir': '/midtier/paetzollab/scratch/ads4015/data_selma3d/SELMA3D/annotation_brain_vessels/VessAP_vessel/gt'
+    "brain_c_fos_positive_patches": {
+        "label": "annotation_brain_c_fos_positive/cFos-Active_Neurons/gt",
+        "image": "brain_c_fos_positive_patches/cFos-Active_Neurons/raw"
     },
-    'nucleus': {
-        'img_dir': '/midtier/paetzollab/scratch/ads4015/data_selma3d/SELMA3D/brain_cell_nucleus_patches/shannel_cells/raw',
-        'label_dir': '/midtier/paetzollab/scratch/ads4015/data_selma3d/SELMA3D/annotation_brain_cell_nucleus/shannel_cells/gt'
+    "brain_cell_nucleus_patches": {
+        "label": "annotation_brain_cell_nucleus/shannel_cells/gt",
+        "image": "brain_cell_nucleus_patches/shannel_cells/raw"
     },
-    'plaque': {
-        'img_dir': '/midtier/paetzollab/scratch/ads4015/data_selma3d/SELMA3D/brain_amyloid_plaque_patches/AD_plaques/raw',
-        'label_dir': '/midtier/paetzollab/scratch/ads4015/data_selma3d/SELMA3D/annotation_brain_amyloid_plaque/AD_plaques/gt'
-    },
+    "brain_vessels_patches": {
+        "label": "annotation_brain_vessels/VessAP_vessel/gt",
+        "image": "brain_vessels_patches/VessAP_vessel/raw"
+    }
 }
 
+def load_nifti(path):
+    return nib.load(str(path))
 
-# --- Functions ---
+def extract_patch(volume, start, size):
+    z, y, x = start
+    dz, dy, dx = size
+    return volume[z:z+dz, y:y+dy, x:x+dx]
 
-# function to pad image to minimum size required
-def pad_to_min_size(volume, target_shape):
+def save_patch_with_label(patch, label_patch, save_dir, patch_id, vol_id, ch, affine):
+    save_dir.mkdir(parents=True, exist_ok=True)
+    filename_pt = f"patch_{patch_id:03d}_vol{vol_id:03d}_ch{ch}.pt"
+    filename_nii = f"patch_{patch_id:03d}_vol{vol_id:03d}_ch{ch}.nii.gz"
+    filename_lbl_nii = f"patch_{patch_id:03d}_vol{vol_id:03d}_label.nii.gz"
 
-    # ensure correct dimensions
-    if volume.ndim == 4 and volume.shape[-1] == 1:
-        volume = np.squeeze(volume, axis=-1)
+    torch.save({
+        "image": torch.tensor(patch).float(),
+        "label": torch.tensor(label_patch).long()
+    }, save_dir / filename_pt)
 
-    # create list to hold padding width
+    nib.save(nib.Nifti1Image(patch.astype(np.float32), affine), save_dir / filename_nii)
+    nib.save(nib.Nifti1Image(label_patch.astype(np.uint8), affine), save_dir / filename_lbl_nii)
+
+    return filename_pt, filename_nii, filename_lbl_nii
+
+def pad_to_minimum_size(volume, target_size):
     pad_width = []
-
-    # loop through volumes
-    for dim, target in zip(volume.shape, target_shape):
-
-        # get total padding
-        total_pad = max(target - dim, 0)
-
-        # get padding for before and after
+    for dim, target in zip(volume.shape[-3:], target_size):
+        total_pad = max(0, target - dim)
         pad_before = total_pad // 2
         pad_after = total_pad - pad_before
-
-        # add padding amounts to list
         pad_width.append((pad_before, pad_after))
-
-    # return padded volume
+    pad_width = [(0, 0)] * (volume.ndim - 3) + pad_width
     return np.pad(volume, pad_width, mode='constant')
 
+def get_centered_coordinates(fg_mask, shape, patch_size):
+    dz, dy, dx = patch_size
+    valid_coords = np.argwhere(fg_mask)
+    np.random.shuffle(valid_coords)
+    for zc, yc, xc in valid_coords:
+        z = zc - dz // 2
+        y = yc - dy // 2
+        x = xc - dx // 2
+        if z >= 0 and y >= 0 and x >= 0 and z + dz <= shape[0] and y + dy <= shape[1] and x + dx <= shape[2]:
+            yield (z, y, x)
 
-# function to load image-label pairs
-def load_image_label_pair(img_path, label_path, is_vessel=False):
+def process_class(class_folder, paths):
+    patch_id_counter = 0
 
-    # load image
-    img_nii = nib.load(img_path)
-    img_data = img_nii.get_fdata()
-    img_affine = img_nii.affine
+    input_dir = INPUT_ROOT / paths["image"]
+    label_dir = INPUT_ROOT / paths["label"]
+    output_dir = OUTPUT_ROOT / class_folder.split("_", 1)[-1]
 
-    # get both channels from vessel data
-    if is_vessel:
-        ch0_path = img_path.replace('_0001.nii.gz', '_0000.nii.gz')
-        ch0_nii = nib.load(ch0_path)
-        ch0_data = ch0_nii.get_fdata()
+    image_files = sorted(input_dir.glob("patchvolume_*_0000.nii.gz"))
+    print(f"{class_folder}: Found {len(image_files)} image files in {input_dir}", flush=True)
 
-        # correct dimensions
-        ch0_data = np.squeeze(ch0_data)
-        img_data = np.squeeze(img_data)
+    if len(image_files) == 0:
+        print(f"No image files found for {class_folder}, skipping.\n", flush=True)
+        return
 
-        img_data = np.stack([ch0_data, img_data], axis=0) # shape (2, D, H, W)
-        img_affine = ch0_nii.affine
+    np.random.shuffle(image_files)
+    num_volumes = len(image_files)
+    if num_volumes == 0:
+        print(f"No volumes found for {class_folder}, skipping.", flush=True)
+        return
 
-    # all other datatypes have just 1 channel
-    else:
-        img_data = np.expand_dims(img_data, axis=0) # shape (1, D, H, W)
+    patches_per_volume = [PATCHES_PER_CLASS // num_volumes] * num_volumes
+    for idx in np.random.choice(num_volumes, PATCHES_PER_CLASS % num_volumes, replace=False):
+        patches_per_volume[idx] += 1
 
-    # get label (all images have 1 label, vessel channels are labeled together)
-    label_nii = nib.load(label_path)
-    label_data = label_nii.get_fdata()
-    label_affine = label_nii.affine
+    volume_patch_counts = [0] * num_volumes
+    pending_volumes = list(range(num_volumes))
 
-    # pad image and label if too small
-    C, D, H, W = img_data.shape
-    d, h, w = PATCH_SIZE
-    if D < d or H < h or W < w:
-        img_data = pad_to_min_size(img_data, (img_data.shape[0], max(D, d), max(H, h), max(W, w)))
-        label_data = pad_to_min_size(label_data, PATCH_SIZE)
+    while sum(volume_patch_counts) < PATCHES_PER_CLASS and pending_volumes:
+        for i in pending_volumes.copy():
+            if volume_patch_counts[i] >= patches_per_volume[i]:
+                pending_volumes.remove(i)
+                continue
 
-    # return image-label pair
-    return img_data.astype(np.float32), label_data.astype(np.uint16), img_affine, label_affine
+            image_file = image_files[i]
+            vol_id = int(image_file.stem.split("_")[1])
+            label_file = label_dir / f"patchvolume_{vol_id:03d}.nii.gz"
 
+            if not label_file.exists():
+                print(f"  Skipping volume {vol_id:03d}: missing label file {label_file}", flush=True)
+                pending_volumes.remove(i)
+                continue
 
-# function to extract patches from image-label pair
-def extract_valid_patch(img, label):
+            label_nii = load_nifti(label_file)
+            label = label_nii.get_fdata()
+            affine = label_nii.affine
+            label = pad_to_minimum_size(label, PATCH_SIZE)
+            fg_mask = label != 0
 
-    # get image and patch dimensions
-    C, D, H, W = img.shape
-    d, h, w = PATCH_SIZE
+            if not fg_mask.any():
+                print(f"  Skipping volume {vol_id:03d}: label has no foreground", flush=True)
+                pending_volumes.remove(i)
+                continue
 
-    # create foreground mask using label (only foreground regions will have a label)
-    label_mask = (label > 0).astype(np.uint16)
-    
-    # create list to hold valid coordinates
-    valid_coords = []
+            try:
+                image_channels = [pad_to_minimum_size(load_nifti(image_file).get_fdata(), PATCH_SIZE)]
+                if "vessels" in class_folder:
+                    ch1_file = image_file.with_name(image_file.name.replace("0000", "0001"))
+                    if ch1_file.exists():
+                        image_channels.append(pad_to_minimum_size(load_nifti(ch1_file).get_fdata(), PATCH_SIZE))
+                image_channels = np.stack(image_channels, axis=0)
+                if image_channels.ndim != 4:
+                    raise ValueError(f"Expected 4D image, got shape {image_channels.shape}")
+                C, Z, Y, X = image_channels.shape
+            except Exception as e:
+                print(f"  Skipping volume {vol_id:03d}: malformed image shape {image_channels.shape} ({e})", flush=True)
+                pending_volumes.remove(i)
+                continue
 
-    # add coords with foreground to list
-    for z in range(0, D - d + 1):
-        for y in range(0, H - h + 1):
-            for x in range(0, W - w + 1):
-                sub = label_mask[z:z+d, y:y+h, x:x+w]
-                # if sub.sum() / sub.size > FOREGROUND_THRESHOLD:
-                if sub.any():
-                    valid_coords.append((z, y, x))
-    
-    # indicate if no valid patches were found
-    if not valid_coords:
-        print('[WARNING] No valid patches found', flush=True)
-        return None, None, None
-    
-    # return random selection of valid coords
-    # print(f'Valid coords: {valid_coords}', flush=True)
-    z, y, x = random.choice(valid_coords)
-    return img[:, z:z+d, y:y+h, x:x+w], label[z:z+d, y:y+h, x:x+w], (z, y, x)
+            if Z < PATCH_SIZE[0] or Y < PATCH_SIZE[1] or X < PATCH_SIZE[2]:
+                print(f"  Skipping volume {vol_id:03d}: dimensions too small ({Z}, {Y}, {X})", flush=True)
+                pending_volumes.remove(i)
+                continue
 
+            for z, y, x in get_centered_coordinates(fg_mask, (Z, Y, X), PATCH_SIZE):
+                label_patch = extract_patch(label, (z, y, x), PATCH_SIZE)
+                if np.any(label_patch):
+                    for ch in range(C):
+                        img_patch = extract_patch(image_channels[ch], (z, y, x), PATCH_SIZE)
+                        save_patch_with_label(
+                            img_patch, label_patch, output_dir, patch_id_counter, vol_id, ch, affine
+                        )
+                    patch_id_counter += 1
+                    volume_patch_counts[i] += 1
+                    if volume_patch_counts[i] >= patches_per_volume[i]:
+                        break
 
-# function to extract patches for a class
-def extract_patches_for_class(class_name, config):
+    print(f"\nSummary for {class_folder}:", flush=True)
+    for idx, count in enumerate(volume_patch_counts):
+        vol_id = int(image_files[idx].stem.split("_")[1])
+        if count == 0:
+            print(f"  Volume {vol_id:03d}: 0 patches (skipped)", flush=True)
+        else:
+            print(f"  Volume {vol_id:03d}: {count} patches", flush=True)
 
-    # get image and label paths
-    print(f'[INFO] Extracting patches for class: {class_name}', flush=True)
-    img_paths = sorted(glob.glob(os.path.join(config['img_dir'], '*.nii.gz')))
-    label_paths = sorted(glob.glob(os.path.join(config['label_dir'], '*.nii.gz')))
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--class_name", type=str, required=True, choices=list(DATA_CLASSES.keys()))
+    args = parser.parse_args()
 
-    # create output directory
-    output_class_dir = os.path.join(OUTPUT_DIR, class_name)
-    os.makedirs(output_class_dir, exist_ok=True)
-
-    # determine patches per image
-    n_images = len(img_paths)
-    base_num_patches = PATCHES_PER_CLASS // n_images
-    remainder_num_patches = PATCHES_PER_CLASS % n_images
-    patch_counts = [base_num_patches] * n_images
-
-    # randomly assign remainder
-    for idx in random.sample(range(n_images), remainder_num_patches):
-        patch_counts[idx] += 1
-
-    # define counter
-    count = 0
-
-    # load image-label pairs
-    for i, (img_path, label_path) in enumerate(tqdm(zip(img_paths, label_paths), total=n_images)):
-
-        # determine how many patches are needed
-        num_patches_needed = patch_counts[i]
-        num_extracted = 0
-
-        # get image label and data
-        img, label, affine_img, affine_lbl = load_image_label_pair(img_path, label_path, is_vessel=(class_name == 'vessel'))
-
-        # try extracting valid patches from volume
-        num_attempts = 0
-        while num_extracted < num_patches_needed and num_attempts < 100:
-            img_patch, label_patch, coords = extract_valid_patch(img, label)
-            num_attempts += 1
-
-            # save valid patches as .pt
-            if img_patch is not None:
-                torch.save({
-                    'image': torch.tensor(img_patch),
-                    'label': torch.tensor(label_patch),
-                    'class': class_name,
-                    'channels': img_patch.shape[0]
-                }, os.path.join(OUTPUT_DIR, class_name, f'patch_{count:03d}.pt'))
-
-                # save as nifti
-                for ch in range(img_patch.shape[0]):
-                    nib.save(nib.Nifti1Image(img_patch[ch], affine=affine_img), 
-                             os.path.join(output_class_dir, f'patch{count:03d}_ch{ch}_img.nii.gz'))
-                    
-                # save label as nifti
-                nib.save(nib.Nifti1Image(label_patch, affine=affine_lbl), 
-                         os.path.join(output_class_dir, f'patch_{count:03d}_label.nii.gz'))
-
-                # increment counter and stop when quota has been reached
-                print(f'[INFO] Patch {count:03d} extracted from {os.path.basename(img_path)} at (z={coords[0]}, y={coords[1]}, x={coords[2]})', flush=True)
-                count += 1
-                num_extracted += 1
-                if count >= PATCHES_PER_CLASS:
-                    print(f'[INFO] Finished extracting {count} patches for class {class_name}', flush=True)
-                    return
-                
-    print(f'[INFO] Extracted a total of {count} patches for class: {class_name}', flush=True)
-           
-
-# --- Main ---
-
-# main function
-def main():
-    for cls, cfg in classes.items():
-        extract_patches_for_class(cls, cfg)
-
-
-if __name__ == '__main__':
-    main()
-
-
-
-
-
+    class_name = args.class_name
+    class_paths = DATA_CLASSES[class_name]
+    process_class(class_name, class_paths)
