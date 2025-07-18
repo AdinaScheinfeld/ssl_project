@@ -38,6 +38,6 @@
 
 ## To do:
 
-- [selma3d_extract_finetune_patches2](/home/ads4015/ssl_project/src/selma3d_extract_finetune_patches2.py) 
-- [ ] Delete original version and make patches2 into the original version
-- [ ] Fix script so that exactly 25 patches print from each volue
+- [ ] Read papers
+- [ ] Wu data
+- [ ] New data from Johannes
