@@ -57,6 +57,9 @@ id_rsa*
 # wandb
 wandb/
 
+# old
+old/
+
 
 
 
