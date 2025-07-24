@@ -52,9 +52,13 @@ def load_image_nii(path, pad_to_channels=2):
     # load image
     img = nib.load(str(path)).get_fdata()
 
-    # ensure correct dimensions
+    # ensure correct dimensions: if shape is (D, H, W, 1) then squeeze out trailing singleton dimension
+    if img.ndim == 4 and img.shape[-1] == 1:
+        img = np.squeeze(img, axis=-1) # becomes (D, H, W)
+
+    # ensure correct dimensions: if shape is (D, H, W) then add channel dimension in beginning
     if img.ndim == 3:
-        img = np.expand_dims(img, axis=0) # (1, D, H, W)
+        img = np.expand_dims(img, axis=0) # becomes (1, D, H, W)
 
     # pad channels if needed (1 channel to 2 channels)
     if img.shape[0] == 1 and pad_to_channels == 2:
@@ -125,7 +129,7 @@ def process_and_save(model, input_file, output_dir):
     mask = run_inference(model, image_tensor, original_shape) # run inference and crop to original shape
     output_path = output_dir / (input_file.name.replace('.nii.gz', '.nii').replace('.nii', '_pred.nii.gz'))
     save_mask_as_nii(mask, output_path) # save mask as nifti file
-    print(f'Saved prediction to {output_path}')
+    print(f'Saved prediction to {output_path}', flush=True)
     
 
 # main function 
@@ -155,9 +159,9 @@ def main():
     elif input_path.is_dir():
         nii_files = sorted([f for f in input_path.glob('*') if f.suffix in ['.nii', '.gz'] or f.name.endswith('.nii.gz')]) # get all nifti files in directory (.nii or .nii.gz)
         for file in nii_files:
-            print(f'Running inference on {file.name}')
+            print(f'Running inference on {file.name}', flush=True)
             process_and_save(model, file, output_dir)
-        print(f'Saved {len(nii_files)} predictions to {output_dir}') # indicate how many files were processed from the directory
+        print(f'Saved {len(nii_files)} predictions to {output_dir}', flush=True) # indicate how many files were processed from the directory
     else:
         raise ValueError('input_path must be a file or directory')
     
