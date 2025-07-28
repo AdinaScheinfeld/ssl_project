@@ -46,9 +46,3 @@
 - [selma3d_finetune_patches](/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches) - Patches extracted from annoted selma3d volumes to finetune model
 - [selma3d_finetune_patches_split](/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches_split) - Selma3d finetune patches split into tran/val sets
 -[selma3d_unlabeled_val](/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_unlabeled_val) - Selma3d unlabeled validation data
-
-## To do:
-
-- [ ] Read papers
-- [ ] Wu data
-- [ ] New data from Johannes
