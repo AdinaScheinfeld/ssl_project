@@ -7,8 +7,10 @@
     - [selma3d_get_patches_job_array](/home/ads4015/ssl_project/preprocess_patches/scripts/selma3d_get_patches_job_array.sh) - Slurm scrip to parallelize extraction of patches for pretraining. 
     - [visualize_selma3d_train_transforms.ipynb](/home/ads4015/ssl_project/notebooks/visualize_selma3d_train_transforms.ipynb) - Notebook to visualize transforms for unannotated selma3d pretraining data. Also downloads patches for pretraining. 
 
+    - [visualize_wu_train_transforms.ipynb](/home/ads4015/ssl_project/preprocess_patches/notebooks/visualize_wu_train_transforms.ipynb) - Notebook to visualize transforms for Wu brain images. All visualizations in notebook. Does not download anything. 
+
 - Pretraining
-    - [lsm_pretrain.py](/home/ads4015/ssl_project/src/lsm_pretrain.py) - Pretraining script using unannotated selma3d data. 
+    - [selma3d_pretrain.py](/home/ads4015/ssl_project/src/selma3d_pretrain.py) - Pretraining script using unannotated selma3d data. 
     - [selma3d_pretrain_job.sh](/home/ads4015/ssl_project/scripts/selma3d_pretrain_job.sh) - Slurm script to run pretraining python script. 
     - [selma3d_pretrain_config.yaml](/home/ads4015/ssl_project/configs/selma3d_pretrain_config.yaml) - Pretrain config
     - [selma3d_visualization_functions.py](/home/ads4015/ssl_project/preprocess_patches/src/selma3d_visualization_functions.py) - Functions for preprocessing files/scripts
