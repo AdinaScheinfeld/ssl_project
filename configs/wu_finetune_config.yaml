@@ -1,0 +1,13 @@
+# seed for reproducibility
+seed: 100
+
+# path to pretrained foundation model checkpoint
+pretrained_ckpt: /home/ads4015/ssl_project/ibot-pretrain-lsm/p6jax4gl/checkpoints/best-val-loss.ckpt
+
+# data settings
+patch_dir: /midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches_split
+batch_size: 4
+lr: 0.0001
+max_epochs: 100
+wandb_project: selma3d_finetune
+early_stopping_patience: 10

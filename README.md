@@ -17,10 +17,12 @@
     - [wu_pretrain_job.sh](/home/ads4015/ssl_project/scripts/wu_pretrain_job.sh) - Slurm script to run pretraining python script.
     - [wu_pretrain_config.yaml](/home/ads4015/ssl_project/configs/wu_pretrain_config.yaml) - Pretrain config for Wu data.
     - [wu_visualization_functions.py](/home/ads4015/ssl_project/preprocess_patches/src/wu_visualization_functions.py) - Functions for preprocessing and pretraining files and scripts.
+    - [wu_transforms.py](/home/ads4015/ssl_project/src/wu_transforms.py) - Transforms for pretraining and finetuning.
 
 - Models
 
     - [ibot_pretrain_module.py](/home/ads4015/ssl_project/models/ibot_pretrain_module.py) - IBOT pretraining model (used for Wu pretraining in wu_pretrain.py).
+    - [binary_segmentation_module.py](/home/ads4015/ssl_project/models/binary_segmentation_module.py) - Binary segmentation model (used to finetune Wu model using Selma3D data).
 
 - Finetuning
     - [selma3d_extract_finetune_patches.py](/home/ads4015/ssl_project/src/selma3d_extract_finetune_patches.py) - Python script to extract patches of annotated selma3d data to finetune model
@@ -30,7 +32,13 @@
     - [selma3d_split_finetune_patches_job.sh](/home/ads4015/ssl_project/scripts/selma3d_split_finetune_patches_job.sh) - Slurm script to split finetune patches. 
     - [selma3d_finetune.py](/home/ads4015/ssl_project/src/selma3d_finetune.py) - Python script to finetune model.
     - [selma3d_finetune_job.sh](/home/ads4015/ssl_project/scripts/selma3d_finetune_job.sh) - Job to run finetuning script.
-    - [selma3d_finetune_config.yaml](/home/ads4015/ssl_project/configs/selma3d_finetune_config.yaml) - Config file for finetuning.
+    - [selma3d_finetune_config.yaml](/home/ads4015/ssl_project/configs/selma3d_finetune_config.yaml) - Config file for finetuning.<br><br>
+    - [wu_transforms.py](/home/ads4015/ssl_project/src/wu_transforms.py) - Transforms for pretraining and finetuning.
+    - [wu_finetune.py](/home/ads4015/ssl_project/src/wu_finetune.py) - Script to finetune Wu model using Selma3D data.
+    - [wu_finetune_job.sh](/home/ads4015/ssl_project/scripts/wu_finetune_job.sh) - Shell script to run finetuning for Wu model.
+    - [wu_finetune_config.yaml](/home/ads4015/ssl_project/configs/wu_finetune_config.yaml) - Config file for Wu finetuning.
+
+
 
 - Inference
     - [selma3d_inference.py](/home/ads4015/ssl_project/src/selma3d_inference.py) - Script to run inference on a single file or on all files in a folder.

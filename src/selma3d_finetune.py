@@ -9,8 +9,8 @@ from pathlib import Path
 import yaml
 import wandb
 
-from monai.networks.nets import SwinUNETR
 from monai.losses import DiceCELoss
+from monai.networks.nets import SwinUNETR
 
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger

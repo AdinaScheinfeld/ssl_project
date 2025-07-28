@@ -9,6 +9,7 @@ import numpy as np
 from monai.transforms import (
     Compose,
     EnsureChannelFirstd,
+    EnsureTyped,
     LoadImaged,
     MapTransform,
     RandAffined,
@@ -81,8 +82,9 @@ def get_load_transforms():
 def get_finetune_train_transforms():
     return Compose([
 
-        # ensure channel first and normalize intensity
-        EnsureChannelFirstd(keys=['image']),
+        # EnsureChannelFirstd(keys=['image', 'label']), # don't need this transform when using .pt files
+
+        # scale intensity to normalize
         ScaleIntensityRangePercentilesd(keys=['image'], lower=1.0, upper=99.0, b_min=0.0, b_max=1.0, clip=True),
 
         # spatial augmentations
@@ -97,7 +99,7 @@ def get_finetune_train_transforms():
         RandShiftIntensityd(keys=['image'], offsets=0.2, prob=0.2),
         ClampIntensityd(keys=['image'], minv=0.0, maxv=1.0),
 
-        # convert to tensor (IMPORTANT)
+        # convert to tensor
         ToTensord(keys=['image', 'label'])
     ])
 
@@ -105,7 +107,7 @@ def get_finetune_train_transforms():
 # function to get validation transforms for finetuning
 def get_finetune_val_transforms():
     return Compose([
-        EnsureChannelFirstd(keys=['image']),
+        # EnsureChannelFirstd(keys=['image', 'label']), # don't need this transform when using .pt files
         ScaleIntensityRangePercentilesd(keys=['image'], lower=1.0, upper=99.0, b_min=0.0, b_max=1.0, clip=True),
         ToTensord(keys=['image', 'label'])
     ])
