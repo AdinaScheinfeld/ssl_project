@@ -43,7 +43,7 @@
 - [SELMA3D](/midtier/paetzollab/scratch/ads4015/data_selma3d/SELMA3D) - Annotated selma3d patches for finetuning
 - [selma3d_finetune_patches](/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches) - Patches extracted from annoted selma3d volumes to finetune model
 - [selma3d_finetune_patches_split](/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches_split) - Selma3d finetune patches split into tran/val sets
--[selma3d_unlabeled_val](/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_unlabeled_val) - Selma3d unlabeled validation data<br><br>
+- [selma3d_unlabeled_val](/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_unlabeled_val) - Selma3d unlabeled validation data<br><br>
 - [all_wu_brain_patches](/midtier/paetzollab/scratch/ads4015/all_wu_brain_patches) - Folder containing subfolders with all brains from Wu lab.
     - [01_AA1-PO-C-R45](/midtier/paetzollab/scratch/ads4015/all_wu_brain_patches/01_AA1-PO-C-R45) - TH protein
     - [02_AZ10-SR3B-6_A](/midtier/paetzollab/scratch/ads4015/all_wu_brain_patches/02_AZ10-SR3B-6_A) - CTIP2 protein
