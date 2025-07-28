@@ -28,8 +28,8 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision.transforms import Compose
 
 # get functions from other files
-sys.path.append('/home/ads4015/ssl_project/preprocess_patches/src')
-from wu_visualization_functions import get_train_transforms, get_val_transforms, get_load_transforms, log_images_to_wandb_table
+sys.path.append('/home/ads4015/ssl_project/src/')
+from wu_transforms import get_train_transforms, get_val_transforms, get_load_transforms
 
 # get ibot pretraining module
 sys.path.append('/home/ads4015/ssl_project/models')
