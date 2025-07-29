@@ -2,12 +2,17 @@
 seed: 100
 
 # path to pretrained foundation model checkpoint
-pretrained_ckpt: /home/ads4015/ssl_project/ibot-pretrain-lsm/p6jax4gl/checkpoints/best-val-loss.ckpt
+# pretrained_ckpt: /home/ads4015/ssl_project/ibot-pretrain-lsm/p6jax4gl/checkpoints/best-val-loss.ckpt # pretrained checkpoint from pretraining
+pretrained_ckpt: null # don't use a pretrained checkpoint
 
 # data settings
 patch_dir: /midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches_split
 batch_size: 4
 lr: 0.0001
-max_epochs: 100
+max_epochs: 1000
 wandb_project: selma3d_finetune
 early_stopping_patience: 10
+
+# save settings
+checkpoint_filename: finetune_no_pretrain_1
+checkpoint_dirpath: /home/ads4015/ssl_project/checkpoints

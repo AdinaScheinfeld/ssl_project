@@ -138,7 +138,11 @@ if __name__ == '__main__':
 
     callbacks = [
         EarlyStopping(monitor='val_loss', patience=config['early_stopping_patience'], mode='min'),
-        ModelCheckpoint(monitor='val_loss', save_top_k=1, mode='min', filename='best3')
+        ModelCheckpoint(monitor='val_loss', 
+                        save_top_k=1, 
+                        mode='min', 
+                        filename=config['checkpoint_filename'],
+                        dirpath=config['checkpoint_dirpath'])
     ]
 
     # train
