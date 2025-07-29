@@ -81,7 +81,7 @@ class SegPatchDataset(Dataset):
         # print(f'[DEBUG] Loaded: {pt_path.name} | Image shape after channels: {image.shape}, label shape after channels: {label.shape}', flush=True)
 
         # add image and label to dict
-        data = {'image': image, 'label': label}
+        data = {'image': image, 'label': label, 'filename': str(self.paths[idx])}
 
         # print(f"[DEBUG] {pt_path} | image shape: {image.shape}, label shape: {label.shape}", flush=True)
 
