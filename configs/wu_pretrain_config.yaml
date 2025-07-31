@@ -13,6 +13,8 @@ model:
   mask_patch_size: 16 # base patch size for masking
   temp_student: 0.1 # temperature for student logits
   temp_teacher: 0.04 # temperature for teacher softmax
+  save_filename: wu_pretrained_1
+  save_dirpath: /home/ads4015/ssl_project/checkpoints
 
 training:
   seed: 100

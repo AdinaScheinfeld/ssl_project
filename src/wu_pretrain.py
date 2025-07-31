@@ -35,6 +35,11 @@ from wu_transforms import get_train_transforms, get_val_transforms, get_load_tra
 sys.path.append('/home/ads4015/ssl_project/models')
 from ibot_pretrain_module import IBOTPretrainModule
 
+# get dataset
+sys.path.append('/home/ads4015/ssl_project/data')
+from nifti_patch_dataset import NiftiPatchDataset
+from wu_data_module import WuDataModule
+
 
 # set matmul precision for better performance on tensor core gpus
 torch.set_float32_matmul_precision('medium')
@@ -45,90 +50,6 @@ def load_config(config_path):
     with open(config_path, 'r') as f:
         return yaml.safe_load(f)
     
-
-# --- Dataset Class ---
-
-# nifti patch dataset class
-class NiftiPatchDataset(Dataset):
-
-    # init
-    def __init__(self, file_paths, transforms=None):
-        self.file_paths = file_paths
-        self.transforms = transforms
-
-    # length
-    def __len__(self):
-        return len(self.file_paths)
-    
-    # getter
-    def __getitem__(self, idx):
-        data = {'image': self.file_paths[idx]}
-        if self.transforms:
-            data = self.transforms(data)
-        return data
-    
-
-# --- DataModule Class ---
-
-# datamodule class for wu data
-class WuDataModule(LightningDataModule):
-
-    # init
-    def __init__(self, data_dir, batch_size, train_frac, seed):
-        super().__init__()
-        self.data_dir = data_dir
-        self.batch_size = batch_size
-        self.train_frac = train_frac
-        self.seed = seed
-
-    # setup
-    def setup(self, stage=None):
-
-        # get volume directories
-        volume_dirs = sorted(glob.glob(os.path.join(self.data_dir, '*/input')))
-        if not volume_dirs:
-            raise FileNotFoundError(f'No output folders found under {self.data_dir}')
-        
-        # get train/val split
-        random.seed(self.seed)
-        random.shuffle(volume_dirs)
-        split_idx = int(self.train_frac * len(volume_dirs))
-        train_dirs = volume_dirs[:split_idx]
-        val_dirs = volume_dirs[split_idx:]
-
-        # get list of train/val directories
-        self.train_volume_names = [os.path.basename(os.path.dirname(p)) for p in train_dirs]
-        self.val_volume_names = [os.path.basename(os.path.dirname(p)) for p in val_dirs]
-
-        # function to collect all files in a list of directories
-        def collect_files(dirs):
-            files = []
-            for d in dirs:
-                files.extend(glob.glob(os.path.join(d, '*.nii.gz')))
-            return sorted(files)
-        
-        # collect train/val files
-        train_files = collect_files(train_dirs)
-        val_files = collect_files(val_dirs)
-
-        # print debugging and info
-        print(f'[DEBUG] Found {len(train_files)} train and {len(val_files)} val patches from {len(train_dirs)} train and {len(val_dirs)} val volumes.')
-        print(f'[INFO] Train volumes: {self.train_volume_names}')
-        print(f'[INFO] Val volumes: {self.val_volume_names}')
-
-        # create train/val datasets
-        load = get_load_transforms()
-        self.train_ds = NiftiPatchDataset(train_files, transforms=MonaiCompose([load, get_train_transforms()]))
-        self.val_ds = NiftiPatchDataset(val_files, transforms=MonaiCompose([load, get_val_transforms()]))
-
-    # train dataloader
-    def train_dataloader(self):
-        return DataLoader(self.train_ds, batch_size=self.batch_size, shuffle=True, num_workers=4)
-    
-    # val dataloader
-    def val_dataloader(self):
-        return DataLoader(self.val_ds, batch_size=self.batch_size, shuffle=False, num_workers=4)
-
 
 # --- Main Entry Point --- 
 
@@ -175,7 +96,8 @@ if __name__ == '__main__':
         monitor='val_loss',
         mode='min',
         save_top_k=1,
-        filename='best-val-loss',
+        filename=config['model']['save_filename'],
+        dirpath=config['model']['save_dirpath'],
         verbose=True
     )
 
