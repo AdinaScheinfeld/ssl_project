@@ -4,6 +4,7 @@
 
 # imports
 from monai.networks.nets import SwinUNETR
+import os
 import random
 import sys
 from transformers import AutoTokenizer, AutoModel
@@ -17,6 +18,8 @@ import torch.nn.functional as F
 # get functions from other files
 sys.path.append('/home/ads4015/ssl_project/preprocess_patches/src')
 from wu_visualization_functions import log_images_to_wandb_table
+
+os.environ['TOKENIZERS_PRALELLISM'] = 'false'
 
 
 # --- Module ---
@@ -46,7 +49,7 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
             img_size=(self.image_size,)*3,
             in_channels=1,
             out_channels=self.embed_dim,
-            feature_size=48, ## ADD TO CONFIG - feature_size
+            feature_size=config['model']['feature_size'],
             use_checkpoint=True
         )
 
@@ -56,7 +59,7 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
             img_size=(self.image_size,)*3,
             in_channels=1,
             out_channels=self.embed_dim,
-            feature_size=48, ## ADD TO CONFIG - feature_size
+            feature_size=config['model']['feature_size'], 
             use_checkpoint=False        
         )
         for p in self.teacher_encoder.parameters():

@@ -117,6 +117,7 @@ if __name__ == '__main__':
     best_val_loss = trainer.checkpoint_callback.best_model_score
     wandb_logger.experiment.log({
         'best_val_loss': best_val_loss.item() if best_val_loss else None,
+        'best_train_loss': best_train_loss,
         'best_model_path': best_model_path
     })
 

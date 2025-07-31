@@ -5,6 +5,15 @@ from torch.utils.data import Dataset
 
 # --- Dataset Class ---
 
+# create dict of image-text mapping
+STAIN_MAP = {
+    '01_aa1-po-c-r45': 'TH protein, cytoplasm',
+    '02_az10-sr3b-6_a': 'CTIP2 protein, nucleus',
+    '03_aj12-lg1e-n_a': 'GFAP protein, cytoplasm',
+    '04_ae2-wf2a_a': 'p75NTH protein, cell membrane and cytoplasm',
+    '05_ch1-pcw1a_a': 'DBH protein, cytoplasm and vesicular compartments'
+}
+
 # nifti patch dataset class with text
 class NiftiTextPatchDataset(Dataset):
 
@@ -13,21 +22,13 @@ class NiftiTextPatchDataset(Dataset):
         self.file_paths = file_paths
         self.transforms = transforms
 
+
     # function to extract text prompt from filename
     def extract_text(self, path):
-        path_lower = path.lower()
-        if '01_aa1-po-c-r45' in path_lower:
-            return 'TH protein, cytoplasm'
-        elif '02_az10-sr3b-6_a' in path_lower:
-            return 'CTIP2 protein, nucleus'
-        elif '03_aj12-lg1e-n_a' in path_lower:
-            return 'GFAP protein, cytoplasm'
-        elif '04_ae2-wf2a_a' in path_lower:
-            return 'p75NTH protein, cell membrane and cytoplasm'
-        elif '05_ch1-pcw1a_a' in path_lower:
-            return 'DBH protein, cytoplasm and vesicular compartments'
-        else:
-            return 'unknown stain, unknown location'
+        for k, v in STAIN_MAP.items():
+            if k in path.lower():
+                return v
+        return 'unknown stain, unknown location' # if unknown folder
 
     # length
     def __len__(self):

@@ -43,7 +43,7 @@ class IBOTPretrainModule(pl.LightningModule):
                 feature_size=48, ## ADD TO CONFIG - feature_size
                 use_checkpoint=True
             ),
-            nn.Sigmoid() # constrain output to [0, 1]
+            # nn.Sigmoid() # constrain output to [0, 1]
         )
 
         # ema teacher network 
@@ -56,12 +56,17 @@ class IBOTPretrainModule(pl.LightningModule):
                 feature_size=48, ## ADD TO CONFIG - feature_size
                 use_checkpoint=False      
             ),
-            nn.Sigmoid()      
+            # nn.Sigmoid()      
         )
         for p in self.teacher.parameters():
             p.requires_grad = False # freeze teacher weights
 
         self.register_buffer('ema_decay', torch.tensor(ema_decay)) # ema decay factor (0.996 is iBOT default)
+
+    # warm start teacher
+    def on_fit_start(self):
+        for s, t in zip(self.encoder.parameters(), self.teacher.parameters()):
+            t.data.copy_(s.data)
 
     # function to crate patch-level binary mask for each volume in batch
     def generate_patch_mask(self, x, base_mask_patch_size):
@@ -110,38 +115,64 @@ class IBOTPretrainModule(pl.LightningModule):
     # function to compute combined loss, MSE for masked and L1 for unmasked
     def compute_loss(self, student_features, teacher_features, x, mask):
 
-        # flatten spatial dimensions to compute loss
-        student_flat = student_features.view(student_features.size(0), -1)
-        teacher_flat = teacher_features.view(teacher_features.size(0), -1)
+        # downsample mask to match feature resolution
+        mask_ds = F.interpolate(mask.float(), size=student_features.shape[2:], mode='nearest').bool()
 
-        # temperature scaling
-        temp_s, temp_t = self.temp_student, self.temp_teacher
-        teacher_probs = F.softmax(teacher_flat / temp_t, dim=1).detach()
-        student_logprobs = F.log_softmax(student_flat / temp_s, dim=1)
+        # variable to hold masked loss (initialized to 0 for first 5 epochs)
+        loss_masked = torch.tensor(0.0, device=x.device)
 
-        # get masked indices for computing distillation loss
-        mask_flat = mask.view(mask.size(0), -1)
-        masked_idx = mask_flat.bool()
-
-        # KL divergence loss on masked voxels only
-        if masked_idx.any():
-            distill_loss = F.kl_div(
-                student_logprobs[masked_idx],
-                teacher_probs[masked_idx],
+        # use kl divergence of student with teacher only after 5th epoch (otherwise only use L1 loss on unmasked voxels)
+        if self.current_epoch > 5 and mask_ds.any():
+            with torch.no_grad():
+                teacher_soft = F.softmax(teacher_features / self.temp_teacher, dim=1)
+            student_log = F.log_softmax(student_features / self.temp_student, dim=1)
+            loss_masked = F.kl_div(
+                student_log[mask_ds],
+                teacher_soft[mask_ds],
                 reduction='batchmean'
             )
-        else:
-            distill_loss = torch.tensor(0.0, device=self.device)
 
-        # L1 reconstruction loss on unmasked voxels
-        reconstruction_loss = F.l1_loss(student_features[~mask], x[~mask])
+        # L1 reconstruction on unmasked voxels 
+        loss_unmasked = F.l1_loss(student_features[~mask_ds], x[~mask_ds])
 
-        # return weighted sum of distillation loss and reconstruction loss
-        return 0.8 * distill_loss + 0.2 * reconstruction_loss
+        # return weighted sum of masked and unmasked loss
+        return 0.8 * loss_masked + 0.2 * loss_unmasked
 
-        # distill_loss = nn.MSELoss()(student_features[mask], teacher_features[mask]) # match masked region to teacher
-        # recon_loss = nn.L1Loss()(student_features[~mask], x[~mask]) # match unmasked region to original
-        # return 0.8 * distill_loss + 0.2 * recon_loss
+
+
+
+        # # flatten spatial dimensions to compute loss
+        # student_flat = student_features.view(student_features.size(0), -1)
+        # teacher_flat = teacher_features.view(teacher_features.size(0), -1)
+
+        # # temperature scaling
+        # temp_s, temp_t = self.temp_student, self.temp_teacher
+        # teacher_probs = F.softmax(teacher_flat / temp_t, dim=1).detach()
+        # student_logprobs = F.log_softmax(student_flat / temp_s, dim=1)
+
+        # # get masked indices for computing distillation loss
+        # mask_flat = mask.view(mask.size(0), -1)
+        # masked_idx = mask_flat.bool()
+
+        # # KL divergence loss on masked voxels only
+        # if masked_idx.any():
+        #     distill_loss = F.kl_div(
+        #         student_logprobs[masked_idx],
+        #         teacher_probs[masked_idx],
+        #         reduction='batchmean'
+        #     )
+        # else:
+        #     distill_loss = torch.tensor(0.0, device=self.device)
+
+        # # L1 reconstruction loss on unmasked voxels
+        # reconstruction_loss = F.l1_loss(student_features[~mask], x[~mask])
+
+        # # return weighted sum of distillation loss and reconstruction loss
+        # return 0.8 * distill_loss + 0.2 * reconstruction_loss
+
+        # # distill_loss = nn.MSELoss()(student_features[mask], teacher_features[mask]) # match masked region to teacher
+        # # recon_loss = nn.L1Loss()(student_features[~mask], x[~mask]) # match unmasked region to original
+        # # return 0.8 * distill_loss + 0.2 * recon_loss
     
     # training step
     def training_step(self, batch, batch_idx):
@@ -171,6 +202,11 @@ class IBOTPretrainModule(pl.LightningModule):
         self.last_train_mask = mask
         self.last_train_masked = x_masked
         self.last_train_output = student_features
+
+        # debug output
+        if self.current_epoch == 0 and batch_idx == 0:
+            print(f'[DEBUG] Student output stats: min={student_features.min().item()}, max={student_features.max().item()}')
+            print(f'[DEBUG] Mask coverage: {mask.float().mean().item() * 100:.2f}%')
 
         return train_loss
     
