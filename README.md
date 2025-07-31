@@ -11,7 +11,7 @@
         - [visualize_wu_train_transforms.ipynb](/preprocess_patches/notebooks/visualize_wu_train_transforms.ipynb) - Notebook to visualize transforms for Wu brain images. All visualizations in notebook. Does not download anything. 
 
 
-- Configs
+- **Configs**
     - SELMA 3D
         - [selma3d_pretrain_config.yaml](/configs/selma3d_pretrain_config.yaml) - Pretrain config for Selma3D data.
     - Wu
@@ -20,7 +20,7 @@
         - [wu_clip_pretrain_config.yaml](/configs/wu_clip_pretrain_config.yaml) - Pretrain config for Wu data using CLIP. 
 
 
-- Pretraining
+- **Pretraining**
     - SELMA 3D
         - [selma3d_pretrain.py](/src/selma3d_pretrain.py) - Pretraining script using unannotated selma3d data. 
         - [selma3d_pretrain_job.sh](/scripts/selma3d_pretrain_job.sh) - Slurm script to run pretraining python script. 
@@ -35,13 +35,13 @@
         - [wu_clip_pretrain_job.sh](/scripts/wu_clip_pretrain_job.sh) - Slurm script to run pretraining python script for Wu CLIP. 
 
 
-- Data Classes
+- **Data Classes**
     - Wu (CLIP)
         - [nifti_text_patch_dataset.py](/data/nifti_text_patch_dataset.py) - Dataset for Nifti images with accompanying text for Wu CLIP pretraining. 
         - [wu_clip_data_module.py](/data/wu_clip_data_module.py) - Data module for Wu train/val data for CLIP pretraining. 
 
 
-- Models
+- **Models**
     - Wu
         - [ibot_pretrain_module.py](/models/ibot_pretrain_module.py) - IBOT pretraining model (used for Wu pretraining in wu_pretrain.py).
         - [binary_segmentation_module.py](/models/binary_segmentation_module.py) - Binary segmentation model (used to finetune Wu model using Selma3D data).
@@ -49,7 +49,7 @@
         - [ibot_clip_pretrain_module](/models/ibot_clip_pretrain_module.py) - IBOT + CLIP pretraining module for Wu data. 
 
 
-- Finetuning
+- **Finetuning**
     - SELMA 3D
         - [selma3d_extract_finetune_patches.py](/src/selma3d_extract_finetune_patches.py) - Python script to extract patches of annotated selma3d data to finetune model
         - [selma3d_extract_finetune_patches_job.sh](/scripts/selma3d_extract_finetune_patches_job.sh) - Slurm script to extract annotated finetuning patches. 
@@ -66,7 +66,7 @@
         - [wu_finetune_config.yaml](/configs/wu_finetune_config.yaml) - Config file for Wu finetuning.
 
 
-- Inference
+- **Inference**
     - SELMA 3D
         - [selma3d_inference.py](/src/selma3d_inference.py) - Script to run inference on a single file or on all files in a folder.
         - [selma3d_inference_job.sh](/scripts/selma3d_inference_job.sh) - Job to run inference script. 
