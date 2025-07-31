@@ -3,10 +3,12 @@
 ## Scripts
 
 - Preprocessing
-    - [selma3d_get_patches.py](/preprocess_patches/src/selma3d_get_patches.py) - Script to extract small patches of unannotated selma3d data for pretraining.
-    - [selma3d_get_patches_job_array](/preprocess_patches/scripts/selma3d_get_patches_job_array.sh) - Slurm scrip to parallelize extraction of patches for pretraining.
-    - [visualize_selma3d_train_transforms.ipynb](/preprocess_patches/notebooks/visualize_selma3d_train_transforms.ipynb) - Notebook to visualize transforms for unannotated selma3d pretraining data. Also downloads patches for pretraining.<br><br>
-    - [visualize_wu_train_transforms.ipynb](/preprocess_patches/notebooks/visualize_wu_train_transforms.ipynb) - Notebook to visualize transforms for Wu brain images. All visualizations in notebook. Does not download anything. 
+    - SELMA 3D
+        - [selma3d_get_patches.py](/preprocess_patches/src/selma3d_get_patches.py) - Script to extract small patches of unannotated selma3d data for pretraining.
+        - [selma3d_get_patches_job_array](/preprocess_patches/scripts/selma3d_get_patches_job_array.sh) - Slurm scrip to parallelize extraction of patches for pretraining.
+        - [visualize_selma3d_train_transforms.ipynb](/preprocess_patches/notebooks/visualize_selma3d_train_transforms.ipynb) - Notebook to visualize transforms for unannotated selma3d pretraining data. Also downloads patches for pretraining.
+    - Wu
+        - [visualize_wu_train_transforms.ipynb](/preprocess_patches/notebooks/visualize_wu_train_transforms.ipynb) - Notebook to visualize transforms for Wu brain images. All visualizations in notebook. Does not download anything. 
 
 - Pretraining
     - [selma3d_pretrain.py](/src/selma3d_pretrain.py) - Pretraining script using unannotated selma3d data. 
@@ -22,7 +24,8 @@
 - Models
 
     - [ibot_pretrain_module.py](/models/ibot_pretrain_module.py) - IBOT pretraining model (used for Wu pretraining in wu_pretrain.py).
-    - [binary_segmentation_module.py](/models/binary_segmentation_module.py) - Binary segmentation model (used to finetune Wu model using Selma3D data).
+    - [binary_segmentation_module.py](/models/binary_segmentation_module.py) - Binary segmentation model (used to finetune Wu model using Selma3D data).<br><br>
+    - 
 
 - Finetuning
     - [selma3d_extract_finetune_patches.py](/src/selma3d_extract_finetune_patches.py) - Python script to extract patches of annotated selma3d data to finetune model
