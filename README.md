@@ -5,7 +5,7 @@
 - Preprocessing
     - [selma3d_get_patches.py](/preprocess_patches/src/selma3d_get_patches.py) - Script to extract small patches of unannotated selma3d data for pretraining.
     - [selma3d_get_patches_job_array](/preprocess_patches/scripts/selma3d_get_patches_job_array.sh) - Slurm scrip to parallelize extraction of patches for pretraining.
-    - [visualize_selma3d_train_transforms.ipynb](/notebooks/visualize_selma3d_train_transforms.ipynb) - Notebook to visualize transforms for unannotated selma3d pretraining data. Also downloads patches for pretraining.<br><br>
+    - [visualize_selma3d_train_transforms.ipynb](/preprocess_patches/notebooks/visualize_selma3d_train_transforms.ipynb) - Notebook to visualize transforms for unannotated selma3d pretraining data. Also downloads patches for pretraining.<br><br>
     - [visualize_wu_train_transforms.ipynb](/preprocess_patches/notebooks/visualize_wu_train_transforms.ipynb) - Notebook to visualize transforms for Wu brain images. All visualizations in notebook. Does not download anything. 
 
 - Pretraining
