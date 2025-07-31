@@ -2,7 +2,7 @@
 
 ## Scripts
 
-- Preprocessing
+- **Preprocessing**
     - SELMA 3D
         - [selma3d_get_patches.py](/preprocess_patches/src/selma3d_get_patches.py) - Script to extract small patches of unannotated selma3d data for pretraining.
         - [selma3d_get_patches_job_array](/preprocess_patches/scripts/selma3d_get_patches_job_array.sh) - Slurm scrip to parallelize extraction of patches for pretraining.
