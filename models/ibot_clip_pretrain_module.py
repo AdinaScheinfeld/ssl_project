@@ -19,7 +19,7 @@ import torch.nn.functional as F
 sys.path.append('/home/ads4015/ssl_project/preprocess_patches/src')
 from wu_visualization_functions import log_images_to_wandb_table
 
-os.environ['TOKENIZERS_PRALELLISM'] = 'false'
+os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
 
 # --- Module ---

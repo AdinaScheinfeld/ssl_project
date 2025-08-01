@@ -24,6 +24,8 @@ source activate monai-env1
 export WANDB_API_KEY=9778703390de02a48bdea1415c3c36c3bae408c0
 wandb login $WANDB_API_KEY
 
+export TOKENIZERS_PARALLELISM=false
+
 # set path to config file
 CONFIG_PATH="/home/ads4015/ssl_project/configs/wu_clip_pretrain_config.yaml"
 

@@ -44,6 +44,8 @@ sys.path.append('/home/ads4015/ssl_project/data/')
 from wu_clip_data_module import WuCLIPDataModule
 
 
+os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+
 # set matmul precision for better performance on tensor core gpus
 torch.set_float32_matmul_precision('medium')
 
@@ -117,7 +119,7 @@ if __name__ == '__main__':
     best_val_loss = trainer.checkpoint_callback.best_model_score
     wandb_logger.experiment.log({
         'best_val_loss': best_val_loss.item() if best_val_loss else None,
-        'best_train_loss': best_train_loss,
+        # 'best_train_loss': best_train_loss,
         'best_model_path': best_model_path
     })
 
