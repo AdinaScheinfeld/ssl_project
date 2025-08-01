@@ -74,3 +74,50 @@ def log_images_to_wandb_table(logger, originals, maskeds, student_preds, prefix,
     # log table
     logger.experiment.log({f'{prefix} Samples (epoch {step_or_epoch})': table})
 
+
+# function to log images from multiple batches to wandb table
+# batches is list of (originals, maskeds, student_preds) tuples
+def log_images_batches_to_wandb_table(logger, batches, prefix, step_or_epoch, max_rows=5, log_histograms=False):
+
+    # create table
+    table = wandb.Table(columns=['Original', 'Masked', 'Student'])
+
+    # counter for number of images logged
+    global_idx = 0
+
+    # loop through number of entries to plot and get images for plotting
+    for originals, maskeds, student_preds in batches:
+
+        batch_size = originals.shape[0]
+
+        # stop when reach max rows to log
+        for i in range(batch_size):
+            if global_idx >= max_rows:
+                break
+
+            center_z = originals.shape[2] // 2
+            original_img = originals[i, 0].cpu().numpy()[center_z]
+            masked_img = maskeds[i, 0].cpu().numpy()[center_z]
+            pred_img = student_preds[i, 0].detach().cpu().numpy()[center_z]
+
+            # log intensity histogram for first sample in each batch
+            if i == 0 and log_histograms:
+                log_intensity_histogram(originals[i, 0], f'{prefix} Original', logger, step_or_epoch)
+                log_intensity_histogram(maskeds[i, 0], f'{prefix} Masked', logger, step_or_epoch)
+                log_intensity_histogram(student_preds[i, 0], f'{prefix} Student', logger, step_or_epoch)
+
+            # create table
+            table.add_data(
+                wandb.Image(original_img, caption=f'Original {global_idx}'),
+                wandb.Image(masked_img, caption=f'Masked {global_idx}'),
+                wandb.Image(pred_img, caption=f'Predicted {global_idx}')
+            )
+
+            # increment counter
+            global_idx += 1
+
+        if global_idx >= max_rows:
+            break
+        
+    # log table
+    logger.experiment.log({f'{prefix} Samples (epoch {step_or_epoch})': table})

@@ -17,7 +17,7 @@ import torch.nn.functional as F
 
 # get functions from other files
 sys.path.append('/home/ads4015/ssl_project/preprocess_patches/src')
-from wu_visualization_functions import log_images_to_wandb_table
+from wu_visualization_functions import log_images_to_wandb_table, log_images_batches_to_wandb_table
 
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
@@ -40,6 +40,10 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         self.text_model_name = config['model']['text_model_name']
         self.embed_dim = config['model']['embed_dim']
         self.clip_temperature = config['model']['clip_temperature']
+        self.reconstruction_head = nn.Sequential(
+            nn.Conv3d(self.embed_dim, 1, kernel_size=1),
+            nn.Sigmoid()
+        )
 
         # *** SwinUNETR encoders ***
 
@@ -85,6 +89,13 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
             nn.Flatten(),
             nn.Linear(self.embed_dim, self.embed_dim)
         )
+
+        # lists and count for logging to wandb
+        self.train_batches_for_logging = []
+        self.val_batches_for_logging = []
+        self.train_log_count = 0
+        self.val_log_count = 0
+        self.max_log_images = config['model']['max_log_images']
 
 
     # function to create patch-level binary mask for each volume in batch
@@ -168,6 +179,7 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
     def forward(self, x):
         return self.student_encoder(x)
     
+
     # function to compute combined loss, MSE for masked and L1 for unmasked
     # combines distillation loss (student mimics teacher on masked regions) 
     # and reconstruction loss (student reconstructs original image in unmasked regions)
@@ -177,23 +189,26 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         B, C, D, H, W = student_features.shape # C = embed_dim
 
         # downsample mask and x to match output feature map and output for reconstruction
-        mask_downsampled = F.interpolate(mask.float(), size=(D, H, W), mode='nearest').bool() # shape: (B, 1, D, H, W)
+        mask_downsampled = F.interpolate(mask.float(), size=(D, H, W), mode='nearest')#.bool() # shape: (B, 1, D, H, W)
         x_downsampled = F.interpolate(x, size=(D, H, W), mode='trilinear', align_corners=False) # shape: (B, 1, D, H, W)
 
         # expand mask along channel dimension to mask embed_dim
-        mask_downsampled = mask_downsampled.expand(B, C, D, H, W) # shape: (B, C, D, H, W)
+        mask_expand = mask_downsampled.expand(B, C, D, H, W) # shape: (B, C, D, H, W)
 
         # flatten spatial dimensions to compute loss
         student_flat = student_features.reshape(B, -1) # shape: (B, C*D*H*W)
         teacher_flat = teacher_features.reshape(B, -1) # shape: (B, C*D*H*W)
-        mask_flat = mask_downsampled.reshape(B, -1) # shape (B, C*D*H*W)
+        mask_flat = mask_expand.reshape(B, -1) # shape (B, C*D*H*W)
 
         # temperature scaling
         teacher_probs = F.softmax(teacher_flat / self.temp_teacher, dim=1).detach()
         student_logprobs = F.log_softmax(student_flat / self.temp_student, dim=1)
 
+        mask_flat = mask_flat.to(dtype=torch.bool)
+
         # KL divergence loss on masked voxels only
         if mask_flat.any():
+            mask_flat = mask_flat.bool()
             distill_loss = F.kl_div(
                 student_logprobs[mask_flat],
                 teacher_probs[mask_flat],
@@ -202,20 +217,24 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         else:
             distill_loss = torch.tensor(0.0, device=self.device)
 
-        # L1 reconstruction loss on unmasked voxels
-        x_downsampled = x_downsampled.expand(B, C, D, H, W) # ensure matches channel dimension of student features
-        # reconstruction_loss = F.l1_loss(student_features[~mask_downsampled], x_downsampled[~mask_downsampled])
+        # # L1 reconstruction loss on unmasked voxels
+        # x_downsampled = x_downsampled.expand(B, C, D, H, W) # ensure matches channel dimension of student features
+        # # reconstruction_loss = F.l1_loss(student_features[~mask_downsampled], x_downsampled[~mask_downsampled])
 
-        # compute per-voxel L1 loss
-        l1_per_voxel = F.l1_loss(student_features.float(), x_downsampled.float(), reduction='none')
+        # # compute per-voxel L1 loss
+        # l1_per_voxel = F.l1_loss(student_features.float(), x_downsampled.float(), reduction='none')
 
-        # only retain unmasked regions
-        mask_inv = (~mask_downsampled).float()
-        masked_l1 = l1_per_voxel * mask_inv
-        reconstruction_loss = masked_l1.sum() / mask_inv.sum()
+        # # only retain unmasked regions
+        # mask_inv = (~mask_downsampled).float()
+        # masked_l1 = l1_per_voxel * mask_inv
+        # reconstruction_loss = masked_l1.sum() / mask_inv.sum()
+
+        student_recon = self.reconstruction_head(student_features)
+        mask_inv = 1.0 - mask_downsampled
+        recon_loss = F.l1_loss(student_recon * mask_inv, x * mask_inv, reduction='sum') / mask_inv.sum()
 
         # return weighted sum of distillation loss and reconstruction loss
-        return 0.8 * distill_loss + 0.2 * reconstruction_loss
+        return 0.8 * distill_loss + 0.2 * recon_loss
 
     
     # training step
@@ -254,16 +273,30 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         self.log('clip_loss', clip_loss, on_step=True, on_epoch=True)
         self.log('ibot_loss', ibot_loss, on_step=True, on_epoch=True)
 
+        if self.train_log_count < self.max_log_images:
+            num_to_add = min(self.max_log_images - self.train_log_count, x.shape[0])
+
         # cache for wandb image logging
         self.last_train_batch = batch
         self.last_train_masked = x.clone()
         self.last_train_masked[mask] = 0
-        self.last_train_output = student_out
+
+        if self.train_log_count < self.max_log_images:
+
+            recon_image = self.reconstruction_head(student_out)
+            recon_image = (recon_image - recon_image.min()) / (recon_image.max() - recon_image.min() + 1e-8)
+
+            masked_input = x.clone()
+            masked_input[mask] = 0
+
+
+            self.train_batches_for_logging.append((x[:num_to_add].detach().cpu(), masked_input[:num_to_add].detach().cpu(), recon_image[:num_to_add].detach().cpu()))
+            self.train_log_count += num_to_add
 
         # return total loss
         return total_loss
-
     
+
     # validation step (same as training but without backprop)
     def validation_step(self, batch, batch_idx):
 
@@ -300,39 +333,53 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         self.log('clip_loss', clip_loss, on_step=True, on_epoch=True)
         self.log('ibot_loss', ibot_loss, on_step=True, on_epoch=True)
 
-        # cache for wandb image logging
-        self.last_val_batch = batch
-        self.last_val_masked = x.clone()
-        self.last_val_masked[mask] = 0
-        self.last_val_output = student_out
+        if self.val_log_count < self.max_log_images:
+
+            num_to_add = min(self.max_log_images - self.val_log_count, x.shape[0])
+
+            recon_image = self.reconstruction_head(student_out)
+            recon_image = (recon_image - recon_image.min()) / (recon_image.max() - recon_image.min() + 1e-8)
+
+            masked_input = x.clone()
+            masked_input[mask] = 0
+
+            self.val_batches_for_logging.append((x[:num_to_add].detach().cpu(), masked_input[:num_to_add].detach().cpu(), recon_image[:num_to_add].detach().cpu()))
+            self.val_log_count += num_to_add
 
         # return total loss
         return total_loss
 
-    
+
     # after train epoch
     def on_train_epoch_end(self):
 
         # log images to wandb
-        if hasattr(self, 'last_train_batch'):
-            log_images_to_wandb_table(logger=self.logger, 
-                                      originals=self.last_train_batch['image'], 
-                                      maskeds=self.last_train_masked, 
-                                      student_preds=self.last_train_output, 
-                                      prefix='Train', 
-                                      step_or_epoch=self.current_epoch, 
-                                      log_histograms=False)
+        if self.train_batches_for_logging:
+            log_images_batches_to_wandb_table(
+                logger=self.logger, 
+                batches=self.train_batches_for_logging, 
+                prefix='Train', 
+                step_or_epoch=self.current_epoch, 
+                max_rows=self.max_log_images,
+                log_histograms=False
+            )
+            self.train_batches_for_logging.clear()
+            self.train_log_count = 0
             
     # after val epoch
     def on_validation_epoch_end(self):
-        if hasattr(self, 'last_val_batch'):
-            log_images_to_wandb_table(logger=self.logger,
-                                      originals=self.last_val_batch['image'],
-                                      maskeds=self.last_val_masked,
-                                      student_preds=self.last_val_output,
-                                      prefix='Val',
-                                      step_or_epoch=self.current_epoch,
-                                      log_histograms=False)
+        if self.val_batches_for_logging:
+            log_images_batches_to_wandb_table(
+                logger=self.logger,
+                batches=self.val_batches_for_logging,
+                prefix='Val',
+                step_or_epoch=self.current_epoch,
+                max_rows=self.max_log_images,
+                log_histograms=False
+            )
+            self.val_batches_for_logging.clear()
+            self.val_log_count = 0
+
 
     # after backwards
     def on_after_backward(self):
@@ -340,6 +387,7 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         # update ema teacher parameters from student
         for student_param, teacher_param in zip(self.student_encoder.parameters(), self.teacher_encoder.parameters()):
             teacher_param.data = self.ema_decay * teacher_param.data + (1 - self.ema_decay) * student_param.data
+
 
     # optimizer
     def configure_optimizers(self):

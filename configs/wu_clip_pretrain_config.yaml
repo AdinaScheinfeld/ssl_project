@@ -19,6 +19,7 @@ model:
   save_filename: wu_clip_pretrained_1
   save_dirpath: /home/ads4015/ssl_project/checkpoints
   feature_size: 48
+  max_log_images: 5
 
 training:
   seed: 100
