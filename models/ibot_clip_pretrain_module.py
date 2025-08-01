@@ -3,11 +3,18 @@
 # --- Setup ---
 
 # imports
-from monai.networks.nets import SwinUNETR
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import numpy as np
 import os
 import random
+import seaborn as sns
 import sys
 from transformers import AutoTokenizer, AutoModel
+import umap
+import wandb
+
+from monai.networks.nets import SwinUNETR
 
 import pytorch_lightning as pl
 
@@ -346,6 +353,13 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
             self.val_batches_for_logging.append((x[:num_to_add].detach().cpu(), masked_input[:num_to_add].detach().cpu(), recon_image[:num_to_add].detach().cpu()))
             self.val_log_count += num_to_add
 
+        # collect embeddings and labels for umap plotting
+        if not hasattr(self, 'val_embeddings'):
+            self.val_embeddings = {'image': [], 'text': [], 'label': []}
+        self.val_embeddings['image'].append(image_embed.detach().cpu())
+        self.val_embeddings['text'].append(text_embed.detach().cpu())
+        self.val_embeddings['label'].extend(texts)
+
         # return total loss
         return total_loss
 
@@ -368,6 +382,8 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
             
     # after val epoch
     def on_validation_epoch_end(self):
+
+        # log images to wandb
         if self.val_batches_for_logging:
             log_images_batches_to_wandb_table(
                 logger=self.logger,
@@ -379,6 +395,63 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
             )
             self.val_batches_for_logging.clear()
             self.val_log_count = 0
+
+        # log umap to wandb
+        if hasattr(self, 'val_embeddings'):
+
+            # only run every 5 epochs and epoch 0
+            if self.current_epoch % 5 == 0 or self.current_eopch == 0:
+
+                # combine all cached image and text embeddings from the validation step
+                image_embeds = torch.cat(self.val_embeddings['image'], dim=0).numpy()
+                text_embeds = torch.cat(self.val_embeddings['text'], dim=0).numpy()
+                labels = self.val_embeddings['label'] # list of text description strings
+
+                # stack all embeddings and relicate labels and types
+                all_embeds = np.concatenate([image_embeds, text_embeds], axis=0) # shape: (2N, embed_dim)
+                all_labels = labels + labels # same label for corresponding image and text
+                embed_type = ['Image'] * len(labels) + ['Text'] * len(labels) # distinguish modality
+
+                # reduce to 2d using umap for visualization
+                reducer = umap.UMAP(n_neighbors=10, min_dist=0.1, metric='cosine', random_state=100)
+                umap_coords = reducer.fit_transform(all_embeds) # shape: (2N, 2)
+
+                # prepare color and marker mappings for plotting
+                categories = sorted(set(all_labels)) # unique stain categories
+                palette = sns.color_palette('tab10', n_colors=len(categories)) # distinct color for each category
+                category2color = {cat: palette[i] for i, cat in enumerate(categories)} # map from label to color
+                marker_map = {'Image': 'o', 'Text': '^'} # circles for image, triangles for text
+
+                # create umap scatterplot
+                fig, ax = plt.subplots(figsize=(10, 8))
+                for cat in categories:
+                    for typ in ['Image', 'Text']:
+
+                        # get indices for each category-modality combination
+                        idxs = [i for i, (l, t) in enumerate(zip(all_labels, embed_type)) if l == cat and t == typ]
+                        coords = umap_coords[idxs]
+
+                        # plot points with consistent color and marker
+                        ax.scatter(coords[:, 0], coords[:, 1],
+                        label=f'{cat} ({typ})',
+                        color=category2color[cat],
+                        marker=marker_map[typ],
+                        alpha=0.6,
+                        s=40)
+                
+                # add legend and axis labels
+                ax.legend(loc='best', fontsize=7)
+                ax.set_title(f'UMAP for Image/Text Embeddings (Epoch {self.current_epoch})')
+                ax.set_xlabel('UMAP-1')
+                ax.set_ylabel('UMAP-2')
+
+                # log figure to wandb
+                self.logger.experiment.log({'val_umap_embeddings': wandb.Image(fig)}, step=self.global_step)
+                plt.close(fig)
+
+            # clear cache after each epoch
+            del self.val_embeddings
+
 
 
     # after backwards
