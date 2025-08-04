@@ -5,7 +5,7 @@
 #SBATCH --time=10:00:00
 #SBATCH --partition=minilab-gpu
 #SBATCH --gres=gpu:h100:1
-#SBATCH --mem=64G
+#SBATCH --mem=128G
 #SBATCH --cpus-per-task=4
 #SBATCH --nodes=1
 #SBATCH --ntasks=1

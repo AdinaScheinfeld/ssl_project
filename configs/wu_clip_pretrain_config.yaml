@@ -3,7 +3,7 @@
 data:
   data_dir: /midtier/paetzollab/scratch/ads4015/all_wu_brain_patches
   train_frac: 0.8 # fraction of volumes to use for training (remaining used for val)
-  batch_size: 2 # number of patches per batch
+  batch_size: 4 # number of patches per batch
 
 model:
   image_size: 96
