@@ -9,6 +9,7 @@ import numpy as np
 import os
 import random
 import seaborn as sns
+from sklearn.preprocessing import normalize as sklearn_normalize
 import sys
 from transformers import AutoTokenizer, AutoModel
 import umap
@@ -24,9 +25,29 @@ import torch.nn.functional as F
 
 # get functions from other files
 sys.path.append('/home/ads4015/ssl_project/preprocess_patches/src')
-from wu_visualization_functions import log_images_to_wandb_table, log_images_batches_to_wandb_table
+from wu_visualization_functions import log_images_to_wandb_table, log_images_batches_to_wandb_table, log_embedding_umap_plot
 
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+
+
+# --- Lightweight decoder ---
+
+class LightDecoder(nn.Module):
+
+    # init
+    def __init__(self, embed_dim):
+        super().__init__()
+        self.decoder = nn.Sequential(
+            nn.Conv3d(embed_dim, 64, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv3d(64, 32, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv3d(32, 1, kernel_size=1)
+        )
+
+    # forward
+    def forward(self, x):
+        return self.decoder(x)
 
 
 # --- Module ---
@@ -47,10 +68,7 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         self.text_model_name = config['model']['text_model_name']
         self.embed_dim = config['model']['embed_dim']
         self.clip_temperature = config['model']['clip_temperature']
-        self.reconstruction_head = nn.Sequential(
-            nn.Conv3d(self.embed_dim, 1, kernel_size=1),
-            nn.Sigmoid()
-        )
+        self.reconstruction_head = LightDecoder(self.embed_dim)
 
         # *** SwinUNETR encoders ***
 
@@ -148,16 +166,23 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         out = self.text_encoder(**tokens)
 
         # get pooled ouptut or use average pooling across token dimension to create single vector for entire sequence
-        pooled = out.pooler_output if out.pooler_output is not None else out.last_hidden_state.mean(dim=1)
+        # pooled = out.pooler_output if out.pooler_output is not None else out.last_hidden_state.mean(dim=1)
+        pooled = out.last_hidden_state.mean(dim=1)
 
         # pass pooled vector through learned linear projection to map into shared image-text embedding space (for CLIP)
-        return self.text_proj(pooled)
+        proj = self.text_proj(pooled)
+
+        # normalize before return
+        return F.normalize(proj, dim=-1)
     
     # encode image
     def encode_image(self, x, mask, network):
         x_masked = x.clone()
         x_masked[mask] = 0
-        return network(x_masked) # network will be either the student or the teacher encoder
+        features = network(x_masked) # network will be either the student or the teacher encoder
+
+        # normalize before return
+        return F.normalize(features, dim=1)
 
 
     # *** losses ***
@@ -167,9 +192,9 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
     # text_embeds = tensor of text embeddings from BERT text encoder
     def compute_clip_loss(self, image_embeds, text_embeds):
 
-        # normalize embeddings to unit length (important for cosine similarity and contrastive learning)
-        image_embeds = F.normalize(image_embeds, dim=-1)
-        text_embeds = F.normalize(text_embeds, dim=-1)
+        # # normalize embeddings to unit length (important for cosine similarity and contrastive learning)
+        # image_embeds = F.normalize(image_embeds, dim=-1)
+        # text_embeds = F.normalize(text_embeds, dim=-1)
 
         # compute similarity matrix between all image-text pairs using matrix multiplication
         # sharpen/soften softmax output using clip_temperature
@@ -238,10 +263,17 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
 
         student_recon = self.reconstruction_head(student_features)
         mask_inv = 1.0 - mask_downsampled
-        recon_loss = F.l1_loss(student_recon * mask_inv, x * mask_inv, reduction='sum') / mask_inv.sum()
+        recon_loss_unmasked = F.l1_loss(student_recon * mask_inv, x * mask_inv, reduction='sum') / mask_inv.sum()
+        recon_loss_masked = F.l1_loss(student_recon * mask, x * mask, reduction='sum') / mask.sum()
+        recon_loss = 0.5 * recon_loss_unmasked + 1.0 * recon_loss_masked # give higher priority to reconstructing masked voxels
 
         # return weighted sum of distillation loss and reconstruction loss
         return 0.8 * distill_loss + 0.2 * recon_loss
+
+
+    # alignment loss (encourage image-text embeddings to become more similar in cosine space)
+    def compute_alignment_loss(self, image_embeds, text_embeds):
+        return 1 - F.cosine_similarity(image_embeds, text_embeds, dim=-1).mean()
 
     
     # training step
@@ -272,13 +304,18 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         # compute iBOT loss (KL divergence between student and teacher on masked regions and L1 reconstruction on unmasked regions)
         ibot_loss = self.compute_ibot_loss(student_out, teacher_out, x, mask)
 
+        # alignment loss
+        alignment_loss = self.compute_alignment_loss(image_embed, text_embed)
+
         # combine both losses into single scaler to minimize
-        total_loss = ibot_loss + clip_loss
+        total_loss = ibot_loss + clip_loss + 0.1 * alignment_loss
 
         # log losses
         self.log('train_loss', total_loss, on_step=True, on_epoch=True, prog_bar=True)
         self.log('clip_loss', clip_loss, on_step=True, on_epoch=True)
         self.log('ibot_loss', ibot_loss, on_step=True, on_epoch=True)
+        self.log('alignment_loss', alignment_loss, on_step=True, on_epoch=True)
+
 
         if self.train_log_count < self.max_log_images:
             num_to_add = min(self.max_log_images - self.train_log_count, x.shape[0])
@@ -299,6 +336,13 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
 
             self.train_batches_for_logging.append((x[:num_to_add].detach().cpu(), masked_input[:num_to_add].detach().cpu(), recon_image[:num_to_add].detach().cpu()))
             self.train_log_count += num_to_add
+
+        # collect embeddings and labels for umap plotting
+        if not hasattr(self, 'train_embeddings'):
+            self.train_embeddings = {'image': [], 'text': [], 'label': []}
+        self.train_embeddings['image'].append(image_embed.detach().cpu())
+        self.train_embeddings['text'].append(text_embed.detach().cpu())
+        self.train_embeddings['label'].extend(texts)
 
         # return total loss
         return total_loss
@@ -332,13 +376,17 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         # compute iBOT loss (KL divergence between student and teacher on masked regions and L1 reconstruction on unmasked regions)
         ibot_loss = self.compute_ibot_loss(student_out, teacher_out, x, mask)
 
+        # alignment loss
+        alignment_loss = self.compute_alignment_loss(image_embed, text_embed)
+
         # combine both losses into single scaler to minimize
-        total_loss = ibot_loss + clip_loss
+        total_loss = ibot_loss + clip_loss + 0.1 * alignment_loss
 
         # log losses
         self.log('val_loss', total_loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log('clip_loss', clip_loss, on_step=True, on_epoch=True)
         self.log('ibot_loss', ibot_loss, on_step=True, on_epoch=True)
+        self.log('alignment_loss', alignment_loss, on_step=True, on_epoch=True)
 
         if self.val_log_count < self.max_log_images:
 
@@ -379,6 +427,23 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
             )
             self.train_batches_for_logging.clear()
             self.train_log_count = 0
+
+        # log umap to wandb
+        if hasattr(self, 'train_embeddings'):
+
+            # only run every 5 epochs and epoch 0
+            if self.current_epoch % 5 == 0 or self.current_epoch == 0:
+
+                log_embedding_umap_plot(
+                    logger=self.logger,
+                    embeddings_dict=self.train_embeddings,
+                    epoch=self.current_epoch,
+                    global_step=self.global_step,
+                    tag='Train'
+                )
+
+            # clear cache after each epoch
+            del self.train_embeddings
             
     # after val epoch
     def on_validation_epoch_end(self):
@@ -400,54 +465,15 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         if hasattr(self, 'val_embeddings'):
 
             # only run every 5 epochs and epoch 0
-            if self.current_epoch % 5 == 0 or self.current_eopch == 0:
+            if self.current_epoch % 5 == 0 or self.current_epoch == 0:
 
-                # combine all cached image and text embeddings from the validation step
-                image_embeds = torch.cat(self.val_embeddings['image'], dim=0).numpy()
-                text_embeds = torch.cat(self.val_embeddings['text'], dim=0).numpy()
-                labels = self.val_embeddings['label'] # list of text description strings
-
-                # stack all embeddings and relicate labels and types
-                all_embeds = np.concatenate([image_embeds, text_embeds], axis=0) # shape: (2N, embed_dim)
-                all_labels = labels + labels # same label for corresponding image and text
-                embed_type = ['Image'] * len(labels) + ['Text'] * len(labels) # distinguish modality
-
-                # reduce to 2d using umap for visualization
-                reducer = umap.UMAP(n_neighbors=10, min_dist=0.1, metric='cosine', random_state=100)
-                umap_coords = reducer.fit_transform(all_embeds) # shape: (2N, 2)
-
-                # prepare color and marker mappings for plotting
-                categories = sorted(set(all_labels)) # unique stain categories
-                palette = sns.color_palette('tab10', n_colors=len(categories)) # distinct color for each category
-                category2color = {cat: palette[i] for i, cat in enumerate(categories)} # map from label to color
-                marker_map = {'Image': 'o', 'Text': '^'} # circles for image, triangles for text
-
-                # create umap scatterplot
-                fig, ax = plt.subplots(figsize=(10, 8))
-                for cat in categories:
-                    for typ in ['Image', 'Text']:
-
-                        # get indices for each category-modality combination
-                        idxs = [i for i, (l, t) in enumerate(zip(all_labels, embed_type)) if l == cat and t == typ]
-                        coords = umap_coords[idxs]
-
-                        # plot points with consistent color and marker
-                        ax.scatter(coords[:, 0], coords[:, 1],
-                        label=f'{cat} ({typ})',
-                        color=category2color[cat],
-                        marker=marker_map[typ],
-                        alpha=0.6,
-                        s=40)
-                
-                # add legend and axis labels
-                ax.legend(loc='best', fontsize=7)
-                ax.set_title(f'UMAP for Image/Text Embeddings (Epoch {self.current_epoch})')
-                ax.set_xlabel('UMAP-1')
-                ax.set_ylabel('UMAP-2')
-
-                # log figure to wandb
-                self.logger.experiment.log({'val_umap_embeddings': wandb.Image(fig)}, step=self.global_step)
-                plt.close(fig)
+                log_embedding_umap_plot(
+                    logger=self.logger,
+                    embeddings_dict=self.val_embeddings,
+                    epoch=self.current_epoch,
+                    global_step=self.global_step,
+                    tag='Val'
+                )
 
             # clear cache after each epoch
             del self.val_embeddings

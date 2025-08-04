@@ -24,7 +24,7 @@ model:
 training:
   seed: 100
   max_epochs: 1000
-  patience: 10
+  patience: 50
   log_every_n_steps: 5
   project_name: ibot-clip-pretrain-lsm
 
