@@ -21,6 +21,12 @@ model:
   feature_size: 48
   max_log_images: 5
 
+loss_weights:
+  distill_weight: 0.5 # masked voxel KL divergence
+  reconstruction_weight: 0.4 # masked voxel L1 reconstructions
+  align_weight: 0.1 # image-text cosine similarity per pair
+  clip_weight: 1.0 # global contrastive loss between all image and text embeddings in batch
+
 training:
   seed: 100
   max_epochs: 1000

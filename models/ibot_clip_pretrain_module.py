@@ -122,6 +122,12 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         self.val_log_count = 0
         self.max_log_images = config['model']['max_log_images']
 
+        # loss weights
+        self.distill_weight = config['loss_weights']['distill_weight']
+        self.reconstruction_weight = config['loss_weights']['reconstruction_weight']
+        self.align_weight = config['loss_weights']['align_weight']
+        self.clip_weight = config['loss_weights']['clip_weight']
+
 
     # function to create patch-level binary mask for each volume in batch
     def generate_patch_mask(self, x, base_mask_patch_size):
@@ -166,7 +172,6 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         out = self.text_encoder(**tokens)
 
         # get pooled ouptut or use average pooling across token dimension to create single vector for entire sequence
-        # pooled = out.pooler_output if out.pooler_output is not None else out.last_hidden_state.mean(dim=1)
         pooled = out.last_hidden_state.mean(dim=1)
 
         # pass pooled vector through learned linear projection to map into shared image-text embedding space (for CLIP)
@@ -192,10 +197,6 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
     # text_embeds = tensor of text embeddings from BERT text encoder
     def compute_clip_loss(self, image_embeds, text_embeds):
 
-        # # normalize embeddings to unit length (important for cosine similarity and contrastive learning)
-        # image_embeds = F.normalize(image_embeds, dim=-1)
-        # text_embeds = F.normalize(text_embeds, dim=-1)
-
         # compute similarity matrix between all image-text pairs using matrix multiplication
         # sharpen/soften softmax output using clip_temperature
         logits = image_embeds @ text_embeds.T / self.clip_temperature
@@ -215,7 +216,7 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
     # function to compute combined loss, MSE for masked and L1 for unmasked
     # combines distillation loss (student mimics teacher on masked regions) 
     # and reconstruction loss (student reconstructs original image in unmasked regions)
-    def compute_ibot_loss(self, student_features, teacher_features, x, mask):
+    def compute_ibot_loss(self, student_features, teacher_features, x, mask, student_image_embed, text_embed):
 
         # compute shape of student features
         B, C, D, H, W = student_features.shape # C = embed_dim
@@ -230,17 +231,14 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         # flatten spatial dimensions to compute loss
         student_flat = student_features.reshape(B, -1) # shape: (B, C*D*H*W)
         teacher_flat = teacher_features.reshape(B, -1) # shape: (B, C*D*H*W)
-        mask_flat = mask_expand.reshape(B, -1) # shape (B, C*D*H*W)
+        mask_flat = mask_expand.reshape(B, -1).to(dtype=torch.bool) # shape (B, C*D*H*W), boolean
 
         # temperature scaling
         teacher_probs = F.softmax(teacher_flat / self.temp_teacher, dim=1).detach()
         student_logprobs = F.log_softmax(student_flat / self.temp_student, dim=1)
 
-        mask_flat = mask_flat.to(dtype=torch.bool)
-
         # KL divergence loss on masked voxels only
         if mask_flat.any():
-            mask_flat = mask_flat.bool()
             distill_loss = F.kl_div(
                 student_logprobs[mask_flat],
                 teacher_probs[mask_flat],
@@ -249,26 +247,18 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         else:
             distill_loss = torch.tensor(0.0, device=self.device)
 
-        # # L1 reconstruction loss on unmasked voxels
-        # x_downsampled = x_downsampled.expand(B, C, D, H, W) # ensure matches channel dimension of student features
-        # # reconstruction_loss = F.l1_loss(student_features[~mask_downsampled], x_downsampled[~mask_downsampled])
-
-        # # compute per-voxel L1 loss
-        # l1_per_voxel = F.l1_loss(student_features.float(), x_downsampled.float(), reduction='none')
-
-        # # only retain unmasked regions
-        # mask_inv = (~mask_downsampled).float()
-        # masked_l1 = l1_per_voxel * mask_inv
-        # reconstruction_loss = masked_l1.sum() / mask_inv.sum()
-
         student_recon = self.reconstruction_head(student_features)
         mask_inv = 1.0 - mask_downsampled
-        recon_loss_unmasked = F.l1_loss(student_recon * mask_inv, x * mask_inv, reduction='sum') / mask_inv.sum()
-        recon_loss_masked = F.l1_loss(student_recon * mask, x * mask, reduction='sum') / mask.sum()
-        recon_loss = 0.5 * recon_loss_unmasked + 1.0 * recon_loss_masked # give higher priority to reconstructing masked voxels
+        recon_loss = F.l1_loss(student_recon * mask_inv, x_downsampled * mask_inv, reduction='sum') / (mask_inv.sum() + 1e-8)
 
-        # return weighted sum of distillation loss and reconstruction loss
-        return 0.8 * distill_loss + 0.2 * recon_loss
+        # alignment loss
+        alignment_loss = self.compute_alignment_loss(student_image_embed, text_embed)
+
+        # compute weighted sum of distillation loss and reconstruction loss and alignment loss
+        total_ibot_loss = self.distill_weight * distill_loss + self.reconstruction_weight * recon_loss + self.align_weight * alignment_loss
+        
+        # return total loss and student reconstruction
+        return total_ibot_loss, student_recon
 
 
     # alignment loss (encourage image-text embeddings to become more similar in cosine space)
@@ -276,8 +266,55 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         return 1 - F.cosine_similarity(image_embeds, text_embeds, dim=-1).mean()
 
     
-    # training step
-    def training_step(self, batch, batch_idx):
+    # function to get values for logging image and embeddings
+    def log_image_and_embeddings(self, x, mask, student_out, texts, is_train=True, student_image_embed=None, text_embed=None, student_recon=None):
+
+        # reconstruct image
+        if student_recon is None:
+            student_recon = self.reconstruction_head(student_out)
+        recon_image = student_recon.clamp(0, 1)
+        # recon_image = (student_recon - student_recon.min()) / (student_recon.max() - student_recon.min() + 1e-8)
+
+        # get masked input
+        masked_input = x.clone()
+        masked_input[mask] = 0
+
+        # count for how many images already logged
+        log_count = self.train_log_count if is_train else self.val_log_count
+        batches_for_logging = self.train_batches_for_logging if is_train else self.val_batches_for_logging
+
+        # if counted images less than max, add more
+        if log_count < self.max_log_images:
+            num_to_add = min(self.max_log_images - log_count, x.shape[0])
+            batches_for_logging.append((x[:num_to_add].detach().cpu(), masked_input[:num_to_add].detach().cpu(), recon_image[:num_to_add].detach().cpu()))
+            if is_train:
+                self.train_log_count += num_to_add
+            else:
+                self.val_log_count += num_to_add
+
+        embed_dict_attr = 'train_embeddings' if is_train else 'val_embeddings'
+        embed_dict = getattr(self, embed_dict_attr, None)
+        if embed_dict is None:
+            embed_dict = {'image': [], 'text': [], 'label': []}
+            setattr(self, embed_dict_attr, embed_dict)
+
+        if student_image_embed is None:
+            student_image_embed = self.image_proj(student_out).detach().cpu()
+        else:
+            student_image_embed = student_image_embed.detach().cpu()
+
+        if text_embed is None:
+            text_embed = self.encode_text(texts).detach().cpu()
+        else:
+            text_embed = text_embed.detach().cpu()
+
+        embed_dict['image'].append(student_image_embed)
+        embed_dict['text'].append(text_embed)
+        embed_dict['label'].extend(texts)
+
+
+    # shared step for train/val to keep code DRY
+    def shared_step(self, batch, batch_idx, is_train=True):
 
         # get input image-text pair
         # x shape: (B, 1, D, H, W); texts is a list of strings, 1 per image
@@ -295,121 +332,41 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
             teacher_out = self.encode_image(x, mask*0, self.teacher_encoder)
 
         # embed image and text using average pooling + linear projection for image and BERT + projection for text
-        image_embed = self.image_proj(student_out)
+        student_image_embed = self.image_proj(student_out)
         text_embed = self.encode_text(texts)
 
         # compute contrastive loss between image and text embeddings - corresponding aligned pairs should be close in embedding space
-        clip_loss = self.compute_clip_loss(image_embed, text_embed)
+        clip_loss = self.compute_clip_loss(student_image_embed, text_embed)
 
         # compute iBOT loss (KL divergence between student and teacher on masked regions and L1 reconstruction on unmasked regions)
-        ibot_loss = self.compute_ibot_loss(student_out, teacher_out, x, mask)
-
-        # alignment loss
-        alignment_loss = self.compute_alignment_loss(image_embed, text_embed)
+        ibot_loss, student_recon = self.compute_ibot_loss(student_out, teacher_out, x, mask, student_image_embed, text_embed)
 
         # combine both losses into single scaler to minimize
-        total_loss = ibot_loss + clip_loss + 0.1 * alignment_loss
+        # ibot loss already includes distill loss (on masked voxels), reconstruction loss (on unmasked voxels), and alignment loss (cosine alignment between image-text pairs)
+        # clip loss is image-text contrastive loss
+        total_loss = ibot_loss + self.clip_weight * clip_loss ## UP TO HERE
 
         # log losses
-        self.log('train_loss', total_loss, on_step=True, on_epoch=True, prog_bar=True)
-        self.log('clip_loss', clip_loss, on_step=True, on_epoch=True)
-        self.log('ibot_loss', ibot_loss, on_step=True, on_epoch=True)
-        self.log('alignment_loss', alignment_loss, on_step=True, on_epoch=True)
+        log_prefix = 'train' if is_train else 'val'
+        self.log(f'{log_prefix}_loss', total_loss, on_step=is_train, on_epoch=True, prog_bar=True)
+        self.log(f'{log_prefix}_clip_loss', clip_loss, on_step=True, on_epoch=True)
+        self.log(f'{log_prefix}_ibot_loss', ibot_loss, on_step=True, on_epoch=True)
 
-
-        if self.train_log_count < self.max_log_images:
-            num_to_add = min(self.max_log_images - self.train_log_count, x.shape[0])
-
-        # cache for wandb image logging
-        self.last_train_batch = batch
-        self.last_train_masked = x.clone()
-        self.last_train_masked[mask] = 0
-
-        if self.train_log_count < self.max_log_images:
-
-            recon_image = self.reconstruction_head(student_out)
-            recon_image = (recon_image - recon_image.min()) / (recon_image.max() - recon_image.min() + 1e-8)
-
-            masked_input = x.clone()
-            masked_input[mask] = 0
-
-
-            self.train_batches_for_logging.append((x[:num_to_add].detach().cpu(), masked_input[:num_to_add].detach().cpu(), recon_image[:num_to_add].detach().cpu()))
-            self.train_log_count += num_to_add
-
-        # collect embeddings and labels for umap plotting
-        if not hasattr(self, 'train_embeddings'):
-            self.train_embeddings = {'image': [], 'text': [], 'label': []}
-        self.train_embeddings['image'].append(image_embed.detach().cpu())
-        self.train_embeddings['text'].append(text_embed.detach().cpu())
-        self.train_embeddings['label'].extend(texts)
+        # get logging data
+        self.log_image_and_embeddings(x, mask, student_out, texts, is_train=is_train, student_image_embed=student_image_embed, text_embed=text_embed, student_recon=student_recon)
 
         # return total loss
         return total_loss
+
+    
+    # training step
+    def training_step(self, batch, batch_idx):
+        return self.shared_step(batch, batch_idx, is_train=True)
     
 
     # validation step (same as training but without backprop)
     def validation_step(self, batch, batch_idx):
-
-        # get input image-text pair
-        # x shape: (B, 1, D, H, W); texts is a list of strings, 1 per image
-        x = batch['image']
-        texts = batch['text']
-
-        # generate patch level mask that randomly zeros out a subset of 3d patches in input image
-        mask = self.generate_patch_mask(x, self.mask_patch_size)
-
-        # student sees masked input
-        student_out = self.encode_image(x, mask, self.student_encoder)
-
-        # teacher sees full input (no gradients)
-        with torch.no_grad():
-            teacher_out = self.encode_image(x, mask*0, self.teacher_encoder)
-
-        # embed image and text using average pooling + linear projection for image and BERT + projection for text
-        image_embed = self.image_proj(student_out)
-        text_embed = self.encode_text(texts)
-
-        # compute contrastive loss between image and text embeddings - corresponding aligned pairs should be close in embedding space
-        clip_loss = self.compute_clip_loss(image_embed, text_embed)
-
-        # compute iBOT loss (KL divergence between student and teacher on masked regions and L1 reconstruction on unmasked regions)
-        ibot_loss = self.compute_ibot_loss(student_out, teacher_out, x, mask)
-
-        # alignment loss
-        alignment_loss = self.compute_alignment_loss(image_embed, text_embed)
-
-        # combine both losses into single scaler to minimize
-        total_loss = ibot_loss + clip_loss + 0.1 * alignment_loss
-
-        # log losses
-        self.log('val_loss', total_loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.log('clip_loss', clip_loss, on_step=True, on_epoch=True)
-        self.log('ibot_loss', ibot_loss, on_step=True, on_epoch=True)
-        self.log('alignment_loss', alignment_loss, on_step=True, on_epoch=True)
-
-        if self.val_log_count < self.max_log_images:
-
-            num_to_add = min(self.max_log_images - self.val_log_count, x.shape[0])
-
-            recon_image = self.reconstruction_head(student_out)
-            recon_image = (recon_image - recon_image.min()) / (recon_image.max() - recon_image.min() + 1e-8)
-
-            masked_input = x.clone()
-            masked_input[mask] = 0
-
-            self.val_batches_for_logging.append((x[:num_to_add].detach().cpu(), masked_input[:num_to_add].detach().cpu(), recon_image[:num_to_add].detach().cpu()))
-            self.val_log_count += num_to_add
-
-        # collect embeddings and labels for umap plotting
-        if not hasattr(self, 'val_embeddings'):
-            self.val_embeddings = {'image': [], 'text': [], 'label': []}
-        self.val_embeddings['image'].append(image_embed.detach().cpu())
-        self.val_embeddings['text'].append(text_embed.detach().cpu())
-        self.val_embeddings['label'].extend(texts)
-
-        # return total loss
-        return total_loss
+        return self.shared_step(batch, batch_idx, is_train=False)
 
 
     # after train epoch
@@ -429,7 +386,7 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
             self.train_log_count = 0
 
         # log umap to wandb
-        if hasattr(self, 'train_embeddings'):
+        if hasattr(self, 'train_embeddings') and self.train_embeddings:
 
             # only run every 5 epochs and epoch 0
             if self.current_epoch % 5 == 0 or self.current_epoch == 0:
@@ -445,6 +402,7 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
             # clear cache after each epoch
             del self.train_embeddings
             
+
     # after val epoch
     def on_validation_epoch_end(self):
 
@@ -477,7 +435,6 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
 
             # clear cache after each epoch
             del self.val_embeddings
-
 
 
     # after backwards
