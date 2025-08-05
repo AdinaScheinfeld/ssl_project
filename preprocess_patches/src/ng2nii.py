@@ -141,7 +141,7 @@ if __name__ == '__main__':
     folder_name = folder_name_stripped.lower() # convert to lowercase
     center_str = '_'.join(map(str, center)) # get center coordinates as underscore-separated string
     suffix_str = args.suffix.strip() if args.suffix else '' # get suffix if provided
-    filename = os.path.join(args.folder, f'{folder_name}{suffix_str}_{center_str}.nii.gz')
+    filename = os.path.join(args.folder, f'input/{folder_name}{suffix_str}_{center_str}.nii.gz')
 
 
     # download patch
