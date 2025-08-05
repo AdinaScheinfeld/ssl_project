@@ -11,7 +11,9 @@ STAIN_MAP = {
     '02_az10-sr3b-6_a': 'CTIP2 protein, nucleus',
     '03_aj12-lg1e-n_a': 'GFAP protein, cytoplasm',
     '04_ae2-wf2a_a': 'p75NTH protein, cell membrane and cytoplasm',
-    '05_ch1-pcw1a_a': 'DBH protein, cytoplasm and vesicular compartments'
+    '05_ch1-pcw1a_a': 'DBH protein, cytoplasm and vesicular compartments',
+    '06_az10-sr3b-6_a': 'SYTO 24, nucleus',
+    '07_az10-sr3b-6_a': 'pAAV-GFP, cytoplasm'
 }
 
 # nifti patch dataset class with text
