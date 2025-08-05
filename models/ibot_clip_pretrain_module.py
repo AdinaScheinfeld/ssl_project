@@ -61,6 +61,8 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
 
         self.image_size = config['model']['image_size']
         self.mask_ratio = config['model']['mask_ratio'] # percentage of voxels to mask
+        self.mask_ratio_warmup = config['model']['mask_ratio_warmup']
+        self.warmup_epochs = config['model']['warmup_epochs']
         self.lr = config['model']['lr'] # learning rate
         self.mask_patch_size = config['model']['mask_patch_size']
         self.temp_student = config['model']['temp_student'] # temperature for student softmax
@@ -103,6 +105,7 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
 
         # load transformer (process token IDs to produce contextual embeddings for the input text)
         self.text_encoder = AutoModel.from_pretrained(self.text_model_name)
+        self.text_encoder.gradient_checkpointing_enable() # to reduce memory load on gpu
 
         # project high dimensional vectors down to a fixed dimensional space (embed_dim) to compare/align with image features (CLIP)
         self.text_proj = nn.Linear(self.text_encoder.config.hidden_size, self.embed_dim)
@@ -313,6 +316,16 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         embed_dict['label'].extend(texts)
 
 
+    # on train epoch start
+    def on_train_epoch_start(self):
+
+        # reduce masking for first few epochs
+        if self.current_epoch < self.warmup_epochs:
+            self.mask_ratio = self.mask_ratio_warmup
+        else:
+            self.mask_ratio = self.mask_ratio
+
+
     # shared step for train/val to keep code DRY
     def shared_step(self, batch, batch_idx, is_train=True):
 
@@ -348,9 +361,9 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
 
         # log losses
         log_prefix = 'train' if is_train else 'val'
-        self.log(f'{log_prefix}_loss', total_loss, on_step=is_train, on_epoch=True, prog_bar=True)
-        self.log(f'{log_prefix}_clip_loss', clip_loss, on_step=True, on_epoch=True)
-        self.log(f'{log_prefix}_ibot_loss', ibot_loss, on_step=True, on_epoch=True)
+        self.log(f'{log_prefix}_loss', total_loss, on_step=is_train, on_epoch=True, prog_bar=True, batch_size=x.shape[0])
+        self.log(f'{log_prefix}_clip_loss', clip_loss, on_step=True, on_epoch=True, batch_size=x.shape[0])
+        self.log(f'{log_prefix}_ibot_loss', ibot_loss, on_step=True, on_epoch=True, batch_size=x.shape[0])
 
         # get logging data
         self.log_image_and_embeddings(x, mask, student_out, texts, is_train=is_train, student_image_embed=student_image_embed, text_embed=text_embed, student_recon=student_recon)
