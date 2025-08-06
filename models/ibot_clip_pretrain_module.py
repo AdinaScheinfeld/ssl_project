@@ -108,14 +108,23 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         self.text_encoder.gradient_checkpointing_enable() # to reduce memory load on gpu
 
         # project high dimensional vectors down to a fixed dimensional space (embed_dim) to compare/align with image features (CLIP)
-        self.text_proj = nn.Linear(self.text_encoder.config.hidden_size, self.embed_dim)
+        # 2 layer MLP with ReLU and layer norm for stability
+        self.text_proj = nn.Sequential(
+            nn.Linear(self.text_encoder.config.hidden_size, self.embed_dim),
+            nn.ReLU(),
+            nn.Linear(self.embed_dim, self.embed_dim),
+            nn.LayerNorm(self.embed_dim))
 
 
         # image projection head for CLIP loss
+        # 2 layer MLP with ReLU and layer norm for stability
         self.image_proj = nn.Sequential(
             nn.AdaptiveAvgPool3d(1),
             nn.Flatten(),
-            nn.Linear(self.embed_dim, self.embed_dim)
+            nn.Linear(self.embed_dim, self.embed_dim),
+            nn.ReLU(),
+            nn.Linear(self.embed_dim, self.embed_dim),
+            nn.LayerNorm(self.embed_dim)
         )
 
         # lists and count for logging to wandb
@@ -319,11 +328,20 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
     # on train epoch start
     def on_train_epoch_start(self):
 
-        # reduce masking for first few epochs
+        # check if still in first few epochs
         if self.current_epoch < self.warmup_epochs:
+
+            # reduce masking for first few epochs
             self.mask_ratio = self.mask_ratio_warmup
+
+            # freeze the text encoder to prevent the model from overfitting or collapsing
+            for p in self.text_encoder.parameters():
+                p.requires_grad = False
+
         else:
             self.mask_ratio = self.mask_ratio
+            for p in self.text_encoder.parameters():
+                p.requires_grad = True
 
 
     # shared step for train/val to keep code DRY
@@ -357,7 +375,7 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         # combine both losses into single scaler to minimize
         # ibot loss already includes distill loss (on masked voxels), reconstruction loss (on unmasked voxels), and alignment loss (cosine alignment between image-text pairs)
         # clip loss is image-text contrastive loss
-        total_loss = ibot_loss + self.clip_weight * clip_loss ## UP TO HERE
+        total_loss = ibot_loss + self.clip_weight * clip_loss
 
         # log losses
         log_prefix = 'train' if is_train else 'val'

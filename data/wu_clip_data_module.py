@@ -30,12 +30,13 @@ from wu_transforms import get_train_transforms, get_val_transforms, get_load_tra
 class WuCLIPDataModule(LightningDataModule):
 
     # init
-    def __init__(self, data_dir, batch_size, train_frac, seed):
+    def __init__(self, data_dir, batch_size, train_frac, seed, data_subset_frac):
         super().__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.train_frac = train_frac
         self.seed = seed
+        self.data_subset_frac = data_subset_frac
 
     # setup
     def setup(self, stage=None):
@@ -60,8 +61,11 @@ class WuCLIPDataModule(LightningDataModule):
         def collect_files(dirs):
             files = []
             for d in dirs:
-                files.extend(glob.glob(os.path.join(d, '*.nii.gz')))
-            return sorted(files)
+                volume_files = sorted(glob.glob(os.path.join(d, '*.nii.gz')))
+                random.shuffle(volume_files)
+                n_keep = int(len(volume_files) * self.data_subset_frac)
+                files.extend(volume_files[:n_keep])
+            return files
         
         # collect train/val files
         train_files = collect_files(train_dirs)
@@ -71,6 +75,7 @@ class WuCLIPDataModule(LightningDataModule):
         print(f'[DEBUG] Found {len(train_files)} train and {len(val_files)} val patches from {len(train_dirs)} train and {len(val_dirs)} val volumes.', flush=True)
         print(f'[INFO] Train volumes: {self.train_volume_names}', flush=True)
         print(f'[INFO] Val volumes: {self.val_volume_names}', flush=True)
+        print(f'[INFO] Subsample fraction: {self.data_subset_frac} => {len(train_files)} train and {len(val_files)} val files used.')
 
         # create train/val datasets
         load = get_load_transforms()

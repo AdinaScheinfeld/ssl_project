@@ -3,7 +3,9 @@
 data:
   data_dir: /midtier/paetzollab/scratch/ads4015/all_wu_brain_patches
   train_frac: 0.8 # fraction of volumes to use for training (remaining used for val)
-  batch_size: 4 # number of patches per batch
+  batch_size: 8 # number of patches per batch
+  data_subset_frac: 0.5 # percent of files to use per volume
+
 
 model:
   image_size: 96
@@ -20,7 +22,7 @@ model:
   clip_temperature: 0.07 # (0.07 is default in OpenAI paper and used by most applications)
   save_filename: wu_clip_pretrained_1
   save_dirpath: /home/ads4015/ssl_project/checkpoints
-  feature_size: 24 #48
+  feature_size: 24 # 48
   max_log_images: 5
 
 loss_weights:

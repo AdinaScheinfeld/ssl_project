@@ -78,7 +78,8 @@ if __name__ == '__main__':
         data_dir=config['data']['data_dir'],
         batch_size=config['data']['batch_size'],
         train_frac=config['data']['train_frac'],
-        seed=config['training']['seed']
+        seed=config['training']['seed'],
+        data_subset_frac=config['data']['data_subset_frac']
     )
 
     # initialize model
