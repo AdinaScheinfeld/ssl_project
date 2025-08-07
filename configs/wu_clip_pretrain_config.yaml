@@ -5,7 +5,7 @@ data:
   train_frac: 0.8 # fraction of volumes to use for training (remaining used for val)
   batch_size: 8 # number of patches per batch
   data_subset_frac: 0.5 # percent of files to use per volume
-
+  text_prompts: /home/ads4015/ssl_project/data/text_prompts.json # path to text prompts file
 
 model:
   image_size: 96

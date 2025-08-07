@@ -30,13 +30,14 @@ from wu_transforms import get_train_transforms, get_val_transforms, get_load_tra
 class WuCLIPDataModule(LightningDataModule):
 
     # init
-    def __init__(self, data_dir, batch_size, train_frac, seed, data_subset_frac):
+    def __init__(self, data_dir, batch_size, train_frac, seed, data_subset_frac, text_prompts):
         super().__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.train_frac = train_frac
         self.seed = seed
         self.data_subset_frac = data_subset_frac
+        self.text_prompts = text_prompts
 
     # setup
     def setup(self, stage=None):
@@ -79,8 +80,12 @@ class WuCLIPDataModule(LightningDataModule):
 
         # create train/val datasets
         load = get_load_transforms()
-        self.train_ds = NiftiTextPatchDataset(train_files, transforms=MonaiCompose([load, get_train_transforms()]))
-        self.val_ds = NiftiTextPatchDataset(val_files, transforms=MonaiCompose([load, get_val_transforms()]))
+        self.train_ds = NiftiTextPatchDataset(train_files, 
+                                              transforms=MonaiCompose([load, get_train_transforms()]),
+                                              text_prompts=self.text_prompts)
+        self.val_ds = NiftiTextPatchDataset(val_files, 
+                                            transforms=MonaiCompose([load, get_val_transforms()]),
+                                            text_prompts=self.text_prompts)
 
     # train dataloader
     def train_dataloader(self):
