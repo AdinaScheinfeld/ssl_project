@@ -70,7 +70,7 @@ def get_val_transforms():
 def get_load_transforms():
     return Compose([
         LoadImaged(keys=['image']),
-        EnsureChannelFirstd(keys=['image']),
+        EnsureChannelFirstd(keys=['image'], channel_dim=0),
         ScaleIntensityRangePercentilesd(keys=['image'], lower=1.0, upper=99.0, b_min=0.0, b_max=1.0, clip=True),
         ToTensord(keys=['image']) # (IMPORTANT)
     ])

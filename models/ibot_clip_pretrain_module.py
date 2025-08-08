@@ -59,7 +59,7 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters(config) # save all hyperparameters to self.hparams
 
-        self.image_size = config['model']['image_size']
+        # self.image_size = config['model']['image_size']
         self.mask_ratio = config['model']['mask_ratio'] # percentage of voxels to mask
         self.mask_ratio_warmup = config['model']['mask_ratio_warmup']
         self.warmup_epochs = config['model']['warmup_epochs']
@@ -71,6 +71,10 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         self.embed_dim = config['model']['embed_dim']
         self.clip_temperature = config['model']['clip_temperature']
         self.reconstruction_head = LightDecoder(self.embed_dim)
+        self.image_size = config['data']['sub_patch_size'] if config['data']['use_sub_patches'] else config['data']['base_patch_size']
+
+        # indicate what size image patches are being used
+        print(f'[INFO] Using {self.image_size}^3 size patches.', flush=True)
 
         # *** SwinUNETR encoders ***
 
@@ -145,6 +149,7 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
     def generate_patch_mask(self, x, base_mask_patch_size):
 
         # create mask
+        print(f'[DEBUG] x.shape in generate_patch_mask: {x.shape}', flush=True)
         B, C, D, H, W = x.shape
         mask = torch.zeros((B, 1, D, H, W), dtype=torch.bool, device=x.device)
 

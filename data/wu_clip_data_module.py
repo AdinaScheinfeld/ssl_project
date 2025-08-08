@@ -30,7 +30,8 @@ from wu_transforms import get_train_transforms, get_val_transforms, get_load_tra
 class WuCLIPDataModule(LightningDataModule):
 
     # init
-    def __init__(self, data_dir, batch_size, train_frac, seed, data_subset_frac, text_prompts):
+    def __init__(self, data_dir, batch_size, train_frac, seed, data_subset_frac, text_prompts, 
+                 use_sub_patches=False, base_patch_size=96, sub_patch_size=64):
         super().__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
@@ -38,9 +39,23 @@ class WuCLIPDataModule(LightningDataModule):
         self.seed = seed
         self.data_subset_frac = data_subset_frac
         self.text_prompts = text_prompts
+        self.use_sub_patches = use_sub_patches
+        self.base_patch_size = base_patch_size
+        self.sub_patch_size = sub_patch_size
+
+        # # ensure that base_patch_size is divisible by sub_patch_size if using sub_patches
+        # if self.use_sub_patches and self.base_patch_size % self.sub_patch_size != 0:
+        #     raise ValueError('base_patch_size must be divisible by sub_patch_size if use_sub_patches is True')
+        
+        # warn if batch size is too small
+        if self.use_sub_patches and self.batch_size < 16:
+            print(f'[WARNING] Using sub-patches with small batch size ({self.batch_size}). Consider increasing batch size.', flush=True)
 
     # setup
     def setup(self, stage=None):
+
+        # log which patch mode is being used
+        print(f'[INFO] Using {self.sub_patch_size}^3 size sub-patches' if self.use_sub_patches else f'[INFO] Using {self.base_patch_size}^3 size base patches', flush=True)
 
         # get volume directories
         volume_dirs = sorted(glob.glob(os.path.join(self.data_dir, '*/input')))
@@ -82,10 +97,16 @@ class WuCLIPDataModule(LightningDataModule):
         load = get_load_transforms()
         self.train_ds = NiftiTextPatchDataset(train_files, 
                                               transforms=MonaiCompose([load, get_train_transforms()]),
-                                              text_prompts=self.text_prompts)
+                                              text_prompts=self.text_prompts,
+                                              use_sub_patches=self.use_sub_patches,
+                                              base_patch_size=self.base_patch_size,
+                                              sub_patch_size=self.sub_patch_size)
         self.val_ds = NiftiTextPatchDataset(val_files, 
                                             transforms=MonaiCompose([load, get_val_transforms()]),
-                                            text_prompts=self.text_prompts)
+                                            text_prompts=self.text_prompts,
+                                            use_sub_patches=self.use_sub_patches,
+                                            base_patch_size=self.base_patch_size,
+                                            sub_patch_size=self.sub_patch_size)
 
     # train dataloader
     def train_dataloader(self):

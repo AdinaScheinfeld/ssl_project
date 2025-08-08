@@ -3,18 +3,21 @@
 data:
   data_dir: /midtier/paetzollab/scratch/ads4015/all_wu_brain_patches
   train_frac: 0.8 # fraction of volumes to use for training (remaining used for val)
-  batch_size: 8 # number of patches per batch
+  batch_size: 32 # number of patches per batch (use max 8 for 96x96x96 patches on 96GB GPU h100 GPUs)
   data_subset_frac: 0.5 # percent of files to use per volume
   text_prompts: /home/ads4015/ssl_project/data/text_prompts.json # path to text prompts file
+  use_sub_patches: True # if true, will divide all each 96x96x96 patch into 2 sub_patches of size 64x64x64
+  base_patch_size: 96 # size of each patch in voxels (use: 96x96x96)
+  sub_patch_size: 64 # size of each sub_patch in voxels (use: 64x64x64) if use_sub_patches is True
 
 model:
-  image_size: 96
+  # image_size: 96 # image size should match base_patch_size if use_sub_patches is False, or sub_patch_size if use_sub_patches is True
   mask_ratio_warmup: 0.1 # fraction of masked patches per volume for first few epochs
   warmup_epochs: 20
   mask_ratio: 0.3 # fraction of masked patches per volume
   lr: 0.0001
   ema_decay: 0.996
-  mask_patch_size: 16 # base patch size for masking
+  mask_patch_size: 8 # base patch size for masking (use: 16x16x16 for 96x96x96 base patches, or 8x8x8 for 64x64x64 sub_patches)
   temp_student: 0.1 # temperature for student logits
   temp_teacher: 0.04 # temperature for teacher softmax (0.04 is default in most iBOT implementations)
   text_model_name: bert-base-uncased # text model to use (bert-base-uncased from HuggingFace)

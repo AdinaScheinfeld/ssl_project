@@ -4,40 +4,19 @@
 
 # imports
 import argparse
-# import glob
-# import matplotlib.pyplot as plt
-# import numpy as np
 import os
-# import random
 import sys
 import wandb
 import yaml
 
-# from monai.networks.nets import SwinUNETR
-# from monai.transforms import Compose as MonaiCompose
-
+import torch
 import pytorch_lightning as pl
-# from pytorch_lightning import LightningDataModule
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
-
-import torch
-# from torch import nn
-# import torch.nn.functional as F
-# from torch.utils.data import Dataset, DataLoader
-# from torchvision.transforms import Compose
-
-# # get functions from other files
-# sys.path.append('/home/ads4015/ssl_project/src/')
-# from wu_transforms import get_train_transforms, get_val_transforms, get_load_transforms
 
 # get ibot pretraining module
 sys.path.append('/home/ads4015/ssl_project/models')
 from ibot_clip_pretrain_module import IBOTCLIPPretrainModule
-
-# # get dataset class
-# sys.path.append('/home/ads4015/ssl_project/data/')
-# from nifti_text_patch_dataset import NiftiTextPatchDataset
 
 # get data module
 sys.path.append('/home/ads4015/ssl_project/data/')
@@ -80,7 +59,12 @@ if __name__ == '__main__':
         train_frac=config['data']['train_frac'],
         seed=config['training']['seed'],
         data_subset_frac=config['data']['data_subset_frac'],
-        text_prompts=config['data']['text_prompts']
+        text_prompts=config['data']['text_prompts'],
+        use_sub_patches=config['data'].get('use_sub_patches', False),
+        base_patch_size=config['data'].get('base_patch_size', 96),
+        sub_patch_size=config['data'].get('sub_patch_size', 64)
+    )
+    datamodule.setup(
     )
 
     # initialize model
@@ -125,8 +109,8 @@ if __name__ == '__main__':
         'best_model_path': best_model_path
     })
 
-    print(f'[INFO] Best model saved to : {best_model_path}')
-    print(f'[INFO] Best val loss: {best_val_loss}')
+    print(f'[INFO] Best model saved to : {best_model_path}', flush=True)
+    print(f'[INFO] Best val loss: {best_val_loss}', flush=True)
 
 
         
