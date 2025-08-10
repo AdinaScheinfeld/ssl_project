@@ -4,6 +4,7 @@
 
 # imports
 import argparse
+from datetime import datetime
 import os
 import sys
 import wandb
@@ -104,13 +105,31 @@ if __name__ == '__main__':
     best_model_path = trainer.checkpoint_callback.best_model_path
     best_val_loss = trainer.checkpoint_callback.best_model_score
     wandb_logger.experiment.log({
-        'best_val_loss': best_val_loss.item() if best_val_loss else None,
+        'checkpoint_best_val_loss': best_val_loss.item() if best_val_loss else None,
         # 'best_train_loss': best_train_loss,
-        'best_model_path': best_model_path
+        'checkpoint_best_model_path': best_model_path
     })
 
     print(f'[INFO] Best model saved to : {best_model_path}', flush=True)
     print(f'[INFO] Best val loss: {best_val_loss}', flush=True)
+
+    # log job end time and total time
+    start_epoch = os.getenv('START_EPOCH')
+    if start_epoch is not None:
+        start_dt = datetime.fromtimestamp(int(start_epoch))
+        end_dt = datetime.now()
+        total_runtime = end_dt - start_dt
+        print(f'[INFO] Total runtime: {total_runtime}', flush=True)
+
+        # log to wandb
+        wandb_logger.experiment.log({
+            'job_runtime_seconds': total_runtime.total_seconds(),
+            'job_runtime': str(total_runtime),
+            'job_start_time': start_dt.isoformat(),
+            'job_end_time': end_dt.isoformat()
+        })
+    else:
+        print('[WARNING] START_EPOCH not set. Add `export START_EPOCH="$(date +%s)"` to your job script to enable runtime logging.', flush=True)
 
 
         

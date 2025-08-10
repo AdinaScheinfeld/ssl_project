@@ -50,11 +50,13 @@ class NiftiTextPatchDataset(Dataset):
     # function to load volume from file path
     def load_volume(self, path):
         vol = nib.load(path).get_fdata() # shape: (D, H, W)
-        vol = torch.tensor(vol).float().unsqueeze(0) # shape: (1, D, H, W)
+        # vol = torch.tensor(vol).float().unsqueeze(0) # shape: (1, D, H, W)
         return vol
     
     # function to split volume into sub_patches
     def split_into_sub_patches(self, vol):
+
+        print(f'[DEBUG] Splitting volume of shape {vol.shape} into sub_patches of size {self.sub_patch_size}', flush=True)
 
         # create list to hold sub_patches
         sub_patches = []
@@ -64,15 +66,15 @@ class NiftiTextPatchDataset(Dataset):
 
         # randomly select 2 unique, non-overlapping start corners
         selected_starts = random.sample(valid_starts, 2)
-        print(f'[DEBUG] Selected starts: {selected_starts}', flush=True)
+        # print(f'[DEBUG] Selected starts: {selected_starts}', flush=True)
 
         # extract sub_patches from selected start corners
         for x, y, z in selected_starts:
             x, y, z = int(x), int(y), int(z) # convert float to int for indexing
-            sub_patch = vol[:, x:x+self.sub_patch_size, y:y+self.sub_patch_size, z:z+self.sub_patch_size]
+            sub_patch = vol[z:z+self.sub_patch_size,  y:y+self.sub_patch_size, x:x+self.sub_patch_size ]
 
-            sub_patch = sub_patch.squeeze() # remove extra channel dimensions
-            sub_patch = sub_patch.unsqueeze(0) # add channel dimension back
+            # sub_patch = sub_patch.squeeze() # remove extra channel dimensions
+            # sub_patch = sub_patch.unsqueeze(0) # add channel dimension back
 
             sub_patches.append(sub_patch)
 

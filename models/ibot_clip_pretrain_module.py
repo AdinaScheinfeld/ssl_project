@@ -76,6 +76,16 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         # indicate what size image patches are being used
         print(f'[INFO] Using {self.image_size}^3 size patches.', flush=True)
 
+        # track best metrics across the run
+        self.best_metrics = {
+            'train_loss': float('inf'),
+            'val_loss': float('inf'),
+            'train_clip_loss': float('inf'),
+            'val_clip_loss': float('inf'),
+            'train_ibot_loss': float('inf'),
+            'val_ibot_loss': float('inf')
+        }
+
         # *** SwinUNETR encoders ***
 
         # create swinUNETR as student network
@@ -357,6 +367,18 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         x = batch['image']
         texts = batch['text']
 
+        # squeeze stray trailing singleton dimension if present (B, C, D, H, W, 1) -> (B, C, D, H, W)
+        if x.ndim == 6 and x.shape[-1] == 1:
+            x = x.squeeze(-1)
+
+        # ensure channel first (B, 1, D, H, W), and if given (B, D, H, W, 1) then permute
+        if x.ndim == 5 and x.shape[1] != 1 and x.shape[-1] == 1:
+            x = x.permute(0, 4, 1, 2, 3).contiguous()
+
+        # add channel dimension if missing
+        if x.ndim == 4:
+            x = x.unsqueeze(1) # (B, 1, D, H, W)
+
         # generate patch level mask that randomly zeros out a subset of 3d patches in input image
         mask = self.generate_patch_mask(x, self.mask_patch_size)
 
@@ -472,6 +494,19 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
             # clear cache after each epoch
             del self.val_embeddings
 
+        # update best metrics
+        c = self.trainer.callback_metrics
+
+        # train metrics
+        self.update_best_metrics('train_loss', c.get('train_loss'))
+        self.update_best_metrics('train_clip_loss', c.get('train_clip_loss'))
+        self.update_best_metrics('train_ibot_loss', c.get('train_ibot_loss'))
+
+        # val metrics
+        self.update_best_metrics('val_loss', c.get('val_loss'))
+        self.update_best_metrics('val_clip_loss', c.get('val_clip_loss'))
+        self.update_best_metrics('val_ibot_loss', c.get('val_ibot_loss'))
+
 
     # after backwards
     def on_after_backward(self):
@@ -480,7 +515,56 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         for student_param, teacher_param in zip(self.student_encoder.parameters(), self.teacher_encoder.parameters()):
             teacher_param.data = self.ema_decay * teacher_param.data + (1 - self.ema_decay) * student_param.data
 
+    
+    # after fit 
+    def on_fit_end(self):
+
+        # mirror into wandb summary
+        if hasattr(self, 'logger') and hasattr(self.logger, 'experiment'):
+            exp = self.logger.experiment
+
+            # create table for best metrics
+            table = wandb.Table(columns=[
+                'best_train_loss', 'best_val_loss',
+                'best_train_clip_loss', 'best_val_clip_loss',
+                'best_train_ibot_loss', 'best_val_ibot_loss'
+            ])
+
+            # add data to table
+            table.add_data(
+                self.best_metrics['train_loss'],
+                self.best_metrics['val_loss'],
+                self.best_metrics['train_clip_loss'],
+                self.best_metrics['val_clip_loss'],
+                self.best_metrics['train_ibot_loss'],
+                self.best_metrics['val_ibot_loss']
+            )
+            exp.log({'best_metrics_table': table})
+
+            # add metrics to log summary too
+            for k, v in self.best_metrics.items():
+                exp.summary[f'best_{k}'] = v
+
 
     # optimizer
     def configure_optimizers(self):
         return torch.optim.AdamW(self.parameters(), lr=self.lr)
+    
+    # function to update best metrics
+    def update_best_metrics(self, name, value):
+        if value is None:
+            return
+        try:
+            v = float(value.detach().cpu().item() if hasattr(value, 'detach') else value)
+        except Exception:
+            return
+        if v < self.best_metrics[name]:
+            self.best_metrics[name] = v
+
+
+
+
+
+
+
+

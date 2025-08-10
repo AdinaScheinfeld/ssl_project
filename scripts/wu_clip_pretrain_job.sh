@@ -29,6 +29,10 @@ export TOKENIZERS_PARALLELISM=false
 # set path to config file
 CONFIG_PATH="/home/ads4015/ssl_project/configs/wu_clip_pretrain_config.yaml"
 
+# clock job start time
+export START_EPOCH="$(date +%s)"
+echo "[INFO] Job runtime timer started at $(date -d @${START_EPOCH} '+%Y-%m-%d %H:%M:%S')"
+
 # run script
 python /home/ads4015/ssl_project/src/wu_clip_pretrain.py --config $CONFIG_PATH
 

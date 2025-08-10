@@ -115,3 +115,10 @@ class WuCLIPDataModule(LightningDataModule):
     # val dataloader
     def val_dataloader(self):
         return DataLoader(self.val_ds, batch_size=self.batch_size, shuffle=False, num_workers=4)
+
+
+
+
+
+
+        
