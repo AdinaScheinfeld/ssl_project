@@ -39,7 +39,7 @@ def load_config(config_path):
     
 
 # function to compute per device batch size based on global batch size and number of devices
-def compute_per_device_batch_size(cfg):
+def compute_per_device_batch_size(cfg, world_override=None):
 
     data = cfg['data']
 
@@ -50,16 +50,14 @@ def compute_per_device_batch_size(cfg):
     
     # if global batch size is set, get distributed computing config values
     dist = cfg.get('dist', {})
-    configured_world = int(dist.get('devices', 1)) * int(dist.get('num_nodes', 1)) # total number of gpus across all nodes
-    env_world = int(
-        os.environ.get('WORLD_SIZE')
-        or os.environ.get('SLURM_NTASKS')
-        or os.environ.get('PMI_SIZE')
-        or configured_world
-        ) # get world size from environment variable, default to configured world size
-    # devices = int(dist.get('devices', 1)) # number of gpus per node
-    # num_nodes = int(dist.get('num_nodes', 1)) # number of nodes
-    world = max(env_world, 1)
+
+    if world_override is None:
+        configured_world = int(dist.get('devices', 1)) * int(dist.get('num_nodes', 1)) # total number of gpus across all nodes
+        env_world = int(os.environ.get('WORLD_SIZE', configured_world)) # get world size from environment variable, default to configured world size
+        world = max(env_world, 1)
+    else:
+        world = max(int(world_override), 1)
+
     accumulate_grad_batches = int(dist.get('accumulate_grad_batches', 1)) # gradient accumulation
     per_dev = global_batch_size // (world * accumulate_grad_batches) # per device batch size
 
@@ -71,6 +69,33 @@ def compute_per_device_batch_size(cfg):
               f'Using per-device batch_size={per_dev} and effective global={per_dev*world*accumulate_grad_batches}.', flush=True)
         
     return per_dev
+
+
+# function to determine whether using 1 or more gpus
+def resolve_dist(config):
+
+    dist = config.get('dist', {})
+    use_multi = bool(dist.get('multi_gpu', False)) # use multi-gpu if set to True in config
+
+    # get values
+    devices = int(dist.get('devices', 1)) # number of gpus per node
+    num_nodes = int(dist.get('num_nodes', 1)) # number of nodes
+    strategy = 'auto'
+
+    # get values if using multiple gpus
+    if use_multi:
+        devices = int(os.environ.get('SLURM_NTASKS_PER_NODE', devices)) # number of gpus per node from slurm env
+        num_nodes = int(os.environ.get('SLURM_JOB_NUM_NODES', os.environ.get('SLURM_NNODES', num_nodes))) # number of nodes from slurm env
+        strategy = DDPStrategy(find_unused_parameters=True)
+        world = max(1, devices * num_nodes) # total number of gpus across all nodes
+    
+    # if using single gpu, set devices to 1
+    else:
+        devices, num_nodes, world = 1, 1, 1
+        strategy = 'auto'
+
+    # return values
+    return devices, num_nodes, strategy, world
 
     
 
@@ -88,29 +113,32 @@ if __name__ == '__main__':
     # set seed for reproducibility
     pl.seed_everything(config['training']['seed'])
 
+    # get values
+    devices, num_nodes, strategy, world = resolve_dist(config)
+
     # get config values for distributed training
     dist_cfg = config.get('dist', {})
     accelerator = dist_cfg.get('accelerator', 'gpu') # default to gpu if cfg not set
-    devices = dist_cfg.get('devices', 1) # number of gpus per node, default to 1 if not set
-    num_nodes = dist_cfg.get('num_nodes', 1) # number of nodes, default to 1 if not set
+    # devices = dist_cfg.get('devices', 1) # number of gpus per node, default to 1 if not set
+    # num_nodes = dist_cfg.get('num_nodes', 1) # number of nodes, default to 1 if not set
     # strategy = dist_cfg.get('strategy', 'ddp') if int(devices) > 1 or int(num_nodes) > 1 else 'auto' # use 'auto' for single gpu training
     precision = dist_cfg.get('precision', '32-true') # default to float32 if not set (runs all computation in full float32 instead of using mixed precision)
     accumulate_grad_batches = int(dist_cfg.get('accumulate_grad_batches', 1)) # default to 1 if not set (no gradient accumulation)
-    sync_batchnorm = bool(dist_cfg.get('sync_batchnorm', False)) # synchronize batch norm across gpus (default to False if not set)
+    sync_batchnorm = bool(dist_cfg.get('sync_batchnorm', False)) and world >1 # synchronize batch norm across gpus (default to False if not set)
     deterministic = bool(dist_cfg.get('deterministic', False)) # set to True for reproducibility (may slow down training)
 
-    # if slurm is spawning ranks, align devices with n-tasks-per-node to satisfy lightning
-    slurm_ntasks_per_node = os.environ.get('SLURM_NTASKS_PER_NODE')
-    if slurm_ntasks_per_node:
-        try:
-            devices = int(slurm_ntasks_per_node)
-        except ValueError:
-            pass
+    # # if slurm is spawning ranks, align devices with n-tasks-per-node to satisfy lightning
+    # slurm_ntasks_per_node = os.environ.get('SLURM_NTASKS_PER_NODE')
+    # if slurm_ntasks_per_node:
+    #     try:
+    #         devices = int(slurm_ntasks_per_node)
+    #     except ValueError:
+    #         pass
 
-    strategy = DDPStrategy(find_unused_parameters=True)
+    # strategy = DDPStrategy(find_unused_parameters=True)
 
     # compute per-gpu batch size from config
-    per_device_batch_size = compute_per_device_batch_size(config)
+    per_device_batch_size = compute_per_device_batch_size(config, world_override=world)
 
     # wandb logger
     wandb_logger = WandbLogger(project=config['training']['project_name'])

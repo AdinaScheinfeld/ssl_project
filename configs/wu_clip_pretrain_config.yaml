@@ -44,12 +44,13 @@ training:
 
 # config for distributed training
 dist:
+  multi_gpu: True # set to True for multi-gpu training
   accelerator: gpu # cpu/gpu/mps
   strategy: ddp # distributed data parallel (ddp) for multi-gpu training 
   # (one process per gpu where each process has its own copy of the model and optimiser; 
   # training data is split across processes and sees a unique mini-batch each step; 
   # after each forward/backward pass, gradients are averaged acrosss all gpus so models stay in sync)
-  devices: 1 # number of gpus per node (set to 1 for single gpu training)
+  devices: 2 # number of gpus per node (set to 1 for single gpu training)
   num_nodes: 1 # set >1 for multi-node training
   precision: bf16-mixed # bf16-mixed good for h100 gpus (some parts of computation use bfloat16 for speed and memory efficiency, while others use float32 for stability)
   accumulate_grad_batches: 1 # gradient accumulation (controls how many batches to accumulate gradients over before performing an optimizer step; set to >1 for larger effective batch size)

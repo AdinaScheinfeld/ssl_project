@@ -4,11 +4,11 @@
 #SBATCH --error=logs/clip_pretrain_%j.err
 #SBATCH --time=10:00:00
 #SBATCH --partition=minilab-gpu
-#SBATCH --gres=gpu:h100:2
+#SBATCH --gres=gpu:h100:2 # select number of gpus ***
 #SBATCH --mem=180G
 #SBATCH --cpus-per-task=16
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=2 # 1 task per gpu
+#SBATCH --ntasks-per-node=2 # 1 task per gpu ***
 
 
 # indicate starting
@@ -35,9 +35,6 @@ CONFIG_PATH="/home/ads4015/ssl_project/configs/wu_clip_pretrain_config.yaml"
 # clock job start time
 export START_EPOCH="$(date +%s)"
 echo "[INFO] Job runtime timer started at $(date -d @${START_EPOCH} '+%Y-%m-%d %H:%M:%S')"
-
-# bridge slurm to torch env
-export WORLD_SIZE=${SLURM_NTASKS} # total number of tasks (gpus) across all nodes
 
 # allocator
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True

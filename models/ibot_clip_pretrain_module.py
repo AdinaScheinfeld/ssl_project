@@ -534,6 +534,10 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
     # after fit 
     def on_fit_end(self):
 
+        # only rank 0 should log best metrics
+        if not self.trainer.is_global_zero:
+            return
+
         # mirror into wandb summary
         if hasattr(self, 'logger') and hasattr(self.logger, 'experiment'):
             exp = self.logger.experiment
