@@ -159,7 +159,7 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
     def generate_patch_mask(self, x, base_mask_patch_size):
 
         # create mask
-        print(f'[DEBUG] x.shape in generate_patch_mask: {x.shape}', flush=True)
+        # print(f'[DEBUG] x.shape in generate_patch_mask: {x.shape}', flush=True)
         B, C, D, H, W = x.shape
         mask = torch.zeros((B, 1, D, H, W), dtype=torch.bool, device=x.device)
 
@@ -313,7 +313,9 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         # if counted images less than max, add more
         if log_count < self.max_log_images:
             num_to_add = min(self.max_log_images - log_count, x.shape[0])
-            batches_for_logging.append((x[:num_to_add].detach().cpu(), masked_input[:num_to_add].detach().cpu(), recon_image[:num_to_add].detach().cpu()))
+            batches_for_logging.append((x[:num_to_add].detach().to(torch.float32).cpu(), 
+                                        masked_input[:num_to_add].detach().to(torch.float32).cpu(), 
+                                        recon_image[:num_to_add].detach().to(torch.float32).cpu()))
             if is_train:
                 self.train_log_count += num_to_add
             else:
@@ -338,6 +340,11 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         embed_dict['image'].append(student_image_embed)
         embed_dict['text'].append(text_embed)
         embed_dict['label'].extend(texts)
+
+    
+    # on train start
+    def on_train_start(self):
+        print(f'[DEBUG] RANK: {self.global_rank}, world_size={self.trainer.world_size}', flush=True)
 
 
     # on train epoch start
@@ -406,9 +413,9 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
 
         # log losses
         log_prefix = 'train' if is_train else 'val'
-        self.log(f'{log_prefix}_loss', total_loss, on_step=is_train, on_epoch=True, prog_bar=True, batch_size=x.shape[0])
-        self.log(f'{log_prefix}_clip_loss', clip_loss, on_step=True, on_epoch=True, batch_size=x.shape[0])
-        self.log(f'{log_prefix}_ibot_loss', ibot_loss, on_step=True, on_epoch=True, batch_size=x.shape[0])
+        self.log(f'{log_prefix}_loss', total_loss, on_step=is_train, on_epoch=True, prog_bar=True, batch_size=x.shape[0], sync_dist=True)
+        self.log(f'{log_prefix}_clip_loss', clip_loss, on_step=True, on_epoch=True, batch_size=x.shape[0], sync_dist=True)
+        self.log(f'{log_prefix}_ibot_loss', ibot_loss, on_step=True, on_epoch=True, batch_size=x.shape[0], sync_dist=True)
 
         # get logging data
         self.log_image_and_embeddings(x, mask, student_out, texts, is_train=is_train, student_image_embed=student_image_embed, text_embed=text_embed, student_recon=student_recon)
@@ -429,6 +436,10 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
 
     # after train epoch
     def on_train_epoch_end(self):
+
+        # only log artifacts from rank 0 process in distributed training
+        if not self.trainer.is_global_zero:
+            return
 
         # log images to wandb
         if self.train_batches_for_logging:
@@ -463,6 +474,10 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
 
     # after val epoch
     def on_validation_epoch_end(self):
+
+        # only log artifacts from rank 0 process in distributed training
+        if not self.trainer.is_global_zero:
+            return
 
         # log images to wandb
         if self.val_batches_for_logging:

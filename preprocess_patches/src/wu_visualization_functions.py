@@ -58,9 +58,9 @@ def log_images_to_wandb_table(logger, originals, maskeds, student_preds, prefix,
     # loop through number of entries to plot and get images for plotting
     for i in range(min(max_rows, originals.shape[0])):
         center_z = originals.shape[2] // 2
-        original_img = originals[i, 0].cpu().numpy()[center_z]
-        masked_img = maskeds[i, 0].cpu().numpy()[center_z]
-        pred_img = student_preds[i, 0].detach().cpu().numpy()[center_z]
+        original_img = originals[i, 0].to(torch.float32).cpu().numpy()[center_z]
+        masked_img = maskeds[i, 0].to(torch.float32).cpu().numpy()[center_z]
+        pred_img = student_preds[i, 0].detach().to(torch.float32).cpu().numpy()[center_z]
 
         # log intensity histogram for first sample in each batch
         if i == 0 and log_histograms:
@@ -100,9 +100,9 @@ def log_images_batches_to_wandb_table(logger, batches, prefix, step_or_epoch, ma
                 break
 
             center_z = originals.shape[2] // 2
-            original_img = originals[i, 0].cpu().numpy()[center_z]
-            masked_img = maskeds[i, 0].cpu().numpy()[center_z]
-            pred_img = student_preds[i, 0].detach().cpu().numpy()[center_z]
+            original_img = originals[i, 0].to(torch.float32).cpu().numpy()[center_z]
+            masked_img = maskeds[i, 0].to(torch.float32).cpu().numpy()[center_z]
+            pred_img = student_preds[i, 0].to(torch.float32).detach().cpu().numpy()[center_z]
 
             # log intensity histogram for first sample in each batch
             if i == 0 and log_histograms:
