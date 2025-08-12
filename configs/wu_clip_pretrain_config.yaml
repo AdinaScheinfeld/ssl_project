@@ -1,4 +1,4 @@
-# config file for lsm pretraining
+# wu_clip_pretrain_config.yaml - config file for lsm pretraining
 
 data:
   data_dir: /midtier/paetzollab/scratch/ads4015/all_wu_brain_patches

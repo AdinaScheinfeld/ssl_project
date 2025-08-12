@@ -10,6 +10,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=2 # 1 task per gpu ***
 
+# wu_clip_pretrain_2_job.sh - Script for Wu data pretraining
 
 # indicate starting
 echo "Starting LSM pretraining..."

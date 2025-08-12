@@ -1,4 +1,4 @@
-# Functions used in visualization notebooks and scripts
+# wu_visualization_functions.py -  Functions used in visualization notebooks and scripts
 
 # --- Setup ---
 

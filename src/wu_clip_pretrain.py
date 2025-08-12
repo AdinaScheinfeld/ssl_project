@@ -1,4 +1,4 @@
-# Wu Data Pretraining
+# wu_clip_pretrain.py - Wu Data Pretraining
 
 # --- Setup ---
 

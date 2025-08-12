@@ -1,4 +1,4 @@
-# dataset class
+# nifti_text_patch_dataset.py - Dataset class
 
 # --- Setup ---
 

@@ -1,4 +1,4 @@
-# Data module for Wu data with CLIP
+# wu_clip_data_module.py - Data module for Wu data with CLIP
 
 # --- Setup ---
 

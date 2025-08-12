@@ -1,4 +1,4 @@
-# Functions used when finetuning model trained on Wu data
+# wu_transforms.py - Functions used when finetuning model trained on Wu data
 
 # --- Setup ---
 

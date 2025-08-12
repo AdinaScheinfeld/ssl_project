@@ -1,4 +1,4 @@
-# Module for IBot pretraining
+# ibot_clip_pretrain_module.py - Module for IBot pretraining
 
 # --- Setup ---
 
