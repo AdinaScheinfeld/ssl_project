@@ -1,0 +1,74 @@
+# wu_clip_pretrain_4_config.yaml - Config file for lsm pretraining
+
+data:
+  data_dir: /midtier/paetzollab/scratch/ads4015/all_wu_brain_patches
+  train_frac: 0.8 # fraction of volumes to use for training (remaining used for val)
+  batch_size: 32 #32 # number of patches per batch (use max 8 for 96x96x96 patches on 96GB GPU h100 GPUs) ***
+  global_batch_size: 64 # total batch size across all gpus (ex: use 32 for 4 gpus with batch_size=8)
+  data_subset_frac: 1.0 #0.5 # percent of files to use per volume (set to 1.0 to use all files) ***
+  text_prompts: /home/ads4015/ssl_project/data/text_prompts.json # path to text prompts file
+  use_sub_patches: False #True # if true, will divide all each 96x96x96 patch into 2 sub_patches of size 64x64x64 ***
+  base_patch_size: 96 # size of each patch in voxels (use: 96x96x96)
+  sub_patch_size: 64 # size of each sub_patch in voxels (use: 64x64x64) if use_sub_patches is True
+
+model:
+  # image_size: 96 # image size should match base_patch_size if use_sub_patches is False, or sub_patch_size if use_sub_patches is True
+  mask_ratio_warmup: 0.1 # fraction of masked patches per volume for first few epochs
+  warmup_epochs: 20
+  mask_ratio: 0.3 # fraction of masked patches per volume
+  lr: 0.0001
+  ema_decay: 0.996
+  mask_patch_size: 16 #8 # base patch size for masking (use: 16x16x16 for 96x96x96 base patches, or 8x8x8 for 64x64x64 sub_patches) ***
+  temp_student: 0.1 # temperature for student logits
+  temp_teacher: 0.04 # temperature for teacher softmax (0.04 is default in most iBOT implementations)
+  text_model_name: bert-base-uncased # text model to use (bert-base-uncased from HuggingFace)
+  embed_dim: 256 # 256 is balance of GPU memory and representational power (larger values may have better performance but also higher compute/memory cost)
+  clip_temperature: 0.07 # (0.07 is default in OpenAI paper and used by most applications)
+  save_filename: wu_clip_pretrained_1
+  save_dirpath: /home/ads4015/ssl_project/checkpoints
+  feature_size: 24 # 48
+  max_log_images: 5
+
+loss_weights:
+  distill_weight: 0.5 # masked voxel KL divergence
+  reconstruction_weight: 0.4 # masked voxel L1 reconstructions
+  align_weight: 0.1 # image-text cosine similarity per pair
+  clip_weight: 1.0 # global contrastive loss between all image and text embeddings in batch
+
+training:
+  seed: 100
+  max_epochs: 1000
+  patience: 45
+  log_every_n_steps: 5
+  project_name: ibot-clip-pretrain-lsm
+
+# config for distributed training
+dist:
+  multi_gpu: True # set to True for multi-gpu training
+  accelerator: gpu # cpu/gpu/mps
+  strategy: ddp # distributed data parallel (ddp) for multi-gpu training 
+  # (one process per gpu where each process has its own copy of the model and optimiser; 
+  # training data is split across processes and sees a unique mini-batch each step; 
+  # after each forward/backward pass, gradients are averaged acrosss all gpus so models stay in sync)
+  devices: 4 # number of gpus per node (set to 1 for single gpu training)
+  num_nodes: 1 # set >1 for multi-node training
+  precision: bf16-mixed # bf16-mixed good for h100 gpus (some parts of computation use bfloat16 for speed and memory efficiency, while others use float32 for stability)
+  accumulate_grad_batches: 1 # gradient accumulation (controls how many batches to accumulate gradients over before performing an optimizer step; set to >1 for larger effective batch size)
+  sync_batchnorm: True # synchronize batch norm across gpus (good for multi-gpu training)
+  deterministic: False # set to True for reproducibility (may slow down training)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
