@@ -1,0 +1,43 @@
+program: /home/ads4015/ssl_project/sweep/wu_clip_pretrain_sweep.py
+method: bayes
+
+metric:
+  name: val_loss_norm
+  goal: minimize
+
+command:
+  - ${env}
+  - python
+  - ${program}
+  - --config=/home/ads4015/ssl_project/configs/wu_clip_pretrain_2_config.yaml
+
+parameters:
+  model.mask_ratio_warmup: {values: [0.05, 0.1, 0.2]}
+  model.warmup_epochs: {values: [5, 10, 20]}
+  model.mask_ratio: {values: [0.2, 0.3, 0.4]}
+  model.lr: {distribution: log_uniform_values, min: 0.00001, max: 0.0005}
+  model.ema_decay: {values: [0.995, 0.996, 0.998]}
+  model.temp_student: {values: [0.07, 0.1, 0.2]}
+  model.temp_teacher: {values: [0.03, 0.04, 0.07]}
+  model.embed_dim: {values: [192, 256, 320]}
+  model.clip_temperature: {values: [0.05, 0.07, 0.1]}
+  loss_weights.distill_weight: {values: [0.4, 0.5, 0.7]}
+  loss_weights.reconstruction_weight: {values: [0.2, 0.4, 0.6]}
+  loss_weights.align_weight: {values: [0.05, 0.1, 0.2]}
+  loss_weights.clip_weight: {values: [0.5, 1.0, 2.0]}
+  data.global_batch_size: {value: 16}
+  dist.accumulate_grad_batches: {value: 4}
+
+early_terminate:
+  type: hyperband
+  min_iter: 5
+  eta: 3  
+
+
+
+
+
+
+
+
+
