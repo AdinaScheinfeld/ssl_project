@@ -31,7 +31,7 @@ class WuCLIPDataModule(LightningDataModule):
 
     # init
     def __init__(self, data_dir, batch_size, train_frac, seed, data_subset_frac, text_prompts, 
-                 use_sub_patches=False, base_patch_size=96, sub_patch_size=64):
+                 use_sub_patches=False, base_patch_size=96, sub_patch_size=64, downsample_to=None):
         super().__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
@@ -42,6 +42,7 @@ class WuCLIPDataModule(LightningDataModule):
         self.use_sub_patches = use_sub_patches
         self.base_patch_size = base_patch_size
         self.sub_patch_size = sub_patch_size
+        self.downsample_to = downsample_to
 
         # # ensure that base_patch_size is divisible by sub_patch_size if using sub_patches
         # if self.use_sub_patches and self.base_patch_size % self.sub_patch_size != 0:
@@ -54,8 +55,17 @@ class WuCLIPDataModule(LightningDataModule):
     # setup
     def setup(self, stage=None):
 
-        # log which patch mode is being used
-        print(f'[INFO] Using {self.sub_patch_size}^3 size sub-patches' if self.use_sub_patches else f'[INFO] Using {self.base_patch_size}^3 size base patches', flush=True)
+        # determine actual input size
+        if self.use_sub_patches: # crop to specific size
+            target_size = int(self.sub_patch_size)
+            mode_msg = f'Using {target_size}^3 sub-patches (crops).'
+        elif self.downsample_to is not None: # downsample to specific size
+            target_size = int(self.downsample_to)
+            mode_msg = f'Downsampling full {self.base_patch_size}^3 -> {target_size}^3 (no cropping).'
+        else: # no cropping or downsampling
+            target_size = int(self.base_patch_size)
+            mode_msg = f'Using {target_size}^3 base patches.'
+        print(f'[INFO] {mode_msg}', flush=True)
 
         # get volume directories
         volume_dirs = sorted(glob.glob(os.path.join(self.data_dir, '*/input')))
@@ -94,7 +104,7 @@ class WuCLIPDataModule(LightningDataModule):
         print(f'[INFO] Subsample fraction: {self.data_subset_frac} => {len(train_files)} train and {len(val_files)} val files used.')
 
         # create train/val datasets
-        load = get_load_transforms()
+        load = get_load_transforms(target_size=target_size)
         self.train_ds = NiftiTextPatchDataset(train_files, 
                                               transforms=MonaiCompose([load, get_train_transforms()]),
                                               text_prompts=self.text_prompts,

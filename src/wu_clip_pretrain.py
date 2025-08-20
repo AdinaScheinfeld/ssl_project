@@ -119,23 +119,16 @@ if __name__ == '__main__':
     # get config values for distributed training
     dist_cfg = config.get('dist', {})
     accelerator = dist_cfg.get('accelerator', 'gpu') # default to gpu if cfg not set
-    # devices = dist_cfg.get('devices', 1) # number of gpus per node, default to 1 if not set
-    # num_nodes = dist_cfg.get('num_nodes', 1) # number of nodes, default to 1 if not set
-    # strategy = dist_cfg.get('strategy', 'ddp') if int(devices) > 1 or int(num_nodes) > 1 else 'auto' # use 'auto' for single gpu training
     precision = dist_cfg.get('precision', '32-true') # default to float32 if not set (runs all computation in full float32 instead of using mixed precision)
     accumulate_grad_batches = int(dist_cfg.get('accumulate_grad_batches', 1)) # default to 1 if not set (no gradient accumulation)
     sync_batchnorm = bool(dist_cfg.get('sync_batchnorm', False)) and world >1 # synchronize batch norm across gpus (default to False if not set)
     deterministic = bool(dist_cfg.get('deterministic', False)) # set to True for reproducibility (may slow down training)
 
-    # # if slurm is spawning ranks, align devices with n-tasks-per-node to satisfy lightning
-    # slurm_ntasks_per_node = os.environ.get('SLURM_NTASKS_PER_NODE')
-    # if slurm_ntasks_per_node:
-    #     try:
-    #         devices = int(slurm_ntasks_per_node)
-    #     except ValueError:
-    #         pass
-
-    # strategy = DDPStrategy(find_unused_parameters=True)
+    # get downsampling config values
+    down_cfg = config['data'].get('downsample', {})
+    downsample_to = None
+    if bool(down_cfg.get('enabled', False)):
+        downsample_to = int(down_cfg.get('target_size', 64))
 
     # compute per-gpu batch size from config
     per_device_batch_size = compute_per_device_batch_size(config, world_override=world)
@@ -153,7 +146,8 @@ if __name__ == '__main__':
         text_prompts=config['data']['text_prompts'],
         use_sub_patches=config['data'].get('use_sub_patches', False),
         base_patch_size=config['data'].get('base_patch_size', 96),
-        sub_patch_size=config['data'].get('sub_patch_size', 64)
+        sub_patch_size=config['data'].get('sub_patch_size', 64),
+        downsample_to=downsample_to
     )
     datamodule.setup()
 

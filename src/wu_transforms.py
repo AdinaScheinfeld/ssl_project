@@ -19,6 +19,7 @@ from monai.transforms import (
     RandRotate90d,
     RandScaleIntensityd,
     RandShiftIntensityd,
+    Resized,
     ScaleIntensityRangePercentilesd,
     SqueezeDimd,
     ToTensord
@@ -68,14 +69,29 @@ def get_val_transforms():
 
 
 # get loading transforms
-def get_load_transforms():
-    return Compose([
+def get_load_transforms(target_size=None):
+
+    # list of transforms
+    tfs =  [
         LoadImaged(keys=['image']),
         SqueezeDimd(keys=['image'], dim=-1), # remove trailing channel dimension
         EnsureChannelFirstd(keys=['image'], channel_dim='no_channel'), # move channel dimension to front or add it if missing
-        ScaleIntensityRangePercentilesd(keys=['image'], lower=1.0, upper=99.0, b_min=0.0, b_max=1.0, clip=True),
-        ToTensord(keys=['image']) # (IMPORTANT)
-    ])
+        ScaleIntensityRangePercentilesd(keys=['image'], lower=1.0, upper=99.0, b_min=0.0, b_max=1.0, clip=True)
+    ]
+
+    # downsampling
+    if target_size is not None:
+        tfs.append(Resized(
+            keys=['image'],
+            spatial_size=(target_size, target_size, target_size),
+            mode='trilinear',
+            align_corners=False
+        ))
+    tfs.append(ToTensord(keys=['image']))
+
+    # return all transforms
+    return Compose(tfs)
+    
 
 
 # --- Finetuning Transforms ---

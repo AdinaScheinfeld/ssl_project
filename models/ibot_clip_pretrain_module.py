@@ -59,7 +59,18 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters(config) # save all hyperparameters to self.hparams
 
-        # self.image_size = config['model']['image_size']
+        # parse downsampling config
+        data_cfg = config['data']
+        down_cfg = data_cfg.get('downsample', {})
+        if data_cfg.get('use_sub_patches', False): # use crops
+            self.image_size = int(data_cfg.get('sub_patch_size', 64))
+        elif bool(down_cfg.get('enabled', False)): # downsample
+            self.image_size = int(down_cfg.get('target_size', data_cfg.get('base_patch_size', 96)))
+        else: # use images without cropping/downsampling
+            self.image_size = int(data_cfg.get('base_patch_size', 96))
+
+        print(f'[INFO] Using {self.image_size}^3 size patches.', flush=True)
+
         self.mask_ratio = config['model']['mask_ratio'] # percentage of voxels to mask
         self.mask_ratio_warmup = config['model']['mask_ratio_warmup']
         self.warmup_epochs = config['model']['warmup_epochs']
