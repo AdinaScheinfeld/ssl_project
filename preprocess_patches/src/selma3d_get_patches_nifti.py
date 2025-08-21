@@ -144,11 +144,11 @@ def extract_patches_from_stack(tiff_dir, output_dir, prefix):
 
                     # reservoir sampling to keep a uniform random sample of size K
                     if len(selected) < NUM_RANDOM_PATCHES:
-                        selected.append({'patch': patch.copy(), 'idx': candidates_seen-1})
+                        selected.append({'patch': patch.copy(), 'idx': candidates_seen-1, 'pos': (z0, y, x)})
                     else:
                         r = random.randint(0, candidates_seen - 1)
                         if r < NUM_RANDOM_PATCHES:
-                            selected[r] = {'patch': patch.copy(), 'idx': candidates_seen-1}
+                            selected[r] = {'patch': patch.copy(), 'idx': candidates_seen-1, 'pos': (z0, y, x)}
 
         patch_block_index += 1
 
@@ -159,23 +159,29 @@ def extract_patches_from_stack(tiff_dir, output_dir, prefix):
     for i, item in enumerate(selected):
 
         patch = item['patch']
+        cand_idx = item.get('idx')
+        pos = item.get('pos')
+        if pos is None:
+            z0, y0, x0 = (0, 0, 0)
+        else:
+            z0, y0, x0 = pos
 
         # save as nifti
         if SAVE_AS_NIFTI:
 
             # transpose (z, y, x) -> (x, y, z) for nifti
             patch_nifti = np.transpose(patch.astype(np.uint16), (2, 1, 0))
-            patch_path = os.path.join(subfolder, f'{datatype}_{sample_name}_{channel}_p{saved_count}.nii.gz')
+            patch_path = os.path.join(subfolder, f'{datatype}_{sample_name}_{channel}_p{saved_count}_cand{cand_idx}_z{z0}_y{y0}_x{x0}.nii.gz')
 
             # save patch using nibabel
             nib.save(nib.Nifti1Image(patch_nifti, affine=np.eye(4)), patch_path)
         
         # save as tiff
         else:
-            patch_path = os.path.join(subfolder, f'{datatype}_{sample_name}_{channel}_p{saved_count}.tiff')
+            patch_path = os.path.join(subfolder, f'{datatype}_{sample_name}_{channel}_p{saved_count}_cand{cand_idx}_z{z0}_y{y0}_x{x0}.tiff')
             tiff.imwrite(patch_path, patch.astype(np.uint16), imagej=True)
 
-        print(f'Saving random patch {saved_count} -> {patch_path}', flush=True)
+        print(f'Saved random patch {saved_count} (cand {cand_idx} @ z{z0},y{y0},x{x0}) -> {patch_path}', flush=True)
         saved_count += 1
 
     print(f'Done. Saved {saved_count} patches.', flush=True)
