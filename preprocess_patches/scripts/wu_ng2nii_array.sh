@@ -149,6 +149,8 @@ else:
 print("[INFO] Done.", flush=True)
 PY
 
+
+# indicate completion
 echo "ng2nii job complete."
 
 
