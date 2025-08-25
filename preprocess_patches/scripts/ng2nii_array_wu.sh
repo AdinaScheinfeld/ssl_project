@@ -8,7 +8,7 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --array=1-9 # 
+#SBATCH --array=1-9
 
 set -euo pipefail
 
@@ -20,7 +20,7 @@ CONFIG_FILE="/midtier/paetzollab/scratch/ads4015/all_wu_brain_patches/all_wu_bra
 SIZE="96,96,96"
 NG2NII="/home/ads4015/ssl_project/preprocess_patches/src/ng2nii.py"
 
-# Activate conda
+# activate conda
 module load anaconda3/2022.10-34zllqw
 source activate ng2nii-env1
 
