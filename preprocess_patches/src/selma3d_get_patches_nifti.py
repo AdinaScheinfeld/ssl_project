@@ -43,6 +43,92 @@ channels = {'vessel': {'C00': 'vessel_wga',
 
 # --- Functions ---
 
+# robust tiff helper functions (to find and fix bad slices)
+
+# function to safely read tiff stack single-threaded
+def safe_imread(path, *, maxworkers=1):
+
+    try:
+        return tiff.imread(path, maxworkers=maxworkers)
+    except Exception:
+        with tiff.TiffFile(path) as tf:
+            return tf.pages[0].asarray(maxworkers=maxworkers)
+        
+
+# function to try reading tiff stack and return None on failure
+def try_imread_or_none(path, *, maxworkers=1):
+
+    try:
+        return tiff.imread(path, maxworkers=maxworkers)
+    except Exception:
+        try:
+            with tiff.TiffFile(path) as tf:
+                return tf.pages[0].asarray(maxworkers=maxworkers)
+        except Exception:
+            return None
+        
+
+# function to inspect tiff metadata
+def inspect_tiff(path):
+
+    try:
+        with tiff.TiffFile(path) as tf:
+            p = tf.pages[0]
+            return dict(
+                shape=getattr(p, 'shape', None),
+                dtype=str(getattr(p, 'dtype', None)),
+                compression=str(getattr(p, 'compression', None)),
+                rows_per_strip=getattr(p, 'rowsperstrip', None),
+                samples_per_pixel=getattr(p, 'samplesperpixel', None),
+                tiled=getattr(p, 'is_tiled', None)
+            )
+    except Exception as e:
+        return {'error': repr(e)}
+    
+
+# function to replace none entries with average of nearest neighbors, else zeros
+def _repair_block(slice_list, shape):
+
+    for k in range(len(slice_list)):
+        if slice_list[k] is None:
+            prev_arr = next_arr = None
+            i = k - 1
+            while i >= 0 and slice_list[i] is None:
+                i -= 1
+            if i >= 0:
+                prev_arr = slice_list[i]
+            j = k + 1
+            while j < len(slice_list) and slice_list[j] is None:
+                j += 1
+            if j < len(slice_list):
+                next_arr = slice_list[j]
+
+            # replace corrupted slice with average of nearest neighbors
+            if prev_arr is not None and next_arr is not None and prev_arr.shape == next_arr.shape:
+                repaired = ((prev_arr.astype(np.float32) + next_arr.astype(np.float32)) / 2).astype(prev_arr.dtype)
+                print(f'Repaired missing slice {k} using average of neighbors {i} and {j}.', flush=True)
+
+            # if only have prev (not next), replace corrupted slice with prev
+            elif prev_arr is not None:
+                repaired = prev_arr
+                print(f'Repaired missing slice {k} using previous neighbor {i}.', flush=True)
+
+            # if only have next (not prev), replace corrupted slice with next
+            elif next_arr is not None:
+                repaired = next_arr
+                print(f'Repaired missing slice {k} using next neighbor {j}.', flush=True)
+
+            # if don't have prev or next, replace missing slice with zeros
+            else:
+                repaired = np.zeros(shape, dtype=np.uint16)
+
+            # add slice back into array
+            slice_list[k] = repaired
+
+    return slice_list
+
+# ---
+
 # function to pad slice to correct x,y dimensions
 def pad_slice(slice_array, target_shape, verbose=False):
     if verbose:
@@ -63,8 +149,53 @@ def _num_key(s):
     return int(nums[-1]) if nums else -1
 
 
+# function to get random seed
+def seed_rng_for_sample(sample_id):
+
+    # deterministically seed rngs for given sample id
+    seed_base = int(hashlib.md5(sample_id.encode('utf-8')).hexdigest()[:8], 16)
+    seed_final = seed_base if GLOBAL_SEED is None else ((seed_base ^ GLOBAL_SEED) & 0xFFFFFFFF)
+    random.seed(seed_final)
+    np.random.seed(seed_final)
+    print(f'[DEBUG] Seed RNG for sample {sample_id}: {seed_final}', flush=True)
+
+
+# function to get sorted slices and ensure correct ordering
+def get_sorted_slices(tiff_dir, label=''):
+
+    # get slices
+    slice_files = sorted([f for f in os.listdir(tiff_dir) if f.lower().endswith(('.tif', '.tiff')) and not f.startswith('.')], 
+                         key=_num_key)
+    
+    # ensure correct sorting
+    print(f'[DEBUG] Sorted {len(slice_files)} slices in {tiff_dir} {label}.', flush=True)
+
+    return slice_files
+
+
+# function to confirm that tiff stack is sorted correctly
+def preview_stack_list(tiff_dir, n=10, slice_files=None):
+
+    if slice_files is None:
+        slice_files = get_sorted_slices(tiff_dir)
+    if not slice_files:
+        print(f'[WARNING] No valid slice files found in {tiff_dir}.', flush=True)
+        return
+
+    # get sorted slice files
+    slice_files = get_sorted_slices(tiff_dir)
+
+    # preview first n slices
+    for f in slice_files[:n]:
+        print(f'  {f}', flush=True)
+    for f in slice_files[-n:]:
+        print(f'  {f}', flush=True)
+
+
 # block-level otsu thresholding
 def block_otsu(arr: np.ndarray):
+    if arr is None:
+        return 0
     ds = arr[::4, ::4, ::4]
     return threshold_otsu(ds) if ds.min() != ds.max() else ds.min()
 
@@ -74,9 +205,19 @@ def extract_patches_from_stack(tiff_dir, output_dir, prefix):
 
     print(f'Processing: {prefix} ({tiff_dir})', flush=True)
 
-    # get slices
-    slice_files = sorted([f for f in os.listdir(tiff_dir) if f.endswith('.tif') and not f.startswith('.')], 
-                         key=_num_key)
+    # define channel
+    base_dir = os.path.dirname(tiff_dir)
+    current_channel = os.path.basename(tiff_dir)
+
+    # reseed deterministically 
+    sample_id = os.path.basename(base_dir)
+    seed_rng_for_sample(sample_id)
+
+    # get slices from primary channel (all data and vessels)
+    slice_files = get_sorted_slices(tiff_dir, label=f'(primary {current_channel})')
+    preview_stack_list(tiff_dir, n=10, slice_files=slice_files)
+
+    # ensure tif slices exist
     if len(slice_files) == 0:
         print('No .tif slices found. Skipping.', flush=True)
         return
@@ -89,8 +230,6 @@ def extract_patches_from_stack(tiff_dir, output_dir, prefix):
     # image will be kept if either channel passes threshold requirements
     sibling_dir = None
     use_pair = False # will be set to True for vessel images only
-    base_dir = os.path.dirname(tiff_dir)
-    current_channel = os.path.basename(tiff_dir)
 
     if SYNC_VESSEL_CHANNELS and prefix.startswith('vessel_'):
         sibling_channel = 'C01' if current_channel == 'C00' else 'C00'
@@ -98,14 +237,11 @@ def extract_patches_from_stack(tiff_dir, output_dir, prefix):
         if os.path.isdir(candidate):
             sibling_dir = candidate
             use_pair = True
+            slice_files_b = get_sorted_slices(sibling_dir, label=f'(sibling {sibling_channel})')
 
     if use_pair:
-        slice_files_b = sorted(
-            [f for f in os.listdir(sibling_dir) if f.endswith('.tif') and not f.startswith('.')],
-            key=_num_key
-        )
-        sample_slice_a = tiff.imread(os.path.join(tiff_dir, slice_files[0]))
-        sample_slice_b = tiff.imread(os.path.join(sibling_dir, slice_files_b[0]))
+        sample_slice_a = safe_imread(os.path.join(tiff_dir, slice_files[0]))
+        sample_slice_b = safe_imread(os.path.join(sibling_dir, slice_files_b[0]))
         ha, wa = sample_slice_a.shape
         hb, wb = sample_slice_b.shape
         height, width = max(ha, hb), max(wa, wb)
@@ -118,18 +254,11 @@ def extract_patches_from_stack(tiff_dir, output_dir, prefix):
         pad_z = (PATCH_SIZE - z_len % PATCH_SIZE) % PATCH_SIZE
         total_slices = z_len + pad_z
 
-        # use shared deterministic seed per sample so C00/C01 choose identical coords
-        sample_name = os.path.basename(base_dir)
-        seed_base = int(hashlib.md5(sample_name.encode('utf-8')).hexdigest()[:8], 16)
-        seed_final = seed_base if GLOBAL_SEED is None else ((seed_base ^ GLOBAL_SEED) & 0xFFFFFFFF)
-        random.seed(seed_final)
-        np.random.seed(seed_final)
-
     # single-channel padding logic
     else:
 
         # determine max dimensions of slices to define padding target for slice
-        sample_slice = tiff.imread(os.path.join(tiff_dir, slice_files[0]))
+        sample_slice = safe_imread(os.path.join(tiff_dir, slice_files[0]))
         height, width = sample_slice.shape
         pad_y = (PATCH_SIZE - height % PATCH_SIZE) % PATCH_SIZE
         pad_x = (PATCH_SIZE - width % PATCH_SIZE) % PATCH_SIZE
@@ -171,11 +300,6 @@ def extract_patches_from_stack(tiff_dir, output_dir, prefix):
     # each item is dict with keys {'patch': np.ndarray, 'idx': int}
     selected = []
     candidates_seen = 0
-    # saved_count = 0
-
-    # create list of slices
-
-    # patch_block_index = 0
 
     # ensure that not all z blocks are being skipped
     num_blocks = total_slices // PATCH_SIZE
@@ -193,14 +317,18 @@ def extract_patches_from_stack(tiff_dir, output_dir, prefix):
         slices_a = []
         for zi in range(z0, z0 + PATCH_SIZE):
             if zi < len(slice_files):
-                sdata = tiff.imread(os.path.join(tiff_dir, slice_files[zi]))
-                sdata = pad_slice(sdata, padded_shape)
+                fname = os.path.join(tiff_dir, slice_files[zi])
+                sdata = try_imread_or_none(fname)
+                if sdata is None:
+                    meta = inspect_tiff(fname)
+                    print(f'[WARN] Failed to read {fname}; meta={meta}. Will repair later.', flush=True)
+                else:
+                    sdata = pad_slice(sdata, padded_shape)
             else:
                 sdata = np.zeros(padded_shape, dtype=np.uint16)
-            slices_a.append(sdata)  
+            slices_a.append(sdata)
 
-        # stack slices into volume
-        volume = np.stack(slices_a)
+        
 
         # build sibling block volume for vessels
         # volume: np.ndarray (z, y, x) for current 96 slice block
@@ -209,12 +337,29 @@ def extract_patches_from_stack(tiff_dir, output_dir, prefix):
             slices_b = []
             for zi in range(z0, z0+PATCH_SIZE):
                 if zi < len(slice_files_b):
-                    sdata = tiff.imread(os.path.join(sibling_dir, slice_files_b[zi]))
-                    sdata = pad_slice(sdata, padded_shape)
+                    fname_b = os.path.join(sibling_dir, slice_files_b[zi])
+                    sdata = try_imread_or_none(fname_b)
+                    if sdata is None:
+                        meta = inspect_tiff(fname_b)
+                        print(f'[WARN] Failed to read {fname_b}; meta={meta}. Will repair later.', flush=True)
+                    else:
+                        sdata = pad_slice(sdata, padded_shape)
                 else:
                     sdata = np.zeros(padded_shape, dtype=np.uint16)
                 slices_b.append(sdata)
+        else:
+            volume_b = None
+
+
+        # repair and stack a and b
+        slices_a = _repair_block(slices_a, padded_shape)
+        volume = np.stack(slices_a)
+        del slices_a # delete to save memory
+
+        if use_pair:
+            slices_b = _repair_block(slices_b, padded_shape)
             volume_b = np.stack(slices_b)
+            del slices_b # delete to save memroy
         else:
             volume_b = None
 
@@ -239,8 +384,6 @@ def extract_patches_from_stack(tiff_dir, output_dir, prefix):
                 # ensure correct size 
                 if patch.shape != (PATCH_SIZE, PATCH_SIZE, PATCH_SIZE):
                     continue
-
-
 
                 # single channel with local/global otsu thresholding (effective threshold is max of block and local)
                 if volume_b is None:
@@ -283,8 +426,6 @@ def extract_patches_from_stack(tiff_dir, output_dir, prefix):
                         if r < NUM_RANDOM_PATCHES:
                             selected[r] = {'patch': patch.copy(), 'idx': candidates_seen-1, 'pos': (z0, y, x)}
 
-        # patch_block_index += 1
-
 
     # write selected patches
     to_save = min(NUM_RANDOM_PATCHES, len(selected))
@@ -301,14 +442,14 @@ def extract_patches_from_stack(tiff_dir, output_dir, prefix):
 
             # transpose (z, y, x) -> (x, y, z) for nifti
             patch_nifti = np.transpose(patch.astype(np.uint16), (2, 1, 0))
-            patch_path = os.path.join(subfolder, f'{datatype}_{sample_name}_{channel}_p{saved_count}_cand{cand_idx}_z{z0}_y{y0}_x{x0}.nii.gz')
+            patch_path = os.path.join(subfolder, f'{datatype}_{sample_name}_{channel}_ps{PATCH_SIZE}_p{saved_count}_cand{cand_idx}_z{z0}_y{y0}_x{x0}.nii.gz')
 
             # save patch using nibabel
             nib.save(nib.Nifti1Image(patch_nifti, affine=np.eye(4)), patch_path)
         
         # save as tiff
         else:
-            patch_path = os.path.join(subfolder, f'{datatype}_{sample_name}_{channel}_p{saved_count}_cand{cand_idx}_z{z0}_y{y0}_x{x0}.tiff')
+            patch_path = os.path.join(subfolder, f'{datatype}_{sample_name}_{channel}_ps{PATCH_SIZE}_p{saved_count}_cand{cand_idx}_z{z0}_y{y0}_x{x0}.tiff')
             tiff.imwrite(patch_path, patch.astype(np.uint16), imagej=True)
 
         print(f'Saved random patch {saved_count} (cand {cand_idx} @ z{z0},y{y0},x{x0}) -> {patch_path}', flush=True)
@@ -316,18 +457,9 @@ def extract_patches_from_stack(tiff_dir, output_dir, prefix):
     print(f'Done. Saved {to_save} patches.', flush=True)
 
 
-
-
-
-## UP TO HERE - check with chatgpt then give entire script to check
-
-
-
-
-
 # function to get all subdirectories
 # based on flat layout. Ex: /midtier/.../data_selma3d/unannotated_*/<sample>/<[C01|C00]>
-def get_all_sample_dirs():  
+def get_all_sample_dirs(only_structure=None):  
 
     # define list for samples
     samples = []
@@ -335,12 +467,14 @@ def get_all_sample_dirs():
     # function to check if there are tif files in a folder
     def has_tifs(d):
         try:
-            return any(f.endswith('.tif') and not f.startswith('.') for f in os.listdir(d))
+            return any(f.lower().endswith(('.tif', '.tiff')) and not f.startswith('.') for f in os.listdir(d))
         except Exception:
             return False
 
     # get base path
     for structure_key, (structure_folder, prefix_name) in structures.items():
+        if only_structure is not None and structure_key != only_structure:
+            continue
         base_path = os.path.join(ROOT_DIR, structure_key)
         print('base_path:', base_path, flush=True)
         if not os.path.exists(base_path):
@@ -397,7 +531,14 @@ if __name__ == '__main__':
     parser.add_argument('--num_patches', type=int, default=10, help='Max random patches per image (default 10)')
     parser.add_argument('--min_fg', type=float, default=0.05, help='Minimum required foreground fraction to keep a patch (default 0.05)')
     parser.add_argument('--seed', type=int, default=100, help='Random seed for reproducible sampling.')
+    parser.add_argument('--patch_size', type=int, default=96, help='Cubic patch size in voxels (default 96)')
+    parser.add_argument('--only_structure', type=str, choices=list(structures.keys()), help='Only process this structure (e.g. vessel)')
     args = parser.parse_args()
+
+    # set seed for reproducibility
+    GLOBAL_SEED = args.seed
+    random.seed(GLOBAL_SEED)
+    np.random.seed(GLOBAL_SEED)
 
     # override defaults from cli if provided
     if args.num_patches is not None:
@@ -405,22 +546,22 @@ if __name__ == '__main__':
     if args.min_fg is not None:
         MIN_FOREGROUND_FRACTION = args.min_fg
 
-    # set seed for reproducibility
-    GLOBAL_SEED = args.seed
-    random.seed(GLOBAL_SEED)
-    np.random.seed(GLOBAL_SEED)
+    # get patch size
+    PATCH_SIZE = int(args.patch_size)
+    if PATCH_SIZE <= 0:
+        raise ValueError(f'Invalid patch size: {PATCH_SIZE}. Must be positive integer.')
 
     # resolve output directory
     output_dir = args.output_dir
 
-    print(f'Using num_patches={NUM_RANDOM_PATCHES}, min_fg={MIN_FOREGROUND_FRACTION}, seed={GLOBAL_SEED}, output_dir={output_dir}', flush=True)
+    print(f'Using patch_size={PATCH_SIZE}, num_patches={NUM_RANDOM_PATCHES}, min_fg={MIN_FOREGROUND_FRACTION}, seed={GLOBAL_SEED}, output_dir={output_dir}', flush=True)
 
     # function to process single tif stack
     if args.sample_index is not None:
-        all_samples = get_all_sample_dirs()
+        all_samples = get_all_sample_dirs(only_structure=args.only_structure)
 
         if not all_samples:
-            print(f'No tiff stacks found under {ROOT_DIR}. Check directory layout and permissions.', flush=True)
+            print(f'No tiff stacks found under {ROOT_DIR} (filter={args.only_structure}). Check directory layout and permissions.', flush=True)
             raise SystemExit(1)
         if 0 <= args.sample_index < len(all_samples):
             input_dir, prefix = all_samples[args.sample_index]
