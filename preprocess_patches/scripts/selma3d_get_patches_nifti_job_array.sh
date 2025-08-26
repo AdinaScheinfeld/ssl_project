@@ -7,7 +7,7 @@
 #SBATCH --time=24:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=256G
+#SBATCH --mem=500G
 
 
 # selma3d_get_patches_job_array.sh - slurm job to get selma3d patches
@@ -27,7 +27,7 @@ python /home/ads4015/ssl_project/preprocess_patches/src/selma3d_get_patches_nift
     --min_fg 0.05 \
     --seed $SLURM_ARRAY_TASK_ID \
     --output_dir /midtier/paetzollab/scratch/ads4015/all_selma_patches3 \
-    --patch_size 96
+    --patch_size 200
 
 
 # indicate completion
