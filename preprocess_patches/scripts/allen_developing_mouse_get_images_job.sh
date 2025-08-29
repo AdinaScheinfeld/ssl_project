@@ -33,7 +33,7 @@ echo "[INFO] This task will download: $URL"
 # ---- Run download ----
 wget -r -np -c --no-check-certificate \
   --reject "index.html*" \
-  --reject-regex '.*/(Background|Background2|Max)(/|$)' \
+  --reject-regex '.*/(Max)(/|$)' \
   -nH --cut-dirs=3 \
   "$URL"
 
