@@ -26,8 +26,8 @@ python /home/ads4015/ssl_project/preprocess_patches/src/selma3d_get_patches_nift
     --num_patches 10 \
     --min_fg 0.05 \
     --seed $SLURM_ARRAY_TASK_ID \
-    --output_dir /midtier/paetzollab/scratch/ads4015/all_selma_patches \
-    --patch_size 200
+    --output_dir /midtier/paetzollab/scratch/ads4015/all_selma_patches_96 \
+    --patch_size 96
 
 
 # indicate completion
