@@ -1,4 +1,4 @@
-# allen_developing_mouse_get_patches.py - python script to extract patches from Allen Developing Mouse dataset
+# tif_stack_get_patches.py - python script to extract patches from stack of tif images (with 1 channel)
 
 # --- Setup ---
 
@@ -16,6 +16,9 @@ import tifffile as tiff
 
 from skimage.filters import threshold_otsu
 
+sys.path.append('/home/ads4015/ssl_project/preprocess_patches/src/')
+from tif_patches_functions import compute_global_otsu_threshold, deterministic_seed, get_grid_candidates, make_sort_key
+
 
 # --- Functions ---
 
@@ -28,32 +31,25 @@ def parse_args():
     p.add_argument('--num_patches', type=int, default=1, help='Number of patches to extract from each image (default: 1)')
     p.add_argument('--min_fg', type=float, default=0.05, help='Minimum foreground fraction to consider a patch (default: 0.05)')
     p.add_argument('--pattern', type=str, default='Z*_ch*.tif', help='Pattern to match input tiff files (default: Z*_ch*.tif)')
+    p.add_argument('--sort_regex', type=str, default=r'Z(\d+)', help='Regex to extract slice number for sorting (default: Z(\\d+))')
     p.add_argument('--seed', type=int, default=100, help='Random seed for reproducibility, combined with per-folder hash for determinism (default: 100)')
     p.add_argument('--stride', type=int, default=None, help='Optional stride for sliding window (default: patch_size for non-overlap)')
     return p.parse_args()
 
 
-# function to sort tifs by Z**** number
-def slice_sort_key(path):
-
-    # regex matches
-    _num_re = re.compile(r'Z(\d+)', re.IGNORECASE)
-
-    # search for Z**** pattern
-    name = os.path.basename(path)
-    m = _num_re.search(name)
-    return int(m.group(1))
-
-
 # function to read tif stack
-def read_stack(dirpath, pattern):
+def read_stack(dirpath, pattern, sort_regex):
 
     # get files
-    files = sorted(glob.glob(os.path.join(dirpath, pattern)), key=slice_sort_key)
+    files = glob.glob(os.path.join(dirpath, pattern))
     files = [f for f in files if not os.path.basename(f).startswith('.')]  # ignore hidden files
     if not files:
         raise FileNotFoundError(f'No tiff files matching pattern "{pattern}" in "{dirpath}"')
     
+    # build key function
+    sort_key = make_sort_key(sort_regex)
+    files = sorted(files, key=sort_key)
+
     # create list of slices
     slices = []
     for f in files:
@@ -65,44 +61,6 @@ def read_stack(dirpath, pattern):
     # create and return volume
     vol = np.stack(slices, axis=0)
     return vol, files
-
-
-# function to set seed
-def deterministic_seed(folder_path, user_seed=None):
-
-    # hash seed
-    base = int(hashlib.md5(folder_path.encode('utf-8')).hexdigest()[:8], 16)
-    seed = base if user_seed is None else ((base ^ user_seed) & 0xFFFFFFFF)
-
-    # set seed
-    random.seed(seed)
-    np.random.seed(seed)
-    return seed
-
-
-# compute global otsu threshold on downsampled image (to increase speed)
-def compute_global_otsu_threshold(vol, downsample_factor=4):
-
-    # downsample and threshold
-    vol_ds = vol[::downsample_factor, ::downsample_factor, ::downsample_factor]
-    vmin, vmax = float(vol_ds.min()), float(vol_ds.max())
-    if vmin == vmax:
-        return vmin
-    return float(threshold_otsu(vol_ds))
-
-
-# get candidates (patches fully inside volume)
-def get_grid_candidates(vol_shape, patch_size, stride=None):
-
-    Z, Y, X = vol_shape
-    ps = int(patch_size)
-    st = ps if stride is None else int(stride) # stride defaults to patch size for no overlap
-
-    # return (z,y,x) starts for patches fully inside volume
-    for z in range(0, Z - ps + 1, st):
-        for y in range(0, Y - ps + 1, st):
-            for x in range(0, X - ps + 1, st):
-                yield (z, y, x)
 
 
 # main
@@ -126,7 +84,7 @@ def main():
     print(f'[INFO] Seed used: {seed_used}', flush=True)
 
     # read volume (Z, Y, X)
-    vol, files = read_stack(args.input_dir, args.pattern)
+    vol, files = read_stack(args.input_dir, args.pattern, args.sort_regex)
     Z, Y, X = vol.shape
     ps = int(args.patch_size)
     if Z < ps or Y < ps or X < ps:
