@@ -136,7 +136,7 @@ def clean_base_tag(filepath):
 
     # remove extensions
     name = re.sub(r'\.nii(\.gz)?$', '', name, flags=re.IGNORECASE)
-    name = re.sub(r'(\.ome)\.tiff?$', '', name, flags=re.IGNORECASE)
+    name = re.sub(r'(?:\.ome)?\.tiff?$', '', name, flags=re.IGNORECASE)
     return name
 
 
@@ -158,6 +158,7 @@ def parse_args():
     p.add_argument('--num_patches', type=int, default=1, help='Number of patches to extract from each image (default: 1)')
     p.add_argument('--min_fg', type=float, default=0.05, help='Minimum foreground fraction to consider a patch (default: 0.05)')
     p.add_argument('--stride', type=int, default=None, help='Optional stride for sliding window (default: patch_size for non-overlap)')
+    p.add_argument('--margin', type=int, default=8, help='Skip this many voxels from each edge when sampling patches (default: 8)')
 
     # channel selection if applicable
     p.add_argument('--channel', type=int, default=None, help="If tiff is 4d (Z,Y,X,C), specify channel index (0..C-1) to extract. Required if tiff is 4d (default: None)")
@@ -172,7 +173,7 @@ def parse_args():
 
 
 # function to extract and save patches from a single tif volume and save as nifti
-def extract_and_save_patches_for_file(filepath, output_dir, patch_size, num_patches, min_fg, stride, channel, user_seed, nifti_index):
+def extract_and_save_patches_for_file(args, filepath, output_dir, patch_size, num_patches, min_fg, stride, channel, user_seed, nifti_index):
 
     # set deterministic seed for filepath
     seed_used = deterministic_seed(os.path.abspath(filepath), user_seed)
@@ -181,9 +182,19 @@ def extract_and_save_patches_for_file(filepath, output_dir, patch_size, num_patc
     # read volume
     vol, files = read_single_image(filepath, channel, nifti_index) # (Z,Y,X)
     Z, Y, X = vol.shape
+
     ps = int(patch_size)
     if Z < ps or Y < ps or X < ps:
         print(f'[WARN] Volume shape ({vol.shape}) smaller than patch size: {ps}, skipping', flush=True)
+        return 0
+
+    # get margin in voxels
+    mvox = max(0, int(getattr(args, 'margin', 0)))
+
+    # ensure at least one patch in each dim after margin
+    min_required = ps + 2 * mvox
+    if Z < min_required or Y < min_required or X < min_required:
+        print(f'[WARN] Volume shape ({vol.shape}) too small for patch size {ps} with margin {mvox} (requires at least {min_required}), skipping', flush=True)
         return 0
     
     # global otsu threshold
@@ -197,6 +208,12 @@ def extract_and_save_patches_for_file(filepath, output_dir, patch_size, num_patc
     st = stride if stride is not None else ps
 
     for (z, y, x) in get_grid_candidates((Z, Y, X), ps, st):
+
+        # start constraints
+        if z < mvox or y < mvox or x < mvox:
+            continue
+        if (z+ps) > (Z-mvox) or (y+ps) > (Y-mvox) or (x+ps) > (X-mvox):
+            continue
 
         patch = vol[z:z+ps, y:y+ps, x:x+ps] # (ps,ps,ps)
         pmin, pmax = float(patch.min()), float(patch.max())
@@ -288,6 +305,7 @@ def main():
     for f in files:
         try:
             saved = extract_and_save_patches_for_file(
+                args=args,
                 filepath=f,
                 output_dir=args.output_dir,
                 patch_size=args.patch_size,
