@@ -6,6 +6,7 @@
 import json
 from monai.transforms import Compose as MonaiCompose, LoadImaged, EnsureChannelFirstd, ToTensord
 import nibabel as nib
+import os
 import random
 import torch
 from torch.utils.data import Dataset
@@ -86,6 +87,13 @@ class NiftiTextPatchDataset(Dataset):
 
     # function to extract text prompt from file
     def extract_text(self, path):
+
+        # get parent folder name
+        parent_folder = os.path.basename(os.path.dirname(path)).lower()
+        if parent_folder in self.stain_map:
+            return self.stain_map[parent_folder]
+        
+        # fallback to substring search
         for k, v in self.stain_map.items():
             if k in path.lower():
                 return v
