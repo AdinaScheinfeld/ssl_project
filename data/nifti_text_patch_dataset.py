@@ -67,15 +67,11 @@ class NiftiTextPatchDataset(Dataset):
 
         # randomly select 2 unique, non-overlapping start corners
         selected_starts = random.sample(valid_starts, 2)
-        # print(f'[DEBUG] Selected starts: {selected_starts}', flush=True)
 
         # extract sub_patches from selected start corners
         for x, y, z in selected_starts:
             x, y, z = int(x), int(y), int(z) # convert float to int for indexing
             sub_patch = vol[z:z+self.sub_patch_size,  y:y+self.sub_patch_size, x:x+self.sub_patch_size ]
-
-            # sub_patch = sub_patch.squeeze() # remove extra channel dimensions
-            # sub_patch = sub_patch.unsqueeze(0) # add channel dimension back
 
             sub_patches.append(sub_patch)
 
