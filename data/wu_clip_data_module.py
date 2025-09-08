@@ -43,10 +43,6 @@ class WuCLIPDataModule(LightningDataModule):
         self.base_patch_size = base_patch_size
         self.sub_patch_size = sub_patch_size
         self.downsample_to = downsample_to
-
-        # # ensure that base_patch_size is divisible by sub_patch_size if using sub_patches
-        # if self.use_sub_patches and self.base_patch_size % self.sub_patch_size != 0:
-        #     raise ValueError('base_patch_size must be divisible by sub_patch_size if use_sub_patches is True')
         
         # warn if batch size is too small
         if self.use_sub_patches and self.batch_size < 16:
