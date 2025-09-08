@@ -82,7 +82,6 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         self.embed_dim = config['model']['embed_dim']
         self.clip_temperature = config['model']['clip_temperature']
         self.reconstruction_head = LightDecoder(self.embed_dim)
-        self.image_size = config['data']['sub_patch_size'] if config['data']['use_sub_patches'] else config['data']['base_patch_size']
 
         # indicate what size image patches are being used
         print(f'[INFO] Using {self.image_size}^3 size patches.', flush=True)
