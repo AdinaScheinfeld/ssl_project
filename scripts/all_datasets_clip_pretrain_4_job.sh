@@ -1,14 +1,14 @@
 #!/bin/bash
 #SBATCH --job-name=clip_pretrain
-#SBATCH --output=logs/all_clip_pretrain_2_%j.out
-#SBATCH --error=logs/all_clip_pretrain_2_%j.err
+#SBATCH --output=logs/all_clip_pretrain_4_%j.out
+#SBATCH --error=logs/all_clip_pretrain_4_%j.err
 #SBATCH --time=12:00:00
 #SBATCH --partition=minilab-gpu
-#SBATCH --gres=gpu:h100:2 # select number of gpus ***
+#SBATCH --gres=gpu:4 # select number of gpus ***
 #SBATCH --mem=180G
 #SBATCH --cpus-per-task=16
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=2 # 1 task per gpu ***
+#SBATCH --ntasks-per-node=4 # 1 task per gpu ***
 
 
 # all_datasets_clip_pretrain_2_job.sh - Script for all datasets pretraining

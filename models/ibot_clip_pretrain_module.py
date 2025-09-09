@@ -58,6 +58,7 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
     def __init__(self, config):
         super().__init__()
         self.save_hyperparameters(config) # save all hyperparameters to self.hparams
+        self.base_mask_ratio = config['model']['mask_ratio'] # base mask ratio to use after warmup
 
         # parse downsampling config
         data_cfg = config['data']
@@ -82,6 +83,9 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         self.embed_dim = config['model']['embed_dim']
         self.clip_temperature = config['model']['clip_temperature']
         self.reconstruction_head = LightDecoder(self.embed_dim)
+        self.finetune_text = config['model'].get('finetune_text', True)
+        self.text_top_k_layers = int(config['model'].get('text_top_k_layers', 4))
+        self.text_finetune_start_epoch = int(config['model'].get('text_finetune_start_epoch', self.warmup_epochs))
 
         # indicate what size image patches are being used
         print(f'[INFO] Using {self.image_size}^3 size patches.', flush=True)
@@ -99,7 +103,6 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         # *** SwinUNETR encoders ***
 
         # create swinUNETR as student network
-        # constrain output using sigmoid 
         self.student_encoder = SwinUNETR(
             img_size=(self.image_size,)*3,
             in_channels=1,
@@ -119,8 +122,9 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         )
         for p in self.teacher_encoder.parameters():
             p.requires_grad = False # freeze teacher weights
+        self.teacher_encoder.eval() # set teacher to eval mode
 
-        self.register_buffer('ema_decay', torch.tensor(config['model']['ema_decay'])) # ema decay factor (0.996 is iBOT default)
+        self.register_buffer('ema_decay', torch.tensor(config['model']['ema_decay'])) # ema decay factor
 
         # *** text encoder ***
         
@@ -129,8 +133,11 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
 
         # load transformer (process token IDs to produce contextual embeddings for the input text)
         self.text_encoder = AutoModel.from_pretrained(self.text_model_name)
-        self.text_encoder.gradient_checkpointing_enable() # to reduce memory load on gpu
 
+        # keep checkpointing while frozen (saves memory), but will disable when unfreezing
+        self.text_encoder.gradient_checkpointing_enable()
+
+        # projection head (always trainable)
         # project high dimensional vectors down to a fixed dimensional space (embed_dim) to compare/align with image features (CLIP)
         # 2 layer MLP with ReLU and layer norm for stability
         self.text_proj = nn.Sequential(
@@ -138,7 +145,10 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
             nn.ReLU(),
             nn.Linear(self.embed_dim, self.embed_dim),
             nn.LayerNorm(self.embed_dim))
-
+        
+        # start fully frozen
+        self._freeze_all_text()
+        self.text_encoder.eval()
 
         # image projection head for CLIP loss
         # 2 layer MLP with ReLU and layer norm for stability
@@ -165,6 +175,30 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         self.clip_weight = config['loss_weights']['clip_weight']
 
 
+    # function to freeze all text encoder layers
+    def _freeze_all_text(self):
+        for p in self.text_encoder.parameters():
+            p.requires_grad = False
+
+    # function to unfreeze top k layers of text encoder
+    def _unfreeze_top_k_text_layers(self, k):
+
+        # freeze everything first, for safety
+        self._freeze_all_text()
+
+        num_layers = self.text_encoder.config.num_hidden_layers
+        start = max(0, num_layers - int(k)) # starting layer index to unfreeze
+
+        # unfreeze top k transformer layers
+        for name, p in self.text_encoder.named_parameters():
+            if any(name.startswith(f'encoder.layer.{i}.') for i in range(start, num_layers)):
+                p.requires_grad = True
+
+        if hasattr(self.text_encoder, 'pooler'):
+            for p in self.text_encoder.pooler.parameters():
+                p.requires_grad = True
+
+
     # function to create patch-level binary mask for each volume in batch
     def generate_patch_mask(self, x, base_mask_patch_size):
 
@@ -177,12 +211,15 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         for b in range(B):
 
             # randomly select patch size (base or double)
-            mask_patch_size = random.choice([base_mask_patch_size, base_mask_patch_size*2])
+            if torch.rand((), device=x.device) < 0.5:
+                mask_patch_size = base_mask_patch_size
+            else:
+                mask_patch_size = base_mask_patch_size * 2
 
             # determine how many nonoverlapping mask patches fit inside the volume
             d_mask_patches, h_mask_patches, w_mask_patches = D // mask_patch_size, H // mask_patch_size, W // mask_patch_size
             num_total_mask_patches = d_mask_patches * h_mask_patches * w_mask_patches # total number of patches that fit inside volume
-            num_masked_mask_patches = int(self.mask_ratio * num_total_mask_patches) # number of patches that fit inside volume and should be masked
+            num_masked_mask_patches = max(1, int(self.mask_ratio * num_total_mask_patches)) # number of patches that fit inside volume and should be masked
 
             # randomly sample patch indices to mask
             mask_patch_indices = torch.randperm(num_total_mask_patches, device=x.device)[:num_masked_mask_patches]
@@ -224,7 +261,9 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         features = network(x_masked) # network will be either the student or the teacher encoder
 
         # normalize before return
-        return F.normalize(features, dim=1)
+        features_norm = F.normalize(features, dim=1)
+
+        return features, features_norm
 
 
     # *** losses ***
@@ -250,56 +289,69 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         return self.student_encoder(x)
     
 
-    # function to compute combined loss, MSE for masked and L1 for unmasked
-    # combines distillation loss (student mimics teacher on masked regions) 
-    # and reconstruction loss (student reconstructs original image in unmasked regions)
-    def compute_ibot_loss(self, student_features, teacher_features, x, mask, student_image_embed, text_embed):
+    # function to compute combined loss:
+    # - distillation loss (student mimics teacher on masked regions) 
+    # - L1 reconstruction loss (student reconstructs masked regions)
+    def compute_ibot_loss(self, student_out_norm, teacher_out_norm, x, mask, student_feats_raw, student_image_embed, text_embed):
 
         # compute shape of student features
-        B, C, D, H, W = student_features.shape # C = embed_dim
+        B, C, D, H, W = student_out_norm.shape # C = embed_dim
 
         # downsample mask and x to match output feature map and output for reconstruction
-        mask_downsampled = F.interpolate(mask.float(), size=(D, H, W), mode='nearest')#.bool() # shape: (B, 1, D, H, W)
+        mask_downsampled = F.interpolate(mask.float(), size=(D, H, W), mode='nearest') # shape: (B, 1, D, H, W)
         x_downsampled = F.interpolate(x, size=(D, H, W), mode='trilinear', align_corners=False) # shape: (B, 1, D, H, W)
 
-        # expand mask along channel dimension to mask embed_dim
-        mask_expand = mask_downsampled.expand(B, C, D, H, W) # shape: (B, C, D, H, W)
+        # reshape to (B, C, N) with N = D*H*W and build a boolean mask over N
+        N = D * H * W
+        stu_tok = student_out_norm.view(B, C, N)
+        tea_tok = teacher_out_norm.view(B, C, N).detach()
+        mask_bool = mask_downsampled.view(B, 1, N).to(torch.bool).squeeze(1) # shape: (B, N), boolean
 
-        # flatten spatial dimensions to compute loss
-        student_flat = student_features.reshape(B, -1) # shape: (B, C*D*H*W)
-        teacher_flat = teacher_features.reshape(B, -1) # shape: (B, C*D*H*W)
-        mask_flat = mask_expand.reshape(B, -1).to(dtype=torch.bool) # shape (B, C*D*H*W), boolean
+        # select only masked tokens along the token (N) dimension
+        # shapes after selection: (?, C) where ? = total number of masked tokens in batch
+        if mask_bool.any():
+            student_selection = stu_tok.transpose(1, 2)[mask_bool].float() # shape: (?, C)
+            teacher_selection = tea_tok.transpose(1, 2)[mask_bool].float() # shape: (?, C)
 
-        # temperature scaling
-        teacher_probs = F.softmax(teacher_flat / self.temp_teacher, dim=1).detach()
-        student_logprobs = F.log_softmax(student_flat / self.temp_student, dim=1)
+            ## UP TO HERE - add teacher centering and momentum update for stability later
 
-        # KL divergence loss on masked voxels only
-        if mask_flat.any():
-            distill_loss = F.kl_div(
-                student_logprobs[mask_flat],
-                teacher_probs[mask_flat],
-                reduction='batchmean'
-            )
+            # temperature scaled per token distribution over channels
+            student_logprobs = F.log_softmax(student_selection / self.temp_student, dim=-1)
+            teacher_probs = F.softmax(teacher_selection / self.temp_teacher, dim=-1)
+
+            # KL divergence loss on masked tokens only
+            distill_loss = F.kl_div(student_logprobs, teacher_probs, reduction='batchmean')
+
         else:
             distill_loss = torch.tensor(0.0, device=self.device)
 
-        student_recon = self.reconstruction_head(student_features)
-        mask_inv = 1.0 - mask_downsampled
-        recon_loss = F.l1_loss(student_recon * mask_inv, x_downsampled * mask_inv, reduction='sum') / (mask_inv.sum() + 1e-8)
+        student_recon = self.reconstruction_head(student_feats_raw) # for reconstruction, decode from the raw (unnormalized) features
 
+        # pixel reconstruction loss (L1) on masked regions only
+        recon_loss_l1 = F.l1_loss(student_recon * mask_downsampled, 
+                                  x_downsampled * mask_downsampled, 
+                                  reduction='sum') / (mask_downsampled.sum() + 1e-8)
+        
         # alignment loss
         alignment_loss = self.compute_alignment_loss(student_image_embed, text_embed)
 
         # compute weighted sum of distillation loss and reconstruction loss and alignment loss
-        total_ibot_loss = self.distill_weight * distill_loss + self.reconstruction_weight * recon_loss + self.align_weight * alignment_loss
+        total_ibot_loss = self.distill_weight * distill_loss + self.reconstruction_weight * recon_loss_l1 + self.align_weight * alignment_loss
+        
+        # composite reconstruction for logging (unmasked regions from input, masked regions from student reconstruction)
+        recon_composite = x_downsampled * (1.0 - mask_downsampled) + student_recon * mask_downsampled
         
         # return total loss and student reconstruction
-        return total_ibot_loss, student_recon
+        return total_ibot_loss, recon_composite, distill_loss, recon_loss_l1, alignment_loss
 
 
     # alignment loss (encourage image-text embeddings to become more similar in cosine space)
-    def compute_alignment_loss(self, image_embeds, text_embeds):
+    # detach text embeddings so this term does not backprop through the text encoder
+    def compute_alignment_loss(self, image_embeds, text_embeds, detach_text=True):
+        if detach_text:
+            text_embeds = text_embeds.detach()
+        image_embeds = F.normalize(image_embeds, dim=-1)
+        text_embeds = F.normalize(text_embeds, dim=-1)
         return 1 - F.cosine_similarity(image_embeds, text_embeds, dim=-1).mean()
 
     
@@ -338,7 +390,7 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
             setattr(self, embed_dict_attr, embed_dict)
 
         if student_image_embed is None:
-            student_image_embed = self.image_proj(student_out).detach().cpu()
+            student_image_embed = F.normalize(self.image_proj(student_out), dim=-1).detach().cpu()
         else:
             student_image_embed = student_image_embed.detach().cpu()
 
@@ -366,17 +418,36 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
             # reduce masking for first few epochs
             self.mask_ratio = self.mask_ratio_warmup
 
-            # freeze the text encoder to prevent the model from overfitting or collapsing
-            for p in self.text_encoder.parameters():
-                p.requires_grad = False
+            # keep text fully frozen for stability
+            self._freeze_all_text()
+            self.text_encoder.eval()
 
         else:
-            self.mask_ratio = self.mask_ratio
-            for p in self.text_encoder.parameters():
-                p.requires_grad = True
+            self.mask_ratio = self.base_mask_ratio
+
+            # unfreeze top k layers of text encoder if finetuning is enabled
+            if self.finetune_text and self.current_epoch >= self.text_finetune_start_epoch:
+            
+                # train only top k text layers
+                self._unfreeze_top_k_text_layers(self.text_top_k_layers)
+                self.text_encoder.train()
+
+                # disable gradient checkpointing
+                try:
+                    self.text_encoder.gradient_checkpointing_disable()
+                except AttributeError:
+                    pass
+
+            # otherwise keep text encoder fully frozen
+            else:
+                self._freeze_all_text()
+                self.text_encoder.eval()
 
 
     # shared step for train/val to keep code DRY
+    # KL: uses normalized features for distillation loss at masked locations
+    # L1: uses raw features for reconstruction loss at masked locations
+    # logging: uses composite reconstruction (input unmasked + student masked regions)
     def shared_step(self, batch, batch_idx, is_train=True):
 
         # get input image-text pair
@@ -399,25 +470,28 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         # generate patch level mask that randomly zeros out a subset of 3d patches in input image
         mask = self.generate_patch_mask(x, self.mask_patch_size)
 
-        # student sees masked input
-        student_out = self.encode_image(x, mask, self.student_encoder)
+        # student (masked) and teacher (full) encodings
+        student_feats_raw, student_out_norm = self.encode_image(x, mask, self.student_encoder)
 
         # teacher sees full input (no gradients)
         with torch.no_grad():
-            teacher_out = self.encode_image(x, mask*0, self.teacher_encoder)
+            _, teacher_out_norm = self.encode_image(x, 
+                                                    torch.zeros_like(mask, dtype=torch.bool), 
+                                                    self.teacher_encoder) # teacher does not use a mask
 
-        # embed image and text using average pooling + linear projection for image and BERT + projection for text
-        student_image_embed = self.image_proj(student_out)
+        # embed image and text
+        student_image_embed = F.normalize(self.image_proj(student_out_norm), dim=-1)
         text_embed = self.encode_text(texts)
 
         # compute contrastive loss between image and text embeddings - corresponding aligned pairs should be close in embedding space
         clip_loss = self.compute_clip_loss(student_image_embed, text_embed)
 
-        # compute iBOT loss (KL divergence between student and teacher on masked regions and L1 reconstruction on unmasked regions)
-        ibot_loss, student_recon = self.compute_ibot_loss(student_out, teacher_out, x, mask, student_image_embed, text_embed)
+        # compute iBOT loss (KL divergence between student and teacher on masked regions and L1 reconstruction on masked regions)
+        ibot_loss, recon_composite, distill_loss, recon_loss_l1, align_loss = \
+            self.compute_ibot_loss(student_out_norm, teacher_out_norm, x, mask, student_feats_raw, student_image_embed, text_embed)
 
         # combine both losses into single scaler to minimize
-        # ibot loss already includes distill loss (on masked voxels), reconstruction loss (on unmasked voxels), and alignment loss (cosine alignment between image-text pairs)
+        # ibot loss already includes distill loss (on masked voxels), reconstruction loss (on masked voxels), and alignment loss (cosine alignment between image-text pairs)
         # clip loss is image-text contrastive loss
         total_loss = ibot_loss + self.clip_weight * clip_loss
 
@@ -426,9 +500,17 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         self.log(f'{log_prefix}_loss', total_loss, on_step=is_train, on_epoch=True, prog_bar=True, batch_size=x.shape[0], sync_dist=True)
         self.log(f'{log_prefix}_clip_loss', clip_loss, on_step=True, on_epoch=True, batch_size=x.shape[0], sync_dist=True)
         self.log(f'{log_prefix}_ibot_loss', ibot_loss, on_step=True, on_epoch=True, batch_size=x.shape[0], sync_dist=True)
+        self.log(f'{log_prefix}_distill_loss', distill_loss, on_step=True, on_epoch=True, batch_size=x.shape[0], sync_dist=True)
+        self.log(f'{log_prefix}_recon_loss_l1', recon_loss_l1, on_step=True, on_epoch=True, batch_size=x.shape[0], sync_dist=True)
+        self.log(f'{log_prefix}_align_loss', align_loss, on_step=True, on_epoch=True, batch_size=x.shape[0], sync_dist=True)
 
-        # get logging data
-        self.log_image_and_embeddings(x, mask, student_out, texts, is_train=is_train, student_image_embed=student_image_embed, text_embed=text_embed, student_recon=student_recon)
+        # use composited reconstruction for logging (output is identical to input on unmasked regions)
+        recon_for_log = F.interpolate(recon_composite, size=x.shape[2:], mode='trilinear', align_corners=False) # resize to input size for logging
+        self.log_image_and_embeddings(x, mask, student_out_norm, texts, 
+                                      is_train=is_train, 
+                                      student_image_embed=student_image_embed, 
+                                      text_embed=text_embed, 
+                                      student_recon=recon_for_log)
 
         # return total loss
         return total_loss
@@ -536,9 +618,11 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
     # after backwards
     def on_after_backward(self):
 
-        # update ema teacher parameters from student
-        for student_param, teacher_param in zip(self.student_encoder.parameters(), self.teacher_encoder.parameters()):
-            teacher_param.data = self.ema_decay * teacher_param.data + (1 - self.ema_decay) * student_param.data
+        # update ema teacher parameters from student (no grad)
+        with torch.no_grad():
+            m = float(self.ema_decay.item() if isinstance(self.ema_decay, torch.Tensor) else self.ema_decay)
+            for student_param, teacher_param in zip(self.student_encoder.parameters(), self.teacher_encoder.parameters()):
+                teacher_param.mul_(m).add_(student_param, alpha=1 - m)
 
     
     # after fit 
@@ -577,8 +661,8 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
 
     # optimizer
     def configure_optimizers(self):
-        return torch.optim.AdamW(self.parameters(), lr=self.lr)
-    
+        return torch.optim.AdamW((p for p in self.parameters() if p.requires_grad), lr=self.lr) # skip frozen teacher params
+
     # function to update best metrics
     def update_best_metrics(self, name, value):
         if value is None:
