@@ -128,12 +128,17 @@ def get_finetune_train_transforms():
         # EnsureChannelFirstd(keys=['image', 'label']), # don't need this transform when using .pt files
 
         # scale intensity to normalize
-        ScaleIntensityRangePercentilesd(keys=['image'], lower=1.0, upper=99.0, b_min=0.0, b_max=1.0, clip=True),
+        ScaleIntensityRangePercentilesd(keys=['image'], lower=1.0, upper=99.0, b_min=0.0, b_max=1.0, clip=True, channel_wise=True),
 
         # spatial augmentations
         RandFlipd(keys=['image', 'label'], spatial_axis=[0, 1, 2], prob=0.2),
         RandRotate90d(keys=['image', 'label'], prob=0.2, max_k=3),
-        RandAffined(keys=['image', 'label'], rotate_range=(0.1, 0.1, 0.1), scale_range=(0.1, 0.1, 0.1), prob=0.2),
+        RandAffined(keys=['image', 'label'], 
+                    rotate_range=(0.1, 0.1, 0.1), 
+                    scale_range=(0.1, 0.1, 0.1), 
+                    prob=0.2, 
+                    mode=('bilinear', 'nearest'), 
+                    padding_mode='border'),
 
         # intensity augmentations
         RandGaussianNoised(keys=['image'], prob=0.2, mean=0.0, std=0.02),
@@ -151,7 +156,7 @@ def get_finetune_train_transforms():
 def get_finetune_val_transforms():
     return Compose([
         # EnsureChannelFirstd(keys=['image', 'label']), # don't need this transform when using .pt files
-        ScaleIntensityRangePercentilesd(keys=['image'], lower=1.0, upper=99.0, b_min=0.0, b_max=1.0, clip=True),
+        ScaleIntensityRangePercentilesd(keys=['image'], lower=1.0, upper=99.0, b_min=0.0, b_max=1.0, clip=True, channel_wise=True),
         ToTensord(keys=['image', 'label'])
     ])
 

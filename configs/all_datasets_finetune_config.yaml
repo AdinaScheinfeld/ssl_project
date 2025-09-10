@@ -1,0 +1,22 @@
+# all_datasets_finetune_config.yaml - Configuration file for finetuning a pretrained model using Selma data
+
+# seed for reproducibility
+seed: 100
+
+# path to pretrained foundation model checkpoint
+pretrained_ckpt: /home/ads4015/ssl_project/checkpoints/all_datasets_clip_pretrained-v10.ckpt # pretrained checkpoint from pretraining
+# pretrained_ckpt: null # don't use a pretrained checkpoint
+
+# data settings
+patch_dir: /midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches_split
+batch_size: 4
+lr: 0.0001
+feature_size: 24
+max_epochs: 1000
+freeze_encoder_epochs: 5 # number of epochs to freeze encoder at beginning of finetuning
+wandb_project: selma3d_finetune
+early_stopping_patience: 25
+
+# save settings
+checkpoint_filename: finetune_pretrained
+checkpoint_dirpath: /home/ads4015/ssl_project/checkpoints
