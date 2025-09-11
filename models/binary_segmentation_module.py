@@ -213,6 +213,31 @@ class BinarySegmentationModule(pl.LightningModule):
         if self.logged_images > 0:
             self.logger.experiment.log({f'val_examples_{self.current_epoch}': self.val_table})
 
+        # update best val loss from aggregated epoch metric
+        mv = self.trainer.callback_metrics.get('val_loss')
+        if mv is not None:
+            try:
+                vv = float(mv.detach().cpu())
+            except Exception:
+                vv = float(mv)
+            if vv < self.best_val_loss:
+                self.best_val_loss = vv
+
+    
+    # on train epoch end
+    def on_train_epoch_end(self):
+
+        # update best train loss from aggregated epoch metric
+        m = (self.trainer.callback_metrics.get('train_loss_epoch') or self.trainer.callback_metrics.get('train_loss'))
+        if m is not None:
+            try:
+                v = float(m.detach().cpu())
+            except Exception:
+                v = float(m)
+            if v < self.best_train_loss:
+                self.best_train_loss = v
+
+
     # configure optimizers
     def configure_optimizers(self):
         return torch.optim.AdamW(self.parameters(), lr=self.lr)
@@ -224,11 +249,18 @@ class BinarySegmentationModule(pl.LightningModule):
         for cb in self.trainer.callbacks:
             if isinstance(cb, pl.callbacks.ModelCheckpoint):
                 self.best_ckpt = getattr(cb, 'best_model_path', None)
+                best_val_score = getattr(cb, 'best_model_score', None)
                 break
+
+        # prefer checkpoint's epoch aggregated val for consistency with saved best
+        if 'best_val_loss' in self.__dict__ and best_val_score is not None:
+            best_val_loss_out = float(best_val_score.cpu())
+        else:
+            best_val_loss_out = self.best_val_loss
 
         payload = {
             'best_train_loss': self.best_train_loss,
-            'best_val_loss': self.best_val_loss
+            'best_val_loss': best_val_loss_out
         }
         if self.best_ckpt:
             payload['best_model_path'] = self.best_ckpt

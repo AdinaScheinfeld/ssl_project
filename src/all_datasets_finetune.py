@@ -133,6 +133,13 @@ if __name__ == '__main__':
     # initialize logger
     wandb_logger = WandbLogger(project=config['wandb_project'])
 
+    # add wandb summarization variables
+    try:
+        wandb_logger.experiment.define_metric("train_loss", summary="min")
+        wandb_logger.experiment.define_metric("val_loss", summary="min")
+    except Exception:
+        pass
+
     # create train/val datasets
     train_root = Path(config['patch_dir']) / 'train'
     val_root = Path(config['patch_dir']) / 'val'
