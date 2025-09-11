@@ -33,6 +33,7 @@ class BinarySegmentationModule(pl.LightningModule):
         self.logged_images = 0 # counter for number of logged images in validation step
         self.best_train_loss = float('inf')
         self.best_val_loss = float('inf')
+        self.best_ckpt = None
 
         # define model
         self.model = SwinUNETR(
@@ -114,6 +115,10 @@ class BinarySegmentationModule(pl.LightningModule):
                     print(' ', k, '->', msg, flush=True)
                 if len(dropped) > 10:
                     print(f' ... (+{len(dropped)-10} more)', flush=True)
+
+        # indicate if no pretrained checkpoint provided
+        else:
+            print(f'[WARN] No pretrained checkpoint provided, training from scratch.', flush=True)
 
     # forward pass
     def forward(self, x):
@@ -215,23 +220,28 @@ class BinarySegmentationModule(pl.LightningModule):
     # after complete training
     def on_fit_end(self):
 
-        # log best losses and best checkpoint path to wandb
-        best_ckpt = None
+        # find best checkpoint from callbacks
         for cb in self.trainer.callbacks:
             if isinstance(cb, pl.callbacks.ModelCheckpoint):
-                best_ckpt = getattr(cb, 'best_model_path', None)
+                self.best_ckpt = getattr(cb, 'best_model_path', None)
                 break
-        if isinstance(self.logger, WandbLogger):
-            payload = {
-                'best_train_loss': self.best_train_loss,
-                'best_val_loss': self.best_val_loss
-            }
-            if best_ckpt:
-                payload['best_model_path'] = best_ckpt
-            self.logger.experiment.log(payload)
 
-        if best_ckpt:
-            print(f'[INFO] Best model checkpoint saved at: {best_ckpt}', flush=True)
+        payload = {
+            'best_train_loss': self.best_train_loss,
+            'best_val_loss': self.best_val_loss
+        }
+        if self.best_ckpt:
+            payload['best_model_path'] = self.best_ckpt
+
+
+        # print best metrics
+        print(f'[INFO] Training complete:', flush=True)
+        for k, v in payload.items():
+            print(f'  {k}: {v}', flush=True)
+
+        # log to wandb summary
+        if isinstance(self.logger, WandbLogger):
+            self.logger.experiment.summary.update(payload)
     
 
 

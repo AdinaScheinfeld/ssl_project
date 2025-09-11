@@ -16,7 +16,7 @@ import wandb
 from monai.data.meta_tensor import MetaTensor
 
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
+from pytorch_lightning.callbacks import Callback, EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 
 import torch
@@ -174,20 +174,22 @@ if __name__ == '__main__':
         )
 
     # setup callbacks
-    ckpt_callback = ModelCheckpoint(
+    ckpt_val = ModelCheckpoint(
         monitor='val_loss', 
         save_top_k=1, 
         mode='min', 
         filename=config['checkpoint_filename'],
         dirpath=config['checkpoint_dirpath']
     )
+
+
     early_stopping_callback = EarlyStopping(
         monitor='val_loss', 
         patience=config['early_stopping_patience'], 
         mode='min'
     )
 
-    callbacks = [early_stopping_callback, ckpt_callback]
+    callbacks = [early_stopping_callback, ckpt_val]
 
     # train
     trainer = pl.Trainer(max_epochs=config['max_epochs'],
@@ -200,10 +202,6 @@ if __name__ == '__main__':
     
     # fit model
     trainer.fit(model, train_loader, val_loader)
-
-    # print where best model checkpoint was saved
-    print(f'Best model checkpoint saved at: {ckpt_callback.best_model_path}', flush=True)
-    print(f'Best model val loss: {ckpt_callback.best_model_score}', flush=True)
 
     # end script timer
     _t1 = time.perf_counter()
