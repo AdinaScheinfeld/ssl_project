@@ -142,9 +142,9 @@ def get_finetune_train_transforms():
 
         # intensity augmentations
         RandGaussianNoised(keys=['image'], prob=0.2, mean=0.0, std=0.02),
-        RandGaussianSmoothd(keys=['image'], prob=0.2),
-        RandScaleIntensityd(keys=['image'], factors=0.2, prob=0.2),
-        RandShiftIntensityd(keys=['image'], offsets=0.2, prob=0.2),
+        # RandGaussianSmoothd(keys=['image'], prob=0.2),
+        # RandScaleIntensityd(keys=['image'], factors=0.2, prob=0.2),
+        # RandShiftIntensityd(keys=['image'], offsets=0.2, prob=0.2),
         ClampIntensityd(keys=['image'], minv=0.0, maxv=1.0),
 
         # convert to tensor

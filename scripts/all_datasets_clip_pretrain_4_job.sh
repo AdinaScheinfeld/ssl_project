@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=clip_pretrain
+#SBATCH --job-name=4clip_pretrain
 #SBATCH --output=logs/all_clip_pretrain_4_%j.out
 #SBATCH --error=logs/all_clip_pretrain_4_%j.err
 #SBATCH --time=12:00:00
@@ -11,7 +11,7 @@
 #SBATCH --ntasks-per-node=4 # 1 task per gpu ***
 
 
-# all_datasets_clip_pretrain_2_job.sh - Script for all datasets pretraining
+# all_datasets_clip_pretrain_4_job.sh - Script for all datasets pretraining
 
 # indicate starting
 echo "Starting LSM pretraining..."

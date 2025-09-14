@@ -82,6 +82,8 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         self.text_model_name = config['model']['text_model_name']
         self.embed_dim = config['model']['embed_dim']
         self.clip_temperature = config['model']['clip_temperature']
+        init_temp = float(config['model'].get('clip_temperature', 0.07))
+        self.logit_scale = nn.Parameter(torch.tensor(np.log(1.0 / init_temp), dtype=torch.float)) # learnable logit scale for clip loss (instead of fixed temperature)
         self.reconstruction_head = LightDecoder(self.embed_dim)
         self.finetune_text = config['model'].get('finetune_text', True)
         self.text_top_k_layers = int(config['model'].get('text_top_k_layers', 4))
@@ -120,6 +122,10 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
             feature_size=config['model']['feature_size'], 
             use_checkpoint=False        
         )
+
+        # initialize teacher with student weights
+        self.teacher_encoder.load_state_dict(self.student_encoder.state_dict())
+
         for p in self.teacher_encoder.parameters():
             p.requires_grad = False # freeze teacher weights
         self.teacher_encoder.eval() # set teacher to eval mode
@@ -194,6 +200,10 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
             if any(name.startswith(f'encoder.layer.{i}.') for i in range(start, num_layers)):
                 p.requires_grad = True
 
+            # unfreeze embeddings and layer norms too
+            if name.startswith(('embeddings.',)) or '.LayerNorm.' in name:
+                p.requires_grad = True
+
         if hasattr(self.text_encoder, 'pooler'):
             for p in self.text_encoder.pooler.parameters():
                 p.requires_grad = True
@@ -242,8 +252,11 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         # tokenize list of input texts into tensors for model
         tokens = self.text_tokenizer(texts, padding=True, truncation=True, return_tensors='pt').to(self.device)
 
-        # pass tokenized input into text encoder, returning a dictionary of outputs
-        out = self.text_encoder(**tokens)
+        # only build grads for text when it's trainable
+        with torch.set_grad_enabled(self.text_encoder.training):
+
+            # pass tokenized input into text encoder, returning a dictionary of outputs
+            out = self.text_encoder(**tokens)
 
         # get pooled ouptut or use average pooling across token dimension to create single vector for entire sequence
         pooled = out.last_hidden_state.mean(dim=1)
@@ -273,15 +286,20 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
     # text_embeds = tensor of text embeddings from BERT text encoder
     def compute_clip_loss(self, image_embeds, text_embeds):
 
+         # logit scale is exp of the parameter, clamped to avoid extreme values
+        logit_scale = self.logit_scale.exp().clamp(1e-3, 100.0)
+
         # compute similarity matrix between all image-text pairs using matrix multiplication
         # sharpen/soften softmax output using clip_temperature
-        logits = image_embeds @ text_embeds.T / self.clip_temperature
+        logits = (image_embeds @ text_embeds.T) * logit_scale
 
         # create ground truth labels for contrastive learning
         targets = torch.arange(logits.shape[0], device=self.device)
 
         # compute symmetric cross-entropy contrastive loss (bidirectional, image -> text AND text -> image)
-        return (F.cross_entropy(logits, targets) + F.cross_entropy(logits.T, targets)) / 2
+        loss = (F.cross_entropy(logits, targets) + F.cross_entropy(logits.T, targets)) / 2
+
+        return loss, logit_scale
 
 
     # forward pass through student encoder
@@ -484,7 +502,7 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         text_embed = self.encode_text(texts)
 
         # compute contrastive loss between image and text embeddings - corresponding aligned pairs should be close in embedding space
-        clip_loss = self.compute_clip_loss(student_image_embed, text_embed)
+        clip_loss, logit_scale = self.compute_clip_loss(student_image_embed, text_embed)
 
         # compute iBOT loss (KL divergence between student and teacher on masked regions and L1 reconstruction on masked regions)
         ibot_loss, recon_composite, distill_loss, recon_loss_l1, align_loss = \
@@ -503,6 +521,7 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         self.log(f'{log_prefix}_distill_loss', distill_loss, on_step=True, on_epoch=True, batch_size=x.shape[0], sync_dist=True)
         self.log(f'{log_prefix}_recon_loss_l1', recon_loss_l1, on_step=True, on_epoch=True, batch_size=x.shape[0], sync_dist=True)
         self.log(f'{log_prefix}_align_loss', align_loss, on_step=True, on_epoch=True, batch_size=x.shape[0], sync_dist=True)
+        self.log(f'{log_prefix}_logit_scale', logit_scale, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
 
         # use composited reconstruction for logging (output is identical to input on unmasked regions)
         recon_for_log = F.interpolate(recon_composite, size=x.shape[2:], mode='trilinear', align_corners=False) # resize to input size for logging
@@ -615,8 +634,8 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
         self.update_best_metrics('val_ibot_loss', c.get('val_ibot_loss'))
 
 
-    # after backwards
-    def on_after_backward(self):
+    # on train batch end
+    def on_train_batch_end(self, outputs, batch, batch_idx):
 
         # update ema teacher parameters from student (no grad)
         with torch.no_grad():

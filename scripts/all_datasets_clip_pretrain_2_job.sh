@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=clip_pretrain
+#SBATCH --job-name=2clip_pretrain
 #SBATCH --output=logs/all_clip_pretrain_2_%j.out
 #SBATCH --error=logs/all_clip_pretrain_2_%j.err
 #SBATCH --time=12:00:00
