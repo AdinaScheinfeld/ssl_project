@@ -10,7 +10,8 @@ import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger
 
 from monai.data.meta_tensor import MetaTensor
-from monai.losses import DiceCELoss
+from monai.losses import DiceCELoss, DiceFocalLoss
+from monai.metrics import DiceMetric
 from monai.networks.nets import SwinUNETR
 
 import torch
@@ -22,7 +23,7 @@ from torch.serialization import add_safe_globals
 class BinarySegmentationModule(pl.LightningModule):
 
     # init
-    def __init__(self, pretrained_ckpt=None, lr=1e-4, feature_size=48, freeze_encoder_epochs=0):
+    def __init__(self, pretrained_ckpt=None, lr=1e-4, feature_size=48, freeze_encoder_epochs=0, encoder_lr_mult=0.5, loss_name='dicece'):
         super().__init__()
         self.save_hyperparameters()
 
@@ -38,13 +39,29 @@ class BinarySegmentationModule(pl.LightningModule):
         # define model
         self.model = SwinUNETR(
             img_size=(96, 96, 96),
-            in_channels=2,
+            in_channels=1,
             out_channels=1,
             feature_size=feature_size,
             use_checkpoint=True
         )
+
+        # learning rate
         self.lr = lr
-        self.loss_fn = DiceCELoss(sigmoid=True)
+        self.encoder_lr_mult = float(encoder_lr_mult)
+        self.loss_name = str(loss_name).lower()
+
+        # scheduler
+        self._total_steps = None
+        self._warmup_steps = None
+
+        # loss function and metric
+        if self.loss_name == 'dicefocal':
+            self.loss_fn = DiceFocalLoss(sigmoid=True, lambda_dice=0.5, lambda_focal=0.5, alpha=0.25, gamma=2.0) # alpha (class balance) and gamma (focusing) for focal
+            print(f'[INFO] Using Dice + Focal loss for finetuning', flush=True)
+        else:
+            self.loss_fn = DiceCELoss(sigmoid=True)
+            print(f'[INFO] Using Dice + CE loss for finetuning', flush=True)
+        self.val_dice = DiceMetric(include_background=False, reduction='mean')
 
         # if within number of epochs that encoder is frozen, don't use gradients
         if self.encoder_frozen:
@@ -54,58 +71,70 @@ class BinarySegmentationModule(pl.LightningModule):
 
         # load pretrained weights if provided
         if pretrained_ckpt:
+            print(f"[INFO] Loading checkpoint from: {pretrained_ckpt}", flush=True)
+            # tmp = torch.load(pretrained_ckpt, map_location="cpu", weights_only=False)
+            # tmp_sd = tmp.get("state_dict", tmp)
+            # found = False
+            # for k in tmp_sd.keys():
+            #     if "patch_embed.proj.weight" in k:
+            #         print(f"[INFO] ckpt patch_embed key: {k}  shape: {tuple(tmp_sd[k].shape)}", flush=True)
+            #         found = True
+            #         break
+            # if not found:
+            #     print("[WARN] No patch_embed weight found in checkpoint keys.", flush=True)
             add_safe_globals([MetaTensor])
-            state_dict = torch.load(pretrained_ckpt, weights_only=False, map_location='cpu')['state_dict']
+            ckpt = torch.load(pretrained_ckpt, weights_only=False, map_location='cpu')
+            state_dict = ckpt.get('state_dict', ckpt)
 
-            # accept either student_encoder. or encoder. prefixes and map to SwinUNETR
-            encoder_weights = {}
-            for k, v in state_dict.items():
-                if k.startswith('student_encoder.'):
-                    encoder_weights[k[len('student_encoder.'):]] = v
-                elif k.startswith('encoder.'):
-                    encoder_weights[k[len('encoder.'):]] = v
+            # normlize  prefixes commonly added by lightning
+            POSSIBLE_WRAPPERS = ['model.', 'module.', 'student_model.', 'student.', 'teacher_model.', 'net.', 'encoder.', 'student_encoder.', 'backbone.']
 
-            # map common swin keys to monai swinUNETR
+            # function to strip prefix
+            def strip_prefix(k):
+                changed = True
+                while changed:
+                    changed = False
+                    for p in POSSIBLE_WRAPPERS:
+                        if k.startswith(p):
+                            k = k[len(p):]
+                            changed = True
+                return k
+
+            # collect swinunter encoder weights
             mapped = {}
-            for k, v in encoder_weights.items():
-                mapped[k] = v
+            for k, v in state_dict.items():
+                k2 = strip_prefix(k)
+                if k2.startswith('swinViT.'):
+                    mapped[k2] = v
 
-
-            # handle 1/2 channel step (duplicating weights if needed)
-            stem_key = 'swinViT.patch_embed.proj.weight'
-            if stem_key in mapped:
-                w = mapped[stem_key]
-                if w.ndim == 5: # (out_channels, in_channels, kD, kH, kW)
-                    out_c, in_c, kD, kH, kW = w.shape
-
-                    # if model has 2 input channels but weights have 1, duplicate weights
-                    if in_c == 1 and self.model.swinViT.patch_embed.proj.weight.shape[1] == 2:
-                        w2 = torch.cat([w, w], dim=1) / 2.0
-                        mapped[stem_key] = w2
-                        print(f'[INFO] Duplicated stem weights from 1 to 2 channels for {stem_key}', flush=True)
+            # look at keys that are loaded
+            if mapped:
+                sample_keys = list(mapped.keys())[:5]
+                print(f'[DEBUG] Sample encoder keys: {sample_keys}', flush=True)
+            else:
+                print(f'[DEBUG] No encoder keys found in checkpoint.', flush=True)
 
             # filter before loading state dict
             model_sd = self.model.state_dict()
-            safe_mapped = {}
-            dropped = []
+            safe_mapped, dropped = {}, []
 
             for k, v in mapped.items():
                 if k not in model_sd:
                     dropped.append((k, 'not in model'))
                     continue
-                if v.shape == model_sd[k].shape:
-                    safe_mapped[k] = v
-                else:
-
-                    # special case - expand from 1 -> 2 channels
-                    if v.ndim == 5 and v.shape[1] == 1 and model_sd[k].shape[1] == 2:
-                        v2 = torch.cat([v, v], dim=1) / 2.0
-                        safe_mapped[k] = v2
-                        print(f'[INFO] Duplicated stem weights from 1 to 2 channels for {k}', flush=True)
-                    else:
-                        dropped.append((k, f'ckpt {tuple(v.shape)} vs model {tuple(model_sd[k].shape)}'))
+                
+                if v.shape != model_sd[k].shape:
+                    dropped.append((k, f'ckpt {tuple(v.shape)} vs model {tuple(model_sd[k].shape)}'))
+                    continue
+                safe_mapped[k] = v
 
             incompatible = self.model.load_state_dict(safe_mapped, strict=False)
+
+            # inspect loading results
+            if incompatible.missing_keys:
+                print(f'[DEBUG] Missing keys after loading: {incompatible.missing_keys}', flush=True)
+            if incompatible.unexpected_keys:
+                print(f'[DEBUG] Unexpected keys after loading: {incompatible.unexpected_keys}', flush=True)
 
             print(f'[INFO] Loaded pretrained encoder with kept={len(safe_mapped)}, dropped={len(dropped)}, missing={len(incompatible.missing_keys)}, unexpected={len(incompatible.unexpected_keys)}', flush=True)
 
@@ -138,6 +167,7 @@ class BinarySegmentationModule(pl.LightningModule):
     
     # training step
     def training_step(self, batch, batch_idx):
+        assert batch['image'].shape[1] == 1, f'Expected image to have 1 channel, but got {batch["image"].shape[1]} channels'
         logits = self.forward(batch['image'])
         train_loss = self.loss_fn(logits, batch['label'].float()) # compute loss
         batch_size = batch['image'].shape[0]
@@ -147,12 +177,31 @@ class BinarySegmentationModule(pl.LightningModule):
     
     # val step
     def validation_step(self, batch, batch_idx):
+
+        assert batch['image'].shape[1] == 1, f'Expected image to have 1 channel, but got {batch["image"].shape[1]} channels'
         
         logits = self.forward(batch['image'])
         val_loss = self.loss_fn(logits, batch['label'].float()) # compute loss
         batch_size = batch['image'].shape[0]
         self.log('val_loss', val_loss, on_epoch=True, prog_bar=True, batch_size=batch_size)
         self.best_val_loss = min(self.best_val_loss, val_loss.item())
+
+        # thresholded dice at 0.5
+        probs = torch.sigmoid(logits)
+        binary_preds = (probs > 0.5).float()
+        self.val_dice(y_pred=binary_preds, y=batch['label'].float())
+
+        # stash a few batches for threshold sweep at epoch end
+        if not hasattr(self, '_val_store'):
+            self._val_store = []
+
+        # take up to 2 samples from first few batches
+        if len(self._val_store) < 4:
+            num_to_take = min(2, probs.shape[0])
+            self._val_store.append((
+                probs[:num_to_take].detach().to('cpu', dtype=torch.float32), 
+                batch['label'][:num_to_take].detach().to('cpu', dtype=torch.float32)
+            ))
 
         # log some images to wandb
         if self.logged_images < 5:
@@ -204,6 +253,7 @@ class BinarySegmentationModule(pl.LightningModule):
         # create counter and wandb table to log images after validation epoch
         self.logged_images = 0
         self.val_table = wandb.Table(columns=['Filename', 'Image', 'Label', 'Prediction'])
+        self._val_store = [] # reset stored val batches for threshold sweep
     
 
     # on validation epoch end
@@ -212,6 +262,32 @@ class BinarySegmentationModule(pl.LightningModule):
         # log val image table to wandb
         if self.logged_images > 0:
             self.logger.experiment.log({f'val_examples_{self.current_epoch}': self.val_table})
+
+        # thresholded dice at 0.5
+        try:
+            dice = float(self.val_dice.aggregate().item())
+        except Exception:
+            dice = None
+        self.val_dice.reset()
+        if dice is not None:
+            self.log('val_dice_050', dice, prog_bar=True)
+
+        # sweep thresholds on stored batches
+        if self._val_store:
+            with torch.no_grad():
+                probs_cpu = torch.cat([p for p, _ in self._val_store], dim=0)
+                labels_cpu = torch.cat([y for _, y in self._val_store], dim=0)
+                eps = torch.finfo(probs_cpu.dtype).eps
+                best_dice, best_t = 0.0, 0.5
+                for t in [0.3, 0.4, 0.5, 0.6, 0.7]:
+                    preds = (probs_cpu > t).float()
+                    intersection = (preds * labels_cpu).sum()
+                    denom = preds.sum() + labels_cpu.sum() + eps
+                    dice_t = (2.0 * intersection / denom).item()
+                    if dice_t > best_dice:
+                        best_dice, best_t = dice_t, t
+                self.log('val_dice_best_t', best_dice, prog_bar=False)
+                self.log('val_best_t', float(best_t), prog_bar=False)
 
         # update best val loss from aggregated epoch metric
         mv = self.trainer.callback_metrics.get('val_loss')
@@ -240,7 +316,81 @@ class BinarySegmentationModule(pl.LightningModule):
 
     # configure optimizers
     def configure_optimizers(self):
-        return torch.optim.AdamW(self.parameters(), lr=self.lr)
+
+        print(f'[INFO] Configuring optimizers with encoder_lr_mult={self.encoder_lr_mult}', flush=True)
+        
+        # split parameters into encoder and decoder groups
+        encoder_params = []
+        decoder_params = []
+
+        for name, param in self.model.named_parameters():
+            if not param.requires_grad:
+                continue
+            (encoder_params if name.startswith('swinViT') else decoder_params).append(param)
+
+        base_lr = float(self.lr)
+        optimizer = torch.optim.AdamW(
+            [
+                {'params': encoder_params, 'lr': base_lr * self.encoder_lr_mult}, # lower LR for encoder (learns more gently)
+                {'params': decoder_params, 'lr': base_lr} # higher LR for decoder
+            ],
+            weight_decay=1e-4,
+            betas=(0.9, 0.999)
+        )
+
+        # use cosine scheduler with linear warmup
+        def _lr_lambda(step):
+
+            # guard for first calls before on_fit_start populates total steps
+            total = self._total_steps or 1
+            warmup = self._warmup_steps or 1
+            step = max(0, step)
+            if step < warmup:
+                return float(step + 1) / float(warmup) # linear warmup
+            
+            # cosine over remaining steps
+            t = (step - warmup) / float(max(1, total - warmup))
+
+            # 0.5 * (1 + cos(pi * t)) in [1..0]
+            return 0.5 * (1.0 + torch.cos(torch.pi * torch.tensor(t))).item()
+        
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=_lr_lambda)
+        return {
+            'optimizer': optimizer,
+            'lr_scheduler': {
+                'scheduler': scheduler,
+                'interval': 'step', # called after each optimizer step
+                'frequency': 1
+            }
+        }
+    
+
+    # on train start
+    def on_train_start(self):
+
+        # print first step lrs for encoder and decoder
+        optimizer = self.trainer.optimizers[0]
+        encoder_lr = optimizer.param_groups[0]['lr']
+        decoder_lr = optimizer.param_groups[1]['lr']
+        print(f'[INFO] Starting training with encoder_lr={encoder_lr}, decoder_lr={decoder_lr}', flush=True)
+
+
+    # on fit start
+    def on_fit_start(self):
+
+        # compute total training steps for schedulers that run "per step"
+        try:
+            self._total_steps = int(self.trainer.estimated_stepping_batches)
+        except Exception:
+            
+            # rough fallback estimate
+            steps_per_epoch = max(1, len(self.trainer.datamodule.train_dataloader()) if self.trainer.datamodule else len(self.trainer.fit_loop._combined_loader))
+            self._total_steps = steps_per_epoch * max(1, self.trainer.max_epochs)
+
+        # warmup (~3% of total steps)
+        self._warmup_steps = max(1, int(0.03 * self._total_steps))
+        print(f'[INFO] LR schedule: total_steps={self._total_steps}, warmup_steps={self._warmup_steps}', flush=True)
+
     
     # after complete training
     def on_fit_end(self):
@@ -248,6 +398,7 @@ class BinarySegmentationModule(pl.LightningModule):
         # find best checkpoint from callbacks
         for cb in self.trainer.callbacks:
             if isinstance(cb, pl.callbacks.ModelCheckpoint):
+                monitor_name = getattr(cb, 'monitor', None)
                 self.best_ckpt = getattr(cb, 'best_model_path', None)
                 best_val_score = getattr(cb, 'best_model_score', None)
                 break
@@ -260,7 +411,8 @@ class BinarySegmentationModule(pl.LightningModule):
 
         payload = {
             'best_train_loss': self.best_train_loss,
-            'best_val_loss': best_val_loss_out
+            'best_val_monitored': float(best_val_score.cpu()) if best_val_score is not None else None,
+            'monitor': monitor_name
         }
         if self.best_ckpt:
             payload['best_model_path'] = self.best_ckpt

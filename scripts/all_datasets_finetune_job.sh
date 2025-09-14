@@ -3,7 +3,7 @@
 #SBATCH --output=logs/finetune_lsm_%j.out
 #SBATCH --error=logs/finetune_lsm_%j.err
 #SBATCH --partition=minilab-gpu
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:h100:1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
