@@ -39,6 +39,29 @@ torch.set_float32_matmul_precision('medium')
 
 # --- Dataset ---
 
+# function to get desired classes for finetuning
+def _wanted_dir(p, include=None, exclude=None):
+
+    name = p.name.lower()
+
+    # include only certain classes
+    if include:
+        if not any(tok.lower() in name for tok in include):
+            return False
+        
+    # exclude certain classes
+    if exclude:
+        if any(tok.lower() in name for tok in exclude):
+            return False
+        
+    return True
+
+
+# function to list subdirs based on include/exclude classes
+def _list_subdirs(root, include=None, exclude=None):
+    return [p for p in root.iterdir() if p.is_dir() and _wanted_dir(p, include, exclude)]
+
+
 # dataset for finetuning
 class SegPatchDataset(Dataset):
 
@@ -58,15 +81,11 @@ class SegPatchDataset(Dataset):
         image = item['image'] # shape: (1 or 2, D, H, W)
         label = item['label'] # shape: (D, H, W)
 
-        # print(f'[DEBUG] Loaded: {pt_path.name} | Image shape before: {image.shape}, label shape before: {label.shape}', flush=True)
-
-        # ensure image has correct dimensions
-        # vessel images have 2 channels, all other images have 1 channel
-        # so need to pad all other images with a dummy channel to ensure consistency in training
+        # ensure image has correct dimensions (1, D, H, W)
         if image.ndim == 3:
-            image = image.unsqueeze(0)  # (1, D, H, W)
-        if image.shape[0] == 1:
-            image = torch.cat([image, torch.zeros_like(image)], dim=0)  # pad to (2, D, H, W)
+            image = image.unsqueeze(0)
+        if image.shape[0] != 1:
+            raise ValueError(f'Expected image to have 1 channel, but got {image.shape[0]} channels in file {pt_path}')
 
         # ensure that label has correct dimensions
         if label.ndim == 3:
@@ -137,14 +156,29 @@ if __name__ == '__main__':
     try:
         wandb_logger.experiment.define_metric("train_loss", summary="min")
         wandb_logger.experiment.define_metric("val_loss", summary="min")
+        wandb_logger.experiment.define_metric("val_dice_best", summary="max")
     except Exception:
         pass
 
     # create train/val datasets
     train_root = Path(config['patch_dir']) / 'train'
     val_root = Path(config['patch_dir']) / 'val'
-    train_subdirs = [p for p in train_root.iterdir() if p.is_dir()]
-    val_subdirs = [p for p in val_root.iterdir() if p.is_dir()]
+    include_classes = config.get('include_classes')
+    exclude_classes = config.get('exclude_classes')
+    train_subdirs = _list_subdirs(train_root, include=include_classes, exclude=exclude_classes)
+    val_subdirs = _list_subdirs(val_root, include=include_classes, exclude=exclude_classes)
+
+    # indicate which classes are being used
+    print(f'[INFO] Finetuning using the following classes:', flush=True)
+    if include_classes:
+        print(f'       Included: {include_classes}', flush=True)
+    if exclude_classes:
+        print(f'       Excluded: {exclude_classes}', flush=True)
+    print(f'[INFO] Found {len(train_subdirs)} training subdirectories and {len(val_subdirs)} validation subdirectories.', flush=True)
+    for p in train_subdirs:
+        print(f'       Train: {p.name}', flush=True)
+    for p in val_subdirs:
+        print(f'       Val:   {p.name}', flush=True)
 
     train_ds = torch.utils.data.ConcatDataset([
         SegPatchDataset(p, get_finetune_train_transforms()) for p in train_subdirs
@@ -177,23 +211,25 @@ if __name__ == '__main__':
         pretrained_ckpt=config.get('pretrained_ckpt', None), 
         lr=config['lr'],
         feature_size=config['feature_size'],
-        freeze_encoder_epochs=config.get('freeze_encoder_epochs', 0)
+        freeze_encoder_epochs=config.get('freeze_encoder_epochs', 0),
+        encoder_lr_mult=config.get('encoder_lr_mult', 0.5),
+        loss_name=config.get('loss_name', 'dicece')
         )
 
     # setup callbacks
     ckpt_val = ModelCheckpoint(
-        monitor='val_loss', 
+        monitor='val_dice_050', 
         save_top_k=1, 
-        mode='min', 
+        mode='max', 
         filename=config['checkpoint_filename'],
         dirpath=config['checkpoint_dirpath']
     )
 
 
     early_stopping_callback = EarlyStopping(
-        monitor='val_loss', 
+        monitor='val_dice_050', 
         patience=config['early_stopping_patience'], 
-        mode='min'
+        mode='max'
     )
 
     callbacks = [early_stopping_callback, ckpt_val]
