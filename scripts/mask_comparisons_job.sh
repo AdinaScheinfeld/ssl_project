@@ -28,9 +28,9 @@ python /home/ads4015/ssl_project/src/mask_comparisons.py \
     --suffix_a pretrained-v24 \
     --suffix_b pretrained-v25 \
     --labels_dir /midtier/paetzollab/scratch/ads4015/cellseg3d_data/labels \
-    --out_csv /midtier/paetzollab/scratch/ads4015/temp/mask_comparison_results.csv \
-    --save_disagreements /midtier/paetzollab/scratch/ads4015/temp/ \
-    --disagreement_ext nii.gz \
+    --out_csv /midtier/paetzollab/scratch/ads4015/cellseg3d_data/model_comparisons/mask_comparison_results.csv \
+    --save_disagreements /midtier/paetzollab/scratch/ads4015/cellseg3d_data/model_comparisons \
+    --disagreement_ext tif \
     --label_name_replacements "image->labels_new_label"
 
 
