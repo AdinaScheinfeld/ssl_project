@@ -30,12 +30,19 @@ source activate monai-env1
 #   --output_dir /midtier/paetzollab/scratch/ads4015/temp
 
 
-# Run inference on file
+# Run inference on folder using pretrained-v24 (previously finetune_pretrained-v24.ckpt)
 python /home/ads4015/ssl_project/src/all_datasets_inference.py \
-  --input_path /midtier/paetzollab/scratch/ads4015/cellseg3d_data/data/c1image.tif \
+  --input_path /midtier/paetzollab/scratch/ads4015/cellseg3d_data/data \
   --checkpoint /home/ads4015/ssl_project/checkpoints/finetune_pretrained-v24.ckpt \
-  --output_dir /midtier/paetzollab/scratch/ads4015/temp
+  --output_dir /midtier/paetzollab/scratch/ads4015/cellseg3d_data/preds \
+  --name_suffix "pretrained-v24"
 
+# Run inference on folder using pretrained-v25 (previously finetune_pretrained-v25.ckpt = null model)
+python /home/ads4015/ssl_project/src/all_datasets_inference.py \
+  --input_path /midtier/paetzollab/scratch/ads4015/cellseg3d_data/data \
+  --checkpoint /home/ads4015/ssl_project/checkpoints/finetune_pretrained-v25.ckpt \
+  --output_dir /midtier/paetzollab/scratch/ads4015/cellseg3d_data/preds \
+  --name_suffix "pretrained-v25"
 
 
 

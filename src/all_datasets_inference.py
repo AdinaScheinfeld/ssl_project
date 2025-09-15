@@ -295,12 +295,17 @@ def process_and_save(model, input_file, output_dir, args):
     else:
         out_fmt = args.save_as
 
+    # append name suffix if provided
+    suffix = args.name_suffix or ''
+    if suffix and not suffix.startswith('_'):
+        suffix = '_' + suffix
+
     if out_fmt == 'tiff':
-        out_path = output_dir / f'{base}_pred.tiff' # output path
+        out_path = output_dir / f'{base}{suffix}_pred.tiff' # output path
         save_mask_as_tiff(mask, out_path) # save mask as tiff file
 
     else:
-        out_path = output_dir / (base + '_pred.nii.gz') # output path
+        out_path = output_dir / f'{base}{suffix}_pred.nii.gz' # output path
         save_mask_as_nii(mask, out_path, affine, header) # save mask as nifti file
 
     print(f'Saved prediction to {out_path}', flush=True)
@@ -316,6 +321,7 @@ def main():
     parser.add_argument('--checkpoint', type=str, required=True, help='Path to finetuned model checkpoint')
     parser.add_argument('--output_dir', type=str, required=True, help='Directory to save predictions')
     parser.add_argument('--save_as', choices=['auto', 'nii', 'tiff'], default='auto', help='Format to save predictions (default: auto-detect from input file)')
+    parser.add_argument('--name_suffix', type=str, default='', help="Optional text appended to the output base name (before _pred). Ex: '_new', '_1', '_v2'")
     args = parser.parse_args()
 
     # get input and output paths
