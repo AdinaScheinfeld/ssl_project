@@ -30,19 +30,33 @@ source activate monai-env1
 #   --output_dir /midtier/paetzollab/scratch/ads4015/temp
 
 
-# Run inference on folder using pretrained-v24 (previously finetune_pretrained-v24.ckpt)
-python /home/ads4015/ssl_project/src/all_datasets_inference.py \
-  --input_path /midtier/paetzollab/scratch/ads4015/cellseg3d_data/data \
-  --checkpoint /home/ads4015/ssl_project/checkpoints/finetune_pretrained-v24.ckpt \
-  --output_dir /midtier/paetzollab/scratch/ads4015/cellseg3d_data/preds \
-  --name_suffix "pretrained-v24"
+# # Run inference on folder using pretrained-v24 (previously finetune_pretrained-v24.ckpt)
+# python /home/ads4015/ssl_project/src/all_datasets_inference.py \
+#   --input_path /midtier/paetzollab/scratch/ads4015/cellseg3d_data/data \
+#   --checkpoint /home/ads4015/ssl_project/checkpoints/finetune_pretrained-v24.ckpt \
+#   --output_dir /midtier/paetzollab/scratch/ads4015/cellseg3d_data/preds \
+#   --name_suffix "pretrained-v24"
 
-# Run inference on folder using pretrained-v25 (previously finetune_pretrained-v25.ckpt = null model)
+# # Run inference on folder using pretrained-v25 (previously finetune_pretrained-v25.ckpt = null model)
+# python /home/ads4015/ssl_project/src/all_datasets_inference.py \
+#   --input_path /midtier/paetzollab/scratch/ads4015/cellseg3d_data/data \
+#   --checkpoint /home/ads4015/ssl_project/checkpoints/finetune_pretrained-v25.ckpt \
+#   --output_dir /midtier/paetzollab/scratch/ads4015/cellseg3d_data/preds \
+#   --name_suffix "pretrained-v25"
+
+# Run inference on folder using pretrained-v28 (previously finetune_pretrained-v28.ckpt)
 python /home/ads4015/ssl_project/src/all_datasets_inference.py \
   --input_path /midtier/paetzollab/scratch/ads4015/cellseg3d_data/data \
-  --checkpoint /home/ads4015/ssl_project/checkpoints/finetune_pretrained-v25.ckpt \
+  --checkpoint /home/ads4015/ssl_project/checkpoints/finetune_pretrained-v28.ckpt \
   --output_dir /midtier/paetzollab/scratch/ads4015/cellseg3d_data/preds \
-  --name_suffix "pretrained-v25"
+  --name_suffix "pretrained-v28"
+
+# Run inference on folder using pretrained-v30 (previously finetune_pretrained-v30.ckpt)
+python /home/ads4015/ssl_project/src/all_datasets_inference.py \
+  --input_path /midtier/paetzollab/scratch/ads4015/cellseg3d_data/data \
+  --checkpoint /home/ads4015/ssl_project/checkpoints/finetune_pretrained-v30.ckpt \
+  --output_dir /midtier/paetzollab/scratch/ads4015/cellseg3d_data/preds \
+  --name_suffix "pretrained-v30"
 
 
 

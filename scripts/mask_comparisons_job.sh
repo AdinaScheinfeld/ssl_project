@@ -25,8 +25,8 @@ source activate monai-env1
 # run mask comparison
 python /home/ads4015/ssl_project/src/mask_comparisons.py \
     --preds_dir /midtier/paetzollab/scratch/ads4015/cellseg3d_data/preds \
-    --suffix_a pretrained-v24 \
-    --suffix_b pretrained-v25 \
+    --suffix_a pretrained-v28 \
+    --suffix_b pretrained-v30 \
     --labels_dir /midtier/paetzollab/scratch/ads4015/cellseg3d_data/labels \
     --out_csv /midtier/paetzollab/scratch/ads4015/cellseg3d_data/model_comparisons/mask_comparison_results.csv \
     --save_disagreements /midtier/paetzollab/scratch/ads4015/cellseg3d_data/model_comparisons \
