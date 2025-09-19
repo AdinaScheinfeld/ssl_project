@@ -114,7 +114,9 @@ def split_pairs(pairs, mode, seed, train_percent=None, eval_percent=None, train_
             raise ValueError('--train_percent must be specified in percent mode')
         if eval_percent is None:
             eval_percent = 1 - train_percent
-        if train_percent + eval_percent > 1:
+        if not (0.0 <= train_percent <= 1.0) or not (0.0 <= eval_percent <= 1.0):
+            raise ValueError('train_percent must be in [0, 1] and eval_percent must be in [0, 1]')
+        if train_percent + eval_percent > 1.0 + 1e-6:
             raise ValueError('train_percent + eval_percent must be <= 1')
         
         n_train = max(0, min(n, int(round(n * (train_percent)))))
@@ -180,6 +182,51 @@ def save_pred_nii(mask_bin, like_path, out_path):
 
 # *** Run per subtype ***
 
+# function to get tags
+def exp_tag(args):
+    if args.mode == 'count':
+        return f'count_tr{args.train_count}' + (f'_ev{args.eval_count}' if args.eval_count is not None else '_evRest')
+    else:
+        eff_eval = args.eval_percent if args.eval_percent is not None else (1.0 - args.train_percent)
+        return f'percent_tr{args.train_percent:.2f}_ev{eff_eval:.2f}'
+    
+
+# functon to create suffix
+def build_pred_suffix(args):
+    tag = exp_tag(args)
+    return f'_{tag}'
+
+
+# function to split finetune training data into train and val sets
+def split_train_val(pairs, val_percent=0.2, val_count=None, seed=100):
+
+    # get pairs
+    pairs = list(pairs)
+    if len(pairs) == 0:
+        return [], []
+    
+    # shuffle
+    rng = random.Random(seed + 1)  # different seed from main split
+    rng.shuffle(pairs)
+    n = len(pairs)
+
+    # split
+    if val_count is not None:
+        n_val = min(n, int(val_count))
+
+    else:
+        # default to 20% val from finetune train set
+        val_percent = 0.0 if val_percent is None else float(val_percent)
+        val_percent = min(max(0.0, val_percent), 1.0)
+        n_val = int(round(n * val_percent))
+
+    # ensure at least one sample in train if possible
+    n_val = min(n_val, n - 1) if n >= 2 else 0
+    val_pairs = pairs[:n_val]
+    train_pairs = pairs[n_val:]
+    return train_pairs, val_pairs
+
+
 @dataclass
 class RunOutputs:
     best_ckpt: str
@@ -204,31 +251,51 @@ def run_for_subtype(subtype_dir, args, device):
     )
 
     print(f'[INFO] {subtype}: Found {len(all_pairs)} pairs -> {len(train_pairs)} train, {len(eval_pairs)} eval', flush=True)
-    if len(train_pairs) == 0 or len(eval_pairs) == 0:
+    if len(eval_pairs) == 0:
         print(f'[WARN] {subtype}: Skipping due to no train or eval data', flush=True)
         return RunOutputs(best_ckpt='', metrics_csv=Path(''), preds_dir=Path(''))
 
-    # create datasets and dataloaders
-    train_dataset = NiftiPairDataset(train_pairs, augment=True)
-    eval_dataset = NiftiPairDataset(eval_pairs, augment=False)
 
+    # dataset and dataloaders
+
+    # split finetune pool into train/val sets
+    train_core, val_pairs = split_train_val(train_pairs, val_percent=args.val_percent, val_count=args.val_count, seed=args.seed)
+
+    # test set (never seen during model selection)
+    test_dataset = NiftiPairDataset(eval_pairs, augment=False)
     num_workers = min(args.num_workers, os.cpu_count() or args.num_workers)
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, 
-                              num_workers=num_workers, pin_memory=True, persistent_workers=False, 
-                              worker_init_fn=_seed_worker)
-    eval_loader = DataLoader(eval_dataset, batch_size=1, shuffle=False, 
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, 
                              num_workers=num_workers, pin_memory=True, persistent_workers=False, 
                              worker_init_fn=_seed_worker)
     
-    # model and logger
-    run_name = f'{subtype}_seed{args.seed}_{args.mode}'
-    effective_eval = args.eval_percent if args.eval_percent is not None else (1.0 - args.train_percent)
-    if args.mode == 'percent':
-        run_name += f'_tr{args.train_percent:.2f}_ev{effective_eval:.2f}'
-    else:
-        run_name += f'_tr{args.train_count}_ev{args.eval_count}'
+    # build workers for train/val
+    has_train = len(train_core) > 0
+    has_val = len(val_pairs) > 0
 
-    # logger
+    if has_train:
+        train_dataset = NiftiPairDataset(train_core, augment=True)
+        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, 
+                                  num_workers=num_workers, pin_memory=True, persistent_workers=False, 
+                                  worker_init_fn=_seed_worker)
+        
+    if has_val:
+        val_dataset = NiftiPairDataset(val_pairs, augment=False)
+        val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, 
+                                num_workers=num_workers, pin_memory=True, persistent_workers=False, 
+                                worker_init_fn=_seed_worker)
+
+    # fallback - if train pool is 1, reuse train loader as val loader for checkpointing and early stopping
+    else:
+        if has_train:
+            print(f'[WARN] {subtype}: No finetune train data after split, using train for val', flush=True)
+            val_loader = train_loader
+        else:
+            print(f'[WARN] {subtype}: No finetune train or val data after split, skipping finetuning', flush=True)
+            val_loader = None
+
+    # model and logger
+    tag = exp_tag(args)
+    run_name = f'{subtype}_{tag}_seed{args.seed}'
     wandb_logger = WandbLogger(project=args.wandb_project, name=run_name) if args.wandb_project else None
 
     # model
@@ -242,48 +309,60 @@ def run_for_subtype(subtype_dir, args, device):
     )
 
     # checkpoint directory
-    ckpt_dir = Path(args.output_dir) / subtype / 'checkpoints'
+    ckpt_dir = Path(args.ckpt_dir) / subtype / tag
     ckpt_dir.mkdir(parents=True, exist_ok=True)
 
-    # model checkpoint callback
-    model_ckpt = ModelCheckpoint(
-        monitor='val_dice_050', mode='max', save_top_k=1, dirpath=str(ckpt_dir), filename='finetune_split_best'
-    )
+    # initialize best model and checkpoint path
+    best_model = None
+    best_ckpt = ''
 
-    # early stopping callback
-    early_stopping = EarlyStopping(
-        monitor='val_dice_050', mode='max', patience=args.early_stopping_patience
-    )
+    # train if data, otherwise eval baseline
+    if has_train:
 
-    # trainer
-    trainer = pl.Trainer(
-        max_epochs=args.max_epochs,
-        accelerator='gpu' if torch.cuda.is_available() else 'cpu',
-        devices = 1,
-        precision='bf16-mixed' if torch.cuda.is_available() else 32,
-        logger=wandb_logger,
-        callbacks=[model_ckpt, early_stopping],
-        log_every_n_steps=1,
-    )
-    trainer.fit(model, train_loader, eval_loader)
+        # model checkpoint callback
+        model_ckpt = ModelCheckpoint(
+            monitor='val_dice_050', mode='max', save_top_k=1, dirpath=str(ckpt_dir), filename='finetune_split_best'
+        )
 
-    # resolve best checkpoint path or fallback to last ckpt
-    best_ckpt = model_ckpt.best_model_path or (model.best_ckpt or '')
-    if not best_ckpt:
-        best_ckpt = str(ckpt_dir / 'finetune_split_last.ckpt')
-        trainer.save_checkpoint(best_ckpt)
+        # early stopping callback
+        early_stopping = EarlyStopping(
+            monitor='val_dice_050', mode='max', patience=args.early_stopping_patience
+        )
 
-    # load best model for eval
-    best_model = BinarySegmentationModule.load_from_checkpoint(best_ckpt)
-    best_model.eval().to(device)
+        # trainer
+        trainer = pl.Trainer(
+            max_epochs=args.max_epochs,
+            accelerator='gpu' if torch.cuda.is_available() else 'cpu',
+            devices = 1,
+            precision='bf16-mixed' if torch.cuda.is_available() else 32,
+            logger=wandb_logger,
+            callbacks=[model_ckpt, early_stopping],
+            log_every_n_steps=1,
+            deterministic=True
+        )
+        trainer.fit(model, train_loader, val_loader)
 
-    # eval loop with saving preds
-    preds_dir = Path(args.output_dir) / subtype / 'predictions'
+        # resolve best checkpoint path or fallback to last ckpt
+        best_ckpt = model_ckpt.best_model_path or (model.best_ckpt or '')
+        if not best_ckpt:
+            best_ckpt = str(ckpt_dir / 'finetune_split_last.ckpt')
+            trainer.save_checkpoint(best_ckpt)
+
+        # load best model for eval
+        best_model = BinarySegmentationModule.load_from_checkpoint(best_ckpt).to(device).eval()
+
+    else:
+        print(f'[INFO] {subtype}: No training data, skipping training and using unfinetuned model for eval', flush=True)
+        best_model = model.to(device).eval()
+
+    # eval loop
+    preds_dir = Path(args.root) / subtype / 'preds'
     preds_dir.mkdir(parents=True, exist_ok=True)
+    pred_suffix = build_pred_suffix(args)
 
-    # prepare output
+    # eval on test set
     rows = []
-    for batch in eval_loader:
+    for batch in test_loader:
         x = batch['image'] # (1, 1, D, H, W)
         y = batch['label'] # (1, 1, D, H, W)
         fname = Path(batch['filename'][0])
@@ -292,14 +371,13 @@ def run_for_subtype(subtype_dir, args, device):
 
         # save pred
         mask_bin = (torch.sigmoid(logits) >= 0.5).to(torch.uint8)
-        out_path = preds_dir / (fname.stem.replace('.nii', '') + '_pred.nii.gz')
+        out_path = preds_dir / (fname.stem.replace('.nii', '') + f'_pred{pred_suffix}.nii.gz')
         save_pred_nii(mask_bin, fname, out_path)
         rows.append({'subtype': subtype, 'filename': str(fname.name), 'dice_050': f'{dice_050:.6f}', 'pred_path': str(out_path)})
         print(f'[INFO] {subtype}: Eval {fname.name} -> Dice@0.5: {dice_050:.6f}', flush=True)
 
     # save metrics CSV
-    metrics_csv = Path(args.output_dir) / subtype / f'eval_metrics_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
-    metrics_csv.parent.mkdir(parents=True, exist_ok=True)
+    metrics_csv = preds_dir / f'metrics_test{pred_suffix}.csv'
     with open(metrics_csv, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=['subtype', 'filename', 'dice_050', 'pred_path'])
         writer.writeheader()
@@ -310,7 +388,7 @@ def run_for_subtype(subtype_dir, args, device):
         mean_dice = float(np.mean([float(r['dice_050']) for r in rows]))
         print(f'[INFO] {subtype}: Eval mean Dice@0.5 over {len(rows)} samples: {mean_dice:.6f}', flush=True)
         if wandb_logger:
-            wandb_logger.experiment.summary[f'{subtype}_eval_mean_dice_050'] = mean_dice
+            wandb_logger.experiment.summary[f'{subtype}/{tag}/test_mean_dice_050'] = mean_dice
 
     # return outputs
     return RunOutputs(best_ckpt=best_ckpt, metrics_csv=metrics_csv, preds_dir=preds_dir)
@@ -337,6 +415,10 @@ def parse_args():
     parser.add_argument('--eval_count', type=int, default=None, help='Exact number of samples to use for eval/validation (only in count mode, default: None, uses remaining data)')
     parser.add_argument('--seed', type=int, default=100, help='Random seed for data shuffling (default: 100)')
 
+    # validation split within the finetune pool
+    parser.add_argument('--val_percent', type=float, default=0.2, help='Fraction of finetune training data to use for validation (default: 0.2); ignored if val_count is set)')
+    parser.add_argument('--val_count', type=int, default=None, help='Exact number of samples to use for validation from finetune pool (default: None)')
+
     # training
     parser.add_argument('--pretrained_ckpt', type=str, default=None, help='Path to pretrained model checkpoint for finetuning (.ckpt)')
     parser.add_argument('--batch_size', type=int, default=4, help='Batch size for training (default: 4)')
@@ -351,7 +433,7 @@ def parse_args():
 
     # logging/output
     parser.add_argument('--wandb_project', type=str, default='finetune', help='Wandb project name for logging (default: finetune)')
-    parser.add_argument('--output_dir', type=str, required=True, help='Output directory to save checkpoints, predictions, and metrics')
+    parser.add_argument('--ckpt_dir', type=str, required=True, help='Output directory to save checkpoints, predictions, and metrics')
 
     # parse
     args = parser.parse_args()
@@ -407,6 +489,10 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+
+
 
 
 

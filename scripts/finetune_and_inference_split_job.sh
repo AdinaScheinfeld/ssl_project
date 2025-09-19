@@ -20,16 +20,20 @@ set -euo pipefail
 module load anaconda3/2022.10-34zllqw
 source activate monai-env1
 
+SUBTYPE="${1:?need subtype}"
+TRAIN_COUNT="${2:?need train count}"
+
 # set variables
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches"
-OUT="/home/ads4015/ssl_project/runs/selma_split"
+OUT="/home/ads4015/ssl_project/checkpoints"
 CKPT="/home/ads4015/ssl_project/checkpoints/all_datasets_clip_pretrained-v12.ckpt"
 
 python /home/ads4015/ssl_project/src/finetune_and_inference_split.py \
   --root "$ROOT" \
-  --output_dir "$OUT" \
+  --subtypes "$SUBTYPE" \
+  --ckpt_dir "$OUT" \
   --pretrained_ckpt "$CKPT" \
-  --mode percent --train_percent 0.8 --eval_percent 0.2 \
+  --mode count --train_count "$TRAIN_COUNT" \
   --seed 100 --batch_size 4 --feature_size 24 --max_epochs 1000 \
   --freeze_encoder_epochs 5 --encoder_lr_mult 0.05 --loss_name dicece \
   --wandb_project selma3d_finetune --num_workers 8
