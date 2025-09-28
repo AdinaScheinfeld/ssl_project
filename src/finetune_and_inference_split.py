@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import random
 import sys
+import time
 
 import torch
 from torch.utils.data import DataLoader, Dataset, get_worker_info
@@ -69,24 +70,32 @@ class Pair:
 # function to get all image-label pairs in a class folder
 def discover_pairs(class_dir, channel_substr='ch0'):
 
+    # normalize channel filters
+    substrings = None
+    if channel_substr:
+        s = str(channel_substr).strip()
+        if s and s.upper() != 'ALL':
+            substrings = [t.strip().lower() for t in s.split(',') if t.strip()]
+
     # list of pairs
     pairs = []
 
     # iterate over all files in class_dir
     for p in sorted(class_dir.glob('*.nii*')):
 
-        name = p.name
-        lower = name.lower()
+        lower = p.name.lower()
 
         # find images - images have channel_substr in their name and do not have '_label'
         if lower.endswith('_label.nii') or lower.endswith('_label.nii.gz'):
             continue
-        if channel_substr not in lower:
+
+        # channel filter
+        if substrings is not None and not any(sub in lower for sub in substrings):
             continue
 
         # construct label path by inserting '_label' before file extension
         suffix = ''.join(p.suffixes)  # handles .nii and .nii.gz
-        base = name[:-len(suffix)]
+        base = p.name[:-len(suffix)]
         label = p.with_name(f'{base}_label{suffix}')
 
         # if label exists, add to pairs
@@ -183,18 +192,26 @@ def save_pred_nii(mask_bin, like_path, out_path):
 # *** Run per subtype ***
 
 # function to get tags
-def exp_tag(args):
+def exp_tag(args, n_train, n_eval):
     if args.mode == 'count':
-        return f'count_tr{args.train_count}' + (f'_ev{args.eval_count}' if args.eval_count is not None else '_evRest')
+        return f'count_tr{n_train}_ev{n_eval}'
     else:
         eff_eval = args.eval_percent if args.eval_percent is not None else (1.0 - args.train_percent)
-        return f'percent_tr{args.train_percent:.2f}_ev{eff_eval:.2f}'
+        return f'percent_tr{args.train_percent:.2f}_ev{eff_eval:.2f}_ntr{n_train}_nev{n_eval}'
     
 
 # functon to create suffix
-def build_pred_suffix(args):
-    tag = exp_tag(args)
+def build_pred_suffix(tag):
     return f'_{tag}'
+
+
+# function to format seconds as Hh MMm SSs
+def _format_hms(seconds):
+    seconds = int(round(seconds))
+    h = seconds // 3600
+    m = (seconds % 3600) // 60
+    s = seconds % 60
+    return f'{h}:{m:02d}:{s:02d}s'
 
 
 # function to split finetune training data into train and val sets
@@ -264,9 +281,9 @@ def run_for_subtype(subtype_dir, args, device):
     # test set (never seen during model selection)
     test_dataset = NiftiPairDataset(eval_pairs, augment=False)
     num_workers = min(args.num_workers, os.cpu_count() or args.num_workers)
-    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, 
-                             num_workers=num_workers, pin_memory=True, persistent_workers=False, 
-                             worker_init_fn=_seed_worker)
+    pw = num_workers > 0
+    loader_kw = dict(num_workers=num_workers, pin_memory=True, persistent_workers=pw, worker_init_fn=_seed_worker)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, **loader_kw)
     
     # build workers for train/val
     has_train = len(train_core) > 0
@@ -274,27 +291,23 @@ def run_for_subtype(subtype_dir, args, device):
 
     if has_train:
         train_dataset = NiftiPairDataset(train_core, augment=True)
-        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, 
-                                  num_workers=num_workers, pin_memory=True, persistent_workers=False, 
-                                  worker_init_fn=_seed_worker)
+        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, **loader_kw)
         
     if has_val:
         val_dataset = NiftiPairDataset(val_pairs, augment=False)
-        val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, 
-                                num_workers=num_workers, pin_memory=True, persistent_workers=False, 
-                                worker_init_fn=_seed_worker)
+        val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, **loader_kw)
 
     # fallback - if train pool is 1, reuse train loader as val loader for checkpointing and early stopping
     else:
         if has_train:
-            print(f'[WARN] {subtype}: No finetune train data after split, using train for val', flush=True)
+            print(f'[WARN] {subtype}: No finetune val data after split, using train for val', flush=True)
             val_loader = train_loader
         else:
             print(f'[WARN] {subtype}: No finetune train or val data after split, skipping finetuning', flush=True)
             val_loader = None
 
     # model and logger
-    tag = exp_tag(args)
+    tag = exp_tag(args, n_train=len(train_pairs), n_eval=len(eval_pairs))
     run_name = f'{subtype}_{tag}_seed{args.seed}'
     wandb_logger = WandbLogger(project=args.wandb_project, name=run_name) if args.wandb_project else None
 
@@ -358,7 +371,7 @@ def run_for_subtype(subtype_dir, args, device):
     # eval loop
     preds_dir = Path(args.root) / subtype / 'preds'
     preds_dir.mkdir(parents=True, exist_ok=True)
-    pred_suffix = build_pred_suffix(args)
+    pred_suffix = build_pred_suffix(tag)
 
     # eval on test set
     rows = []
@@ -376,8 +389,16 @@ def run_for_subtype(subtype_dir, args, device):
         rows.append({'subtype': subtype, 'filename': str(fname.name), 'dice_050': f'{dice_050:.6f}', 'pred_path': str(out_path)})
         print(f'[INFO] {subtype}: Eval {fname.name} -> Dice@0.5: {dice_050:.6f}', flush=True)
 
-    # save metrics CSV
+    # compute mean and append an average line at the bottom of the csv
     metrics_csv = preds_dir / f'metrics_test{pred_suffix}.csv'
+    if rows:
+        mean_dice = float(np.mean([float(r['dice_050']) for r in rows]))
+        rows.append({'subtype': subtype, 'filename': 'MEAN', 'dice_050': f'{mean_dice:.6f}', 'pred_path': ''})
+        print(f'[INFO] {subtype}: Eval mean Dice@0.5 over {len(rows)-1} samples: {mean_dice:.6f}', flush=True)
+        if wandb_logger:
+            wandb_logger.experiment.summary[f'{subtype}/{tag}/test_mean_dice_050'] = mean_dice
+
+    # save metrics CSV
     with open(metrics_csv, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=['subtype', 'filename', 'dice_050', 'pred_path'])
         writer.writeheader()
@@ -405,7 +426,7 @@ def parse_args():
     parser.add_argument('--root', type=str, required=True, help='Root directory containing subtype subfolders with nifti pairs (ex: amyloid_plaque_patches, ...)')
     parser.add_argument('--subtypes', nargs='*', default=['ALL'], help='Subtype folder to process; use "ALL" to process all subfolders (default: ALL)')
     parser.add_argument('--exclude_subtypes', nargs='*', default=[], help='Subtype folder names to exclude when using ALL (default: none)')
-    parser.add_argument('--channel_substr', type=str, default='ch0', help='Substring to identify image channels (default: ch0)')
+    parser.add_argument('--channel_substr', type=str, default='ch0', help='Substring to identify image channels: substring (ex: "ch0"), comma-sep list (ex: "ch0,ch1"), or "ALL" to include all channels (default: ch0)')
 
     # split
     parser.add_argument('--mode', type=str, choices=['percent', 'count'], required=True, help='Data splitting mode: "percent" to specify percentages, "count" to specify exact counts')
@@ -457,8 +478,9 @@ def main():
     _seed_everything(args.seed)
     root = Path(args.root)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    t0 = time.perf_counter()
     print(f'[INFO] Using device: {device}', flush=True)
-    print(f'[INFO] Start at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}', flush=True)
+    print(f'[INFO] Start at {datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")}', flush=True)
     print(f'[INFO] Root: {root}', flush=True)
 
     # determine subtypes to process
@@ -482,7 +504,9 @@ def main():
         if out.best_ckpt:
             print(f'[INFO] {subdir.name}: best_ckpt={out.best_ckpt} | metrics={out.metrics_csv} | preds_dir={out.preds_dir}', flush=True)
 
-    print(f'[INFO] Finished at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}', flush=True)
+    print(f'[INFO] Finished at {datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")}', flush=True)
+    dt = time.perf_counter() - t0
+    print(f'[INFO] Total runtime: {_format_hms(dt)} ({dt:.2f} seconds)', flush=True)
 
 
 # --- Entry Point ---

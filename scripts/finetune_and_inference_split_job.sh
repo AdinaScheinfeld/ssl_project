@@ -3,7 +3,7 @@
 #SBATCH --output=logs/finetune_infer_split_%j.out
 #SBATCH --error=logs/finetune_infer_split_%j.err
 #SBATCH --partition=minilab-gpu
-#SBATCH --gres=gpu:h100:1
+#SBATCH --gres=gpu:l40:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
 #SBATCH --time=48:00:00
@@ -36,7 +36,8 @@ python /home/ads4015/ssl_project/src/finetune_and_inference_split.py \
   --mode count --train_count "$TRAIN_COUNT" \
   --seed 100 --batch_size 4 --feature_size 24 --max_epochs 1000 \
   --freeze_encoder_epochs 5 --encoder_lr_mult 0.05 --loss_name dicece \
-  --wandb_project selma3d_finetune --num_workers 8
+  --wandb_project selma3d_finetune --num_workers 4 \
+  --channel_substr ALL
 
 
 # indicate ending
