@@ -110,7 +110,7 @@ class BinarySegmentationModule(pl.LightningModule):
             # look at keys that are loaded
             if mapped:
                 sample_keys = list(mapped.keys())[:5]
-                print(f'[DEBUG] Sample encoder keys: {sample_keys}', flush=True)
+                # print(f'[DEBUG] Sample encoder keys: {sample_keys}', flush=True)
             else:
                 print(f'[DEBUG] No encoder keys found in checkpoint.', flush=True)
 

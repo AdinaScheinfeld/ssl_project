@@ -9,6 +9,9 @@
 #SBATCH --time=48:00:00
 
 
+# finetune_and_inference_sweep_job.sh - Script to launch a sweep of finetuning and inference jobs across multiple dataset subtypes and training counts
+
+
 # indicate starting
 echo "Starting finetune and inference sweep..."
 

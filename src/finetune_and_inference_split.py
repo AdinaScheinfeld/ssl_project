@@ -215,21 +215,26 @@ def _format_hms(seconds):
 
 
 # function to split finetune training data into train and val sets
-def split_train_val(pairs, val_percent=0.2, val_count=None, seed=100):
+def split_train_val(pairs, val_percent=0.2, val_count=None, seed=100, min_train=1, min_val=1):
 
     # get pairs
     pairs = list(pairs)
+    n = len(pairs)
     if len(pairs) == 0:
+        return [], []
+    
+    # check minimums
+    if n < (min_train + min_val):
+        print(f'[WARN] Not enough samples ({n}) to satisfy min_train ({min_train}) + min_val ({min_val}), skipping finetuning')
         return [], []
     
     # shuffle
     rng = random.Random(seed + 1)  # different seed from main split
     rng.shuffle(pairs)
-    n = len(pairs)
 
     # split
     if val_count is not None:
-        n_val = min(n, int(val_count))
+        n_val = int(val_count)
 
     else:
         # default to 20% val from finetune train set
@@ -237,8 +242,16 @@ def split_train_val(pairs, val_percent=0.2, val_count=None, seed=100):
         val_percent = min(max(0.0, val_percent), 1.0)
         n_val = int(round(n * val_percent))
 
-    # ensure at least one sample in train if possible
-    n_val = min(n_val, n - 1) if n >= 2 else 0
+    # clamp n_val to ensure at least min_train and min_val
+    n_val = max(min_val, min(n_val, n - min_train))
+    n_train = n - n_val
+
+    # final safety check
+    if n_train < min_train or n_val < min_val:
+        print(f'[WARN] After clamping, not enough samples ({n}) to satisfy min_train ({min_train}) + min_val ({min_val}), skipping finetuning')
+        return [], []
+    
+    # split
     val_pairs = pairs[:n_val]
     train_pairs = pairs[n_val:]
     return train_pairs, val_pairs
@@ -276,7 +289,19 @@ def run_for_subtype(subtype_dir, args, device):
     # dataset and dataloaders
 
     # split finetune pool into train/val sets
-    train_core, val_pairs = split_train_val(train_pairs, val_percent=args.val_percent, val_count=args.val_count, seed=args.seed)
+    train_core, val_pairs = split_train_val(
+        train_pairs, 
+        val_percent=args.val_percent, 
+        val_count=args.val_count, 
+        seed=args.seed,
+        min_train=args.min_finetune_train,
+        min_val=args.min_finetune_eval
+    )
+
+    # ensure sufficient data
+    if len(train_core) < args.min_finetune_train or len(val_pairs) < args.min_finetune_eval:
+        print(f'[WARN] {subtype}: Not enough finetune data after train/val split (train: {len(train_core)}, val: {len(val_pairs)}), skipping finetuning', flush=True)
+        return RunOutputs(best_ckpt='', metrics_csv=Path(''), preds_dir=Path(''))
 
     # test set (never seen during model selection)
     test_dataset = NiftiPairDataset(eval_pairs, augment=False)
@@ -307,7 +332,7 @@ def run_for_subtype(subtype_dir, args, device):
             val_loader = None
 
     # model and logger
-    tag = exp_tag(args, n_train=len(train_pairs), n_eval=len(eval_pairs))
+    tag = f'{exp_tag(args, n_train=len(train_pairs), n_eval=len(eval_pairs))}_fttr{len(train_core)}_ftval{len(val_pairs)}'
     run_name = f'{subtype}_{tag}_seed{args.seed}'
     wandb_logger = WandbLogger(project=args.wandb_project, name=run_name) if args.wandb_project else None
 
@@ -451,6 +476,8 @@ def parse_args():
     parser.add_argument('--loss_name', type=str, choices=['dicece', 'dicefocal'], default='dicece', help='Loss function to use (default: dicece)')
     parser.add_argument('--early_stopping_patience', type=int, default=45, help='Early stopping patience epochs (default: 45)')
     parser.add_argument('--num_workers', type=int, default=4, help='Number of DataLoader worker processes (default: 4)')
+    parser.add_argument('--min_finetune_train', type=int, default=1, help='Minimum number of finetune training samples required to run finetuning (default: 1)')
+    parser.add_argument('--min_finetune_eval', type=int, default=1, help='Minimum number of finetune eval samples required to run finetuning (default: 1)')
 
     # logging/output
     parser.add_argument('--wandb_project', type=str, default='finetune', help='Wandb project name for logging (default: finetune)')
