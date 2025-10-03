@@ -7,6 +7,7 @@ import argparse
 import csv
 from dataclasses import dataclass
 from datetime import datetime
+import json
 import nibabel as nib
 import numpy as np
 import os
@@ -193,6 +194,12 @@ def save_pred_nii(mask_bin, like_path, out_path):
 
 # function to get tags
 def exp_tag(args, n_train, n_eval):
+
+    # build tag for when using cv
+    if getattr(args, 'folds_json', None) is not None and getattr(args, 'fold_id', None) is not None:
+        return f'cvfold{args.fold_id}_ntr{n_train}_nev{n_eval}'
+
+    # build tag for normal splits
     if args.mode == 'count':
         return f'count_tr{n_train}_ev{n_eval}'
     else:
@@ -270,17 +277,49 @@ def run_for_subtype(subtype_dir, args, device):
     # get pairs
     subtype = subtype_dir.name
     all_pairs = discover_pairs(subtype_dir, channel_substr=args.channel_substr)
-    train_pairs, eval_pairs = split_pairs(
-        all_pairs,
-        mode=args.mode,
-        seed=args.seed,
-        train_percent=args.train_percent,
-        eval_percent=args.eval_percent,
-        train_count=args.train_count,
-        eval_count=args.eval_count,
-    )
 
-    print(f'[INFO] {subtype}: Found {len(all_pairs)} pairs -> {len(train_pairs)} train, {len(eval_pairs)} eval', flush=True)
+    # use specified folds (for cross validation) if available
+    use_folds = (args.folds_json is not None and args.fold_id is not None)
+    if use_folds:
+        with open(args.folds_json, 'r') as f:
+            folds = json.load(f)
+        entry = folds.get(subtype, {})
+        fold_list = entry.get('folds', [])
+        if not fold_list or args.fold_id < 0 or args.fold_id >= len(fold_list):
+            raise ValueError(f'Invalid fold_id {args.fold_id} for subtype {subtype} with folds: {fold_list}')
+        
+        fold = fold_list[args.fold_id]
+        train_set = set(map(str, fold.get('train', [])))
+        eval_set = set(map(str, fold.get('eval', [])))
+        _map = {str(p.image): p for p in all_pairs}
+        train_pairs = [_map[s] for s in train_set if s in _map]
+        eval_pairs = [_map[s] for s in eval_set if s in _map]
+
+        # cap train pool
+        if args.train_limit is not None and args.train_limit >= 0:
+            train_pairs = train_pairs[:min(len(train_pairs), int(args.train_limit))]
+
+
+        # debugging
+        print(f"[DEBUG] fold_id={args.fold_id} | #all_pairs={len(all_pairs)}", flush=True)
+        print(f"[DEBUG] first_pair_example={all_pairs[0].image if all_pairs else 'NONE'}", flush=True)
+        print(f"[DEBUG] fold keys={list(fold.keys())}", flush=True)
+        print(f"[DEBUG] sample fold train[0:1]={fold.get('train', [])[:1]}", flush=True)
+        print(f"[DEBUG] sample fold eval[0:1]={fold.get('eval', [])[:1]}", flush=True)
+
+    # otherwise, do random split
+    else:
+        train_pairs, eval_pairs = split_pairs(
+            all_pairs,
+            mode=args.mode,
+            seed=args.seed,
+            train_percent=args.train_percent,
+            eval_percent=args.eval_percent,
+            train_count=args.train_count,
+            eval_count=args.eval_count,
+        )
+
+    print(f'[INFO] {subtype}: Found {len(all_pairs)} pairs -> {len(train_pairs)} train, {len(eval_pairs)} test', flush=True)
     if len(eval_pairs) == 0:
         print(f'[WARN] {subtype}: Skipping due to no train or eval data', flush=True)
         return RunOutputs(best_ckpt='', metrics_csv=Path(''), preds_dir=Path(''))
@@ -309,30 +348,18 @@ def run_for_subtype(subtype_dir, args, device):
     pw = num_workers > 0
     loader_kw = dict(num_workers=num_workers, pin_memory=True, persistent_workers=pw, worker_init_fn=_seed_worker)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, **loader_kw)
+
+    train_dataset = NiftiPairDataset(train_core, augment=True)
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, **loader_kw)
     
-    # build workers for train/val
-    has_train = len(train_core) > 0
-    has_val = len(val_pairs) > 0
+    val_dataset = NiftiPairDataset(val_pairs, augment=False)
+    val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, **loader_kw)
 
-    if has_train:
-        train_dataset = NiftiPairDataset(train_core, augment=True)
-        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, **loader_kw)
-        
-    if has_val:
-        val_dataset = NiftiPairDataset(val_pairs, augment=False)
-        val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, **loader_kw)
-
-    # fallback - if train pool is 1, reuse train loader as val loader for checkpointing and early stopping
-    else:
-        if has_train:
-            print(f'[WARN] {subtype}: No finetune val data after split, using train for val', flush=True)
-            val_loader = train_loader
-        else:
-            print(f'[WARN] {subtype}: No finetune train or val data after split, skipping finetuning', flush=True)
-            val_loader = None
-
-    # model and logger
-    tag = f'{exp_tag(args, n_train=len(train_pairs), n_eval=len(eval_pairs))}_fttr{len(train_core)}_ftval{len(val_pairs)}'
+    # tagging and logging
+    fold_tag = (f'fold{args.fold_id}' if use_folds else 'nofold')
+    limit_tag = (f'trlim{args.train_limit}' if (args.train_limit is not None and args.train_limit >= 0) else 'trlimALL')
+    split_tag = exp_tag(args, n_train=len(train_pairs), n_eval=len(eval_pairs))
+    tag = f'{split_tag}_fttr{len(train_core)}_ftval{len(val_pairs)}_{fold_tag}_{limit_tag}'
     run_name = f'{subtype}_{tag}_seed{args.seed}'
     wandb_logger = WandbLogger(project=args.wandb_project, name=run_name) if args.wandb_project else None
 
@@ -350,51 +377,42 @@ def run_for_subtype(subtype_dir, args, device):
     ckpt_dir = Path(args.ckpt_dir) / subtype / tag
     ckpt_dir.mkdir(parents=True, exist_ok=True)
 
-    # initialize best model and checkpoint path
-    best_model = None
-    best_ckpt = ''
+    # train
+    # model checkpoint callback
+    model_ckpt = ModelCheckpoint(
+        monitor='val_dice_050', mode='max', save_top_k=1, dirpath=str(ckpt_dir), filename='finetune_split_best'
+    )
 
-    # train if data, otherwise eval baseline
-    if has_train:
+    # early stopping callback
+    early_stopping = EarlyStopping(
+        monitor='val_dice_050', mode='max', patience=args.early_stopping_patience
+    )
 
-        # model checkpoint callback
-        model_ckpt = ModelCheckpoint(
-            monitor='val_dice_050', mode='max', save_top_k=1, dirpath=str(ckpt_dir), filename='finetune_split_best'
-        )
+    # trainer
+    trainer = pl.Trainer(
+        max_epochs=args.max_epochs,
+        accelerator='gpu' if torch.cuda.is_available() else 'cpu',
+        devices = 1,
+        precision='bf16-mixed' if torch.cuda.is_available() else 32,
+        logger=wandb_logger,
+        callbacks=[model_ckpt, early_stopping],
+        log_every_n_steps=1,
+        deterministic=True
+    )
+    trainer.fit(model, train_loader, val_loader)
 
-        # early stopping callback
-        early_stopping = EarlyStopping(
-            monitor='val_dice_050', mode='max', patience=args.early_stopping_patience
-        )
+    # resolve best checkpoint path or fallback to last ckpt
+    best_ckpt = model_ckpt.best_model_path or (model.best_ckpt or '')
+    if not best_ckpt:
+        best_ckpt = str(ckpt_dir / 'finetune_split_last.ckpt')
+        trainer.save_checkpoint(best_ckpt)
 
-        # trainer
-        trainer = pl.Trainer(
-            max_epochs=args.max_epochs,
-            accelerator='gpu' if torch.cuda.is_available() else 'cpu',
-            devices = 1,
-            precision='bf16-mixed' if torch.cuda.is_available() else 32,
-            logger=wandb_logger,
-            callbacks=[model_ckpt, early_stopping],
-            log_every_n_steps=1,
-            deterministic=True
-        )
-        trainer.fit(model, train_loader, val_loader)
+    # load best model for eval
+    best_model = BinarySegmentationModule.load_from_checkpoint(best_ckpt).to(device).eval()
 
-        # resolve best checkpoint path or fallback to last ckpt
-        best_ckpt = model_ckpt.best_model_path or (model.best_ckpt or '')
-        if not best_ckpt:
-            best_ckpt = str(ckpt_dir / 'finetune_split_last.ckpt')
-            trainer.save_checkpoint(best_ckpt)
-
-        # load best model for eval
-        best_model = BinarySegmentationModule.load_from_checkpoint(best_ckpt).to(device).eval()
-
-    else:
-        print(f'[INFO] {subtype}: No training data, skipping training and using unfinetuned model for eval', flush=True)
-        best_model = model.to(device).eval()
 
     # eval loop
-    preds_dir = Path(args.root) / subtype / 'preds'
+    preds_dir = Path(args.root) / subtype / tag / 'preds'
     preds_dir.mkdir(parents=True, exist_ok=True)
     pred_suffix = build_pred_suffix(tag)
 
@@ -454,7 +472,7 @@ def parse_args():
     parser.add_argument('--channel_substr', type=str, default='ch0', help='Substring to identify image channels: substring (ex: "ch0"), comma-sep list (ex: "ch0,ch1"), or "ALL" to include all channels (default: ch0)')
 
     # split
-    parser.add_argument('--mode', type=str, choices=['percent', 'count'], required=True, help='Data splitting mode: "percent" to specify percentages, "count" to specify exact counts')
+    parser.add_argument('--mode', type=str, choices=['percent', 'count'], default='percent', help='Data splitting mode: "percent" to specify percentages, "count" to specify exact counts')
     parser.add_argument('--train_percent', type=float, default=None, help='Fraction of data to use for training (only in percent mode, default: None)')
     parser.add_argument('--eval_percent', type=float, default=None, help='Fraction of data to use for eval/validation (only in percent mode, default: None, uses remaining data)')
     parser.add_argument('--train_count', type=int, default=None, help='Exact number of samples to use for training (only in count mode, default: None)')
@@ -482,6 +500,12 @@ def parse_args():
     # logging/output
     parser.add_argument('--wandb_project', type=str, default='finetune', help='Wandb project name for logging (default: finetune)')
     parser.add_argument('--ckpt_dir', type=str, required=True, help='Output directory to save checkpoints, predictions, and metrics')
+
+    # cross validation
+    parser.add_argument('--preds_root', type=str, required=True, help='Root directory to save predictions')
+    parser.add_argument('--folds_json', type=str, default=None, help='Path to JSON file defining cross-validation folds (default: None)')
+    parser.add_argument('--fold_id', type=int, default=None, help='Fold ID to use from folds_json (0-based index, default: None)')
+    parser.add_argument('--train_limit', type=int, default=None, help='Limit the number of training samples to this number (default: None, meaning no limit)')
 
     # parse
     args = parser.parse_args()
