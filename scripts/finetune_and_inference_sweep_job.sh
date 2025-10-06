@@ -40,7 +40,7 @@ for k in 25 24 23 22 21 20 19 18 17 16 15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0; do
   sbatch --job-name "nucleus_${k}" "$JOB_SCRIPT" "cell_nucleus_patches" "$k"
 done
 
-# vessels_patches: 10,5,2,1,0
+# vessels_patches
 for k in 20 19 18 17 16 15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0; do
   sbatch --job-name "vessels_${k}" "$JOB_SCRIPT" "vessels_patches" "$k"
 done
