@@ -5,6 +5,7 @@
 # imports
 import argparse
 import csv
+import gc
 from dataclasses import dataclass
 from datetime import datetime
 import json
@@ -203,8 +204,11 @@ def exp_tag(args, n_train, n_eval):
     if args.mode == 'count':
         return f'count_tr{n_train}_ev{n_eval}'
     else:
-        eff_eval = args.eval_percent if args.eval_percent is not None else (1.0 - args.train_percent)
-        return f'percent_tr{args.train_percent:.2f}_ev{eff_eval:.2f}_ntr{n_train}_nev{n_eval}'
+        # tolerate None for train_percent or eval_percent by deriving from actual split sizes
+        total = max(1, (n_train + n_eval))
+        tr_pct = args.train_percent if args.train_percent is not None else (n_train / total)
+        ev_pct = args.eval_percent if args.eval_percent is not None else (n_eval / total)
+        return f'percent_tr{tr_pct:.2f}_ev{ev_pct:.2f}_ntr{n_train}_nev{n_eval}'
     
 
 # functon to create suffix
@@ -345,8 +349,8 @@ def run_for_subtype(subtype_dir, args, device):
     # test set (never seen during model selection)
     test_dataset = NiftiPairDataset(eval_pairs, augment=False)
     num_workers = min(args.num_workers, os.cpu_count() or args.num_workers)
-    pw = num_workers > 0
-    loader_kw = dict(num_workers=num_workers, pin_memory=True, persistent_workers=pw, worker_init_fn=_seed_worker)
+    # persistent_workers=False helps prevent leaked semaphores on teardown
+    loader_kw = dict(num_workers=num_workers, pin_memory=torch.cuda.is_available(), persistent_workers=False, worker_init_fn=_seed_worker)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, **loader_kw)
 
     train_dataset = NiftiPairDataset(train_core, augment=True)
@@ -359,7 +363,7 @@ def run_for_subtype(subtype_dir, args, device):
     fold_tag = (f'fold{args.fold_id}' if use_folds else 'nofold')
     limit_tag = (f'trlim{args.train_limit}' if (args.train_limit is not None and args.train_limit >= 0) else 'trlimALL')
     split_tag = exp_tag(args, n_train=len(train_pairs), n_eval=len(eval_pairs))
-    tag = f'{split_tag}_fttr{len(train_core)}_ftval{len(val_pairs)}_{fold_tag}_{limit_tag}'
+    tag = f'{split_tag}_fttr{len(train_core)}_ftval{len(val_pairs)}_{fold_tag}_{limit_tag}_seed{args.seed}'
     run_name = f'{subtype}_{tag}_seed{args.seed}'
     wandb_logger = WandbLogger(project=args.wandb_project, name=run_name) if args.wandb_project else None
 
@@ -411,8 +415,11 @@ def run_for_subtype(subtype_dir, args, device):
     best_model = BinarySegmentationModule.load_from_checkpoint(best_ckpt).to(device).eval()
 
 
-    # eval loop
-    preds_dir = Path(args.root) / subtype / tag / 'preds'
+    # choose output root (pred_root if provided, else fallback to data root)
+    out_root = Path(args.preds_root) if getattr(args, 'preds_root', None) else Path(args.root)
+    # pretty name for subtype folder in outputs
+    pretty_subtype = getattr(args, 'preds_subtype', None) or subtype
+    preds_dir = out_root / pretty_subtype / tag / 'preds'
     preds_dir.mkdir(parents=True, exist_ok=True)
     pred_suffix = build_pred_suffix(tag)
 
@@ -435,7 +442,7 @@ def run_for_subtype(subtype_dir, args, device):
     # compute mean and append an average line at the bottom of the csv
     metrics_csv = preds_dir / f'metrics_test{pred_suffix}.csv'
     if rows:
-        mean_dice = float(np.mean([float(r['dice_050']) for r in rows]))
+        mean_dice = float(np.mean([float(r['dice_050']) for r in rows if r['filename'] != 'MEAN']))
         rows.append({'subtype': subtype, 'filename': 'MEAN', 'dice_050': f'{mean_dice:.6f}', 'pred_path': ''})
         print(f'[INFO] {subtype}: Eval mean Dice@0.5 over {len(rows)-1} samples: {mean_dice:.6f}', flush=True)
         if wandb_logger:
@@ -453,6 +460,11 @@ def run_for_subtype(subtype_dir, args, device):
         print(f'[INFO] {subtype}: Eval mean Dice@0.5 over {len(rows)} samples: {mean_dice:.6f}', flush=True)
         if wandb_logger:
             wandb_logger.experiment.summary[f'{subtype}/{tag}/test_mean_dice_050'] = mean_dice
+
+    # cleanup
+    del train_loader, val_loader, test_loader
+    del train_dataset, val_dataset, test_dataset
+    gc.collect()
 
     # return outputs
     return RunOutputs(best_ckpt=best_ckpt, metrics_csv=metrics_csv, preds_dir=preds_dir)
@@ -503,6 +515,7 @@ def parse_args():
 
     # cross validation
     parser.add_argument('--preds_root', type=str, required=True, help='Root directory to save predictions')
+    parser.add_argument('--preds_subtype', type=str, default=None, help='Pretty name for subtype folder in outputs (default: same as subtype)')
     parser.add_argument('--folds_json', type=str, default=None, help='Path to JSON file defining cross-validation folds (default: None)')
     parser.add_argument('--fold_id', type=int, default=None, help='Fold ID to use from folds_json (0-based index, default: None)')
     parser.add_argument('--train_limit', type=int, default=None, help='Limit the number of training samples to this number (default: None, meaning no limit)')

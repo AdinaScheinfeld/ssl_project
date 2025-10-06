@@ -22,18 +22,19 @@ source activate monai-env1
 
 # set variables
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches"
-OUTDIR="/ministorage/adina/selma_segmentation_preds/cv_folds"
+OUTDIR="/ministorage/adina/selma_segmentation_preds2/cv_folds"
 JOB="/home/ads4015/ssl_project/scripts/finetune_and_inference_cv_job.sh"
-REPEATS=10
+REPEATS=5
 SEED=100
 CHANNELS="ALL"
+TEST_SIZE=2  # fixed test size per fold
 
 # sweep counts per subtype
 declare -A COUNTS
-COUNTS[amyloid_plaque_patches]="0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19"
-COUNTS[c_fos_positive_patches]="0 1 2 3 4"
-COUNTS[cell_nucleus_patches]="0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25"
-COUNTS[vessels_patches]="0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20"
+COUNTS[amyloid_plaque_patches]="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19"
+COUNTS[c_fos_positive_patches]="1 2 3 4"
+COUNTS[cell_nucleus_patches]="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25"
+COUNTS[vessels_patches]="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20"
 
 # create output directory
 mkdir -p "$OUTDIR"
@@ -50,6 +51,7 @@ for SUBTYPE in "${!COUNTS[@]}"; do
           --channel_substr "$CHANNELS" \
           --train_limit "$K" \
           --repeats "$REPEATS" \
+          --test_size "$TEST_SIZE" \
           --seed "$SEED" \
           --output_json "$FJSON" || true
 

@@ -26,9 +26,18 @@ FOLDS_JSON="${3:?need folds json}"
 
 # set variables
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches"
-CKPT_DIR="/home/ads4015/ssl_project/checkpoints"
-CKPT="/home/ads4015/ssl_project/checkpoints/all_datasets_clip_pretrained-v12.ckpt"
-PRED_ROOT="/ministorage/adina/selma_segmentation_preds"
+CKPT_DIR="/ministorage/adina/checkpoints/finetune_infer_sweep_2" # directory to save finetune checkpoints
+CKPT="/home/ads4015/ssl_project/checkpoints/all_datasets_clip_pretrained-v12.ckpt" # pretrained checkpoint
+PRED_ROOT="/ministorage/adina/selma_segmentation_preds2/preds"
+
+# map data subtype to pretty name for outputs
+case "$SUBTYPE" in
+  amyloid_plaque_patches) PRETTY_SUBTYPE="amyloid_plaque" ;;
+  c_fos_positive_patches) PRETTY_SUBTYPE="c_fos_positive" ;;
+  cell_nucleus_patches) PRETTY_SUBTYPE="cell_nucleus" ;;
+  vessels_patches) PRETTY_SUBTYPE="vessels" ;;
+  *) echo "Unknown subtype: $SUBTYPE"; exit 1 ;;
+esac
 
 python /home/ads4015/ssl_project/src/finetune_and_inference_split.py \
   --root "$ROOT" \
@@ -41,6 +50,7 @@ python /home/ads4015/ssl_project/src/finetune_and_inference_split.py \
   --wandb_project selma3d_finetune --num_workers 4 \
   --channel_substr ALL \
   --preds_root "$PRED_ROOT" \
+  --preds_subtype "$PRETTY_SUBTYPE" \
   --folds_json "$FOLDS_JSON" \
   --fold_id "$FOLD_ID"
 
