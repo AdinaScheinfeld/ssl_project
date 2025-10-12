@@ -26,14 +26,24 @@ SYNC_VESSEL_CHANNELS = True
 ROOT_DIR = '/midtier/paetzollab/scratch/ads4015/data_selma3d'  # base path to selma3d data
 GLOBAL_SEED = None
 
-# create dictionary mapping subfolder names to structure names and prefixes
+# create dictionary mapping subfolder names to structure names and prefixes ## UP TO HERE - uncomment structures
 structures = {
-    'unannotated_ab_plaque': ('Ab_plaques', 'ab_plaque'),
-    'unannotated_cfos': ('c-Fos_brain_cells', 'cfos'),
-    'unannotated_chondrocytes': ('chondrocytes', 'chondrocytes'),
-    'unannotated_chondrogenic_cells': ('chondrogenic_cells', 'chondrogenic_cells'),
-    'unannotated_nucleus': ('cell_nucleus', 'nucleus'),
-    'unannotated_vessel': ('vessel', 'vessel')
+    # 'unannotated_ab_plaque': ('ab_plaque'),
+    # 'unannotated_cfos': ('cfos'),
+    # 'unannotated_chondrocytes': ('chondrocytes'),
+    # 'unannotated_chondrogenic_cells': ('chondrogenic_cells'),
+    # 'unannotated_nucleus': ('nucleus'),
+    # 'unannotated_vessel': ('vessel'),
+    'unannotated_astrocytes': ('astrocytes'),
+    'unannotated_beta3tubulin_cranial_nerve': ('beta3tubulin_nerve'),
+    'unannotated_ctip2_neurons': ('ctip2_neurons'),
+    'unannotated_lyve1_lymphatic_vessel': ('lyve1_vessel'),
+    'unannotated_nf_peripheral_nerve': ('nf_nerve'),
+    'unannotated_p75_nerves': ('p75_nerves'),
+    'unannotated_pgp_peripheral_nerve': ('pgp_nerve'),
+    'unannotated_sma_artery': ('sma_artery'),
+    'unannotated_th_neurons': ('th_neurons'),
+    'unannotated_th_sympathetic_nerve': ('th_nerve')
 }
 
 # define specific channels for vessel images
@@ -271,26 +281,8 @@ def extract_patches_from_stack(tiff_dir, output_dir, prefix):
     print(f'Height, width: ({height}, {width}); padded: {padded_shape}', flush=True)
     print(f'z padding: {pad_z}, total slices: {total_slices}', flush=True)
 
-                    
-    # get full datatype from prefix
-    if prefix.startswith('ab_plaque'):
-        datatype = 'ab_plaque'
-    elif prefix.startswith('cfos'):
-        datatype = 'cfos'
-    elif prefix.startswith('chondrocytes'):
-        datatype = 'chondrocytes'
-    elif prefix.startswith('chondrogenic_cells'):
-        datatype = 'chondrogenic_cells'
-    elif prefix.startswith('nucleus'):
-        datatype = 'nucleus'
-    elif prefix.startswith('vessel_eb'):
-        datatype = 'vessel_eb'
-    elif prefix.startswith('vessel_wga'):
-        datatype = 'vessel_wga'
-    else:
-        datatype = prefix.split('_')[0] # fallback
-
-    sample_name = prefix.replace(datatype + '_', '')
+    # extract datatype and sample name from prefix
+    datatype, sample_name = prefix.rsplit('_', 1)
 
     subfolder = os.path.join(output_dir, datatype)
     os.makedirs(subfolder, exist_ok=True)
@@ -472,7 +464,7 @@ def get_all_sample_dirs(only_structure=None):
             return False
 
     # get base path
-    for structure_key, (structure_folder, prefix_name) in structures.items():
+    for structure_key, prefix_name in structures.items():
         if only_structure is not None and structure_key != only_structure:
             continue
         base_path = os.path.join(ROOT_DIR, structure_key)

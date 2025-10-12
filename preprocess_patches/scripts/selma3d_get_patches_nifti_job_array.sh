@@ -3,7 +3,7 @@
 #SBATCH --output=logs/get_patches_%A_%a.out
 #SBATCH --error=logs/get_patches_%A_%a.err
 #SBATCH --partition=minilab-cpu
-#SBATCH --array=0-36 # num samples - 1
+#SBATCH --array=0-17 # num samples - 1
 #SBATCH --time=24:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
