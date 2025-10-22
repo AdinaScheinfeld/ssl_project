@@ -2,7 +2,7 @@
 
 training:
   seed: 100
-  project_name: ibot-clip-pretrain-lsm-all
+  project_name: ibot-no-clip-pretrain-lsm-all
   max_epochs: 1000
   patience: 45
   log_every_n_steps: 5
@@ -38,13 +38,6 @@ data:
     human2: True
     selma: True
     wu: True
-
-  prompt_jsons:
-    - /home/ads4015/ssl_project/data/text_prompts_allen_connection.json
-    - /home/ads4015/ssl_project/data/text_prompts_allen_dev_mouse.json
-    - /home/ads4015/ssl_project/data/text_prompts_allen_human2.json
-    - /home/ads4015/ssl_project/data/text_prompts_selma.json
-    - /home/ads4015/ssl_project/data/text_prompts_wu.json
 
   # batching
   global_batch_size: 32 # total batch size across all gpus (ex: use 32 for 4 gpus with batch_size=8)
@@ -83,7 +76,7 @@ model:
   text_model_name: bert-base-uncased # text model to use (bert-base-uncased from HuggingFace), ignored wihen use_text is False
   embed_dim: 256 # 256 is balance of GPU memory and representational power (larger values may have better performance but also higher compute/memory cost)
   clip_temperature: 0.07 # (0.07 is default in OpenAI paper and used by most applications)
-  save_filename: all_datasets_clip_pretrained
+  save_filename: all_datasets_no_clip_pretrained
   save_dirpath: /home/ads4015/ssl_project/checkpoints
   feature_size: 24 # 48
   max_log_images: 5

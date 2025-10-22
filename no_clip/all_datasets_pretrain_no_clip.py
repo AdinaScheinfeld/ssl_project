@@ -1,4 +1,4 @@
-# all_datasets_clip_pretrain.py - Multi-source Data Pretraining
+# all_datasets_pretrain_no_clip.py - Multi-source Data Pretraining
 
 # --- Setup ---
 
@@ -19,11 +19,11 @@ from pytorch_lightning.strategies import DDPStrategy
 
 # get ibot pretraining module
 sys.path.append('/home/ads4015/ssl_project/models')
-from ibot_clip_pretrain_module import IBOTCLIPPretrainModule
+from ibot_clip_pretrain_module_no_clip import IBOTCLIPPretrainModuleNoClip
 
 # get data module
 sys.path.append('/home/ads4015/ssl_project/data/')
-from all_datasets_clip_data_module import AllDatasetsClipDataModule
+from all_datasets_data_module_no_clip import AllDatasetsDataModuleNoClip
 
 
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
@@ -138,10 +138,11 @@ if __name__ == '__main__':
     roots = datacfg.get('roots', {})
     enable = datacfg.get('enable', {})
 
-    datamodule = AllDatasetsClipDataModule(
+    datamodule = AllDatasetsDataModuleNoClip(
         roots=roots,
         enable=enable,
-        prompt_jsons=datacfg['prompt_jsons'],
+        prompt_jsons=datacfg.get('prompt_jsons', None),
+        use_text=bool(config['model'].get('use_text', True)),
         batch_size=per_device_batch_size,
         train_frac=datacfg['train_frac'],
         seed=config['training']['seed'],
@@ -162,7 +163,7 @@ if __name__ == '__main__':
     print(f'[INFO] Setting log_every_n_steps to {log_every} based on {n_train_batches} training batches', flush=True)
 
     # initialize model
-    model = IBOTCLIPPretrainModule(config)
+    model = IBOTCLIPPretrainModuleNoClip(config)
 
     # callbacks
     callbacks = [

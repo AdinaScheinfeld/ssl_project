@@ -1,4 +1,4 @@
-# all_datasets_clip_data_module.py - Data module for all datasets with CLIP
+# all_datasets_data_module_no_clip.py - Data module for all datasets with no CLIP
 
 # --- Setup ---
 
@@ -19,6 +19,7 @@ from monai.transforms import Compose as MonaiCompose
 
 # get dataset class
 sys.path.append('/home/ads4015/ssl_project/data/')
+from nifti_no_text_patch_dataset import NiftiNoTextPatchDataset
 from nifti_text_patch_multi_dataset import MultiSourceNiftiTextPatchDataset
 
 # get functions from other files
@@ -29,13 +30,13 @@ from all_datasets_transforms import get_train_transforms, get_val_transforms, ge
 # --- Data Module ---
 
 # datamodule class for all datasets
-class AllDatasetsClipDataModule(LightningDataModule):
+class AllDatasetsDataModuleNoClip(LightningDataModule):
 
     # init
     def __init__(self, 
                  roots, # mapping of source name to root directory (connection, dev mouse, human2, selma, wu)
                  enable, # which sources to enable, ex: {'wu': True, 'selma': False, ...}
-                 prompt_jsons, # list of json files whose key/prompt mappings will be merged inside the dataset
+                 prompt_jsons=None, # list of json files whose key/prompt mappings will be merged inside the dataset
                  batch_size=4, # batch size per device
                  train_frac=0.9, # fraction of volumes used for training (rest used for validation)
                  seed=100, 
@@ -47,7 +48,8 @@ class AllDatasetsClipDataModule(LightningDataModule):
                  sub_patch_size=64, # sub-patch size if use_sub_patches=True
                  downsample_to=None, # if not None and use_sub_patches=False, downsample to this size instead of cropping
                  num_workers=4, # dataloader num_workers
-                 shuffle_within_source=True # shuffle file lists inside each source before applying per source sampling/caps
+                 shuffle_within_source=True, # shuffle file lists inside each source before applying per source sampling/caps
+                 use_text=False, # whether to use text encoder (for compatibility)
                  ):
         
         super().__init__()
@@ -66,6 +68,7 @@ class AllDatasetsClipDataModule(LightningDataModule):
         self.downsample_to = downsample_to
         self.num_workers = int(num_workers)
         self.shuffle_within_source = bool(shuffle_within_source)
+        self.use_text = bool(use_text)
 
         # warn if batch size is too small
         if self.use_sub_patches and self.batch_size < 16:
@@ -196,25 +199,47 @@ class AllDatasetsClipDataModule(LightningDataModule):
         val_tf = MonaiCompose([load, get_val_transforms()])
 
         # create train/val datasets
-        self.train_ds = MultiSourceNiftiTextPatchDataset(
-            file_paths=train_files, 
-            transforms=train_tf,
-            prompt_jsons=list(self.prompt_jsons), # merged inside dataset
-            use_sub_patches=self.use_sub_patches,
-            base_patch_size=self.base_patch_size,
-            sub_patch_size=self.sub_patch_size,
-            source_hint_map={f: src_hint_map[f] for f in train_files} # only include train files
-        )
 
-        self.val_ds = MultiSourceNiftiTextPatchDataset(
-            file_paths=val_files, 
-            transforms=val_tf,
-            prompt_jsons=list(self.prompt_jsons), # merged inside dataset
-            use_sub_patches=self.use_sub_patches,
-            base_patch_size=self.base_patch_size,
-            sub_patch_size=self.sub_patch_size,
-            source_hint_map={f: src_hint_map[f] for f in val_files} # only include val files
-        )
+        if self.use_text:
+            if not self.prompt_jsons:
+                raise ValueError('prompt_jsons must be provided if use_text=True.')
+
+            self.train_ds = MultiSourceNiftiTextPatchDataset(
+                file_paths=train_files, 
+                transforms=train_tf,
+                prompt_jsons=list(self.prompt_jsons), # merged inside dataset
+                use_sub_patches=self.use_sub_patches,
+                base_patch_size=self.base_patch_size,
+                sub_patch_size=self.sub_patch_size,
+                source_hint_map={f: src_hint_map[f] for f in train_files} # only include train files
+            )
+
+            self.val_ds = MultiSourceNiftiTextPatchDataset(
+                file_paths=val_files, 
+                transforms=val_tf,
+                prompt_jsons=list(self.prompt_jsons), # merged inside dataset
+                use_sub_patches=self.use_sub_patches,
+                base_patch_size=self.base_patch_size,
+                sub_patch_size=self.sub_patch_size,
+                source_hint_map={f: src_hint_map[f] for f in val_files} # only include val files
+            )
+
+        else:
+            self.train_ds = NiftiNoTextPatchDataset(
+                file_paths=train_files, 
+                transforms=train_tf,
+                use_sub_patches=self.use_sub_patches,
+                base_patch_size=self.base_patch_size,
+                sub_patch_size=self.sub_patch_size
+            )
+
+            self.val_ds = NiftiNoTextPatchDataset(
+                file_paths=val_files, 
+                transforms=val_tf,
+                use_sub_patches=self.use_sub_patches,
+                base_patch_size=self.base_patch_size,
+                sub_patch_size=self.sub_patch_size
+            )
 
     # train dataloader
     def train_dataloader(self):
