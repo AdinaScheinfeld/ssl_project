@@ -1,0 +1,462 @@
+{
+  "c0": {
+    "orig": "In this light-sheet fluorescence microscopy image, nuclei appear as numerous small, round fluorescent dots packed throughout the tissue. Together they form a dense speckled texture that maps cell density and laminar patterns in three dimensions.",
+    "rewrites": [
+      "In this light-sheet fluorescence microscopy image, nuclei are labeled as numerous, high-contrast puncta, forming a dense, speckled texture that represents three-dimensional distributions of cell nuclei.",
+      "In this light-sheet fluorescence microscopy image, nuclei are labeled as numerous, high-contrast puncta, forming a dense, speckled texture that delineates cellular distribution and laminar organization in the three-dimensional tissue.",
+      "In this light-sheet fluorescence microscopy image, nuclei are labeled as numerous, high-contrast puncta. Their three-dimensional arrangement reveals cell density and laminar patterns.",
+      "In this light-sheet fluorescence microscopy image, nuclei are labeled as numerous, high-contrast puncta, forming a dense, three-dimensional texture that represents cell distribution and laminar organization.",
+      "In this light-sheet fluorescence microscopy image, nuclei are labeled with a fluorophore and appear as numerous, small, round fluorescent structures. Their high-contrast distribution creates a dense, speckled texture that represents cellular density and laminar organization in three dimensions."
+    ]
+  },
+  "c1": {
+    "orig": "Light-sheet fluorescence microscopy imaging of a cleared mouse brain reveals sparse, intensely bright neurons highlighted by viral tracing. The fluorescent signal outlines individual somata and extended processes, making the morphology of projection neurons clearly distinguishable from the surrounding background.",
+    "rewrites": [
+      "Light-sheet fluorescence microscopy image of a cleared mouse brain depicts sparsely distributed neurons labeled by viral tracing, with intense fluorescence. Individual neuronal somata and processes are discernible due to the high contrast, enabling the morphology of projection neurons to be distinguished from the background."
+    ]
+  },
+  "c2": {
+    "orig": "The autofluorescence channel in light-sheet microscopy produces a soft, diffuse glow across the cleared tissue. Rather than marking specific cells, this broad signal outlines gross anatomical features and boundaries, serving as a structural reference for the dataset.",
+    "rewrites": [
+      "In light-sheet microscopy, autofluorescence generates a gentle, widespread illumination across the cleared specimen. This nonspecific signal delineates large-scale anatomical structures and demarcates tissue boundaries, providing a structural framework for the dataset.",
+      "Light-sheet autofluorescence imaging provides a uniform, low-contrast signal across the cleared tissue, highlighting gross anatomical structures and boundaries.",
+      "In light-sheet microscopy, the autofluorescence channel generates a uniform, low-intensity signal across the cleared tissue, delineating large-scale anatomical structures and tissue boundaries.",
+      "Light-sheet autofluorescence imaging reveals a uniform, low-intensity signal across the cleared tissue, highlighting gross anatomical structures and boundaries.",
+      "Light-sheet autofluorescence imaging reveals a uniform, low-intensity signal across the cleared tissue, providing a structural reference for identifying gross anatomical features and boundaries within the dataset.",
+      "In light-sheet microscopy, the autofluorescence channel generates a uniform, low-intensity emission across the cleared tissue, highlighting overall tissue structure and providing a reference for anatomical landmarks within the dataset."
+    ]
+  },
+  "artery": {
+    "orig": "In this 3D light-sheet microscopy reconstruction of a cleared mouse brain, arteries emerge as broad, glowing tubes that branch into finer arterioles. The signal traces the hierarchical vascular tree, with thick trunks splitting into smaller fluorescent paths coursing through the parenchyma.",
+    "rewrites": [
+      "In this 3D light-sheet microscopy reconstruction of a cleared mouse brain, arteries are depicted as wide, fluorescent structures that bifurcate into smaller arterioles. The signal delineates the hierarchical vascular tree, with prominent trunks dividing into multiple fluorescent branches within the parenchyma.",
+      "In this 3D light-sheet microscopy reconstruction of a cleared mouse brain, arteries are depicted as broad, fluorescent structures that bifurcate into smaller arterioles. The vasculature is visualized as hierarchical structures, with thicker trunks dividing into multiple fluorescent branches within the parenchyma.",
+      "In this 3D light-sheet microscopy reconstruction of a cleared mouse brain, arteries are depicted as wide, fluorescent structures that bifurcate into smaller arterioles. The vascular tree is visualized through the hierarchical organization of these structures, with larger trunks dividing into multiple, thinner fluorescent vessels.",
+      "In this 3D light-sheet microscopy reconstruction of a cleared mouse brain, arteries are depicted as wide, fluorescent structures that bifurcate into smaller arterioles. The vascular tree is visualized through the hierarchical arrangement of these structures, with larger trunks dividing into multiple, fluorescent branches within the parenchyma.",
+      "In this 3D light-sheet microscopy reconstruction of a cleared mouse brain, arteries are depicted as wide, fluorescent structures that bifurcate into smaller arterioles. The vasculature is visualized through the hierarchical tree structure, with prominent trunks dividing into multiple fluorescent branches within the parenchyma."
+    ]
+  },
+  "background": {
+    "orig": "Cleared mouse brain tissue imaged by light-sheet microscopy shows faint, diffuse autofluorescence. Instead of sharp puncta or filaments, the background glow outlines gross anatomy and cortical layering, providing soft contrast that situates the brighter labeled structures.",
+    "rewrites": [
+      "Light-sheet microscopy reveals faint, diffuse autofluorescence in cleared mouse brain tissue, delineating large-scale anatomical features and cortical layering with subtle contrast.",
+      "Light-sheet microscopy reveals faint, diffuse autofluorescence in cleared mouse brain tissue, delineating gross anatomy and cortical layering with subtle contrast. Labeled structures exhibit higher fluorescence intensity.",
+      "Light-sheet microscopy reveals faint, diffuse autofluorescence in cleared mouse brain tissue, which delineates gross anatomy and cortical layering with subtle contrast, enhancing the visualization of labeled structures.",
+      "Light-sheet microscopy reveals faint, diffuse autofluorescence in cleared mouse brain tissue, delineating large-scale anatomy and cortical layering with subtle contrast.",
+      "Light-sheet microscopy reveals faint, diffuse autofluorescence in cleared mouse brain tissue, delineating gross anatomy and cortical layering with subtle contrast, enhancing visualization of labeled structures."
+    ]
+  },
+  "background2": {
+    "orig": "Cleared mouse brain tissue imaged by light-sheet microscopy shows faint, diffuse autofluorescence. Instead of sharp puncta or filaments, the background glow outlines gross anatomy and cortical layering, providing soft contrast that situates the brighter labeled structures.",
+    "rewrites": [
+      "Light-sheet microscopy reveals faint, diffuse autofluorescence in cleared mouse brain tissue, delineating gross anatomy and cortical layering with subtle contrast, enhancing visualization of labeled structures.",
+      "Light-sheet microscopy reveals faint, diffuse autofluorescence in cleared mouse brain tissue, delineating gross anatomy and cortical layering with subtle contrast. The background emission does not form distinct puncta or filaments, but rather outlines structures, enhancing the visualization of labeled features.",
+      "Light-sheet microscopy reveals faint, diffuse autofluorescence in cleared mouse brain tissue, delineating gross anatomy and cortical layering with subtle contrast, while brighter labeled structures stand out distinctly.",
+      "Light-sheet microscopy reveals faint, diffuse autofluorescence in cleared mouse brain tissue, delineating large-scale anatomical features and cortical layering. This background glow offers subtle contrast, enhancing visualization of labeled structures."
+    ]
+  },
+  "lectin": {
+    "orig": "Lectin staining of vasculature in a 3D LSFM dataset produces delicate, lace-like threads running throughout the brain. Microvessels and capillaries appear as intricate glowing filaments, weaving a dense vascular web across cortical and subcortical regions.",
+    "rewrites": [
+      "Lectin immunolabeling in 3D light-sheet fluorescence microscopy data reveals vasculature as fine, interconnected filaments. Microvessels and capillaries are identified as labeled structures within this network.",
+      "Lectin immunolabeling reveals vasculature as fine, interconnected filaments in the 3D LSFM dataset. Microvessels and capillaries are identified as labeled structures. The vascular network is depicted as dense and extensive, spanning cortical and subcortical regions.",
+      "Lectin immunolabeling reveals vasculature as intricately branched structures in the 3D LSFM dataset, with microvessels and capillaries appearing as glowing filaments. The vascular network is dense and extends throughout cortical and subcortical regions.",
+      "Lectin immunolabeling in 3D LSFM data highlights microvessels and capillaries as fine, filamentous structures, forming an extensive network throughout the brain's cortical and subcortical areas.",
+      "Lectin immunolabeling reveals vasculature as intricately branched structures in 3D LSFM dataset, with microvessels and capillaries identified as thin, fluorescent filaments interconnecting cortical and subcortical areas.",
+      "Lectin immunolabeling reveals vasculature as a network of fine, thread-like structures in the 3D LSFM dataset. Microvessels and capillaries are identified as thin, fluorescent filaments interconnecting cortical and subcortical regions."
+    ]
+  },
+  "microtubule": {
+    "orig": "Microtubule labeling in light-sheet fluorescence microscopy reveals a filamentous scaffold within neurons. Fine fluorescent fibers extend along axons and dendrites, forming an intricate mesh of glowing cytoskeletal tracks that captures the internal framework of neural processes.",
+    "rewrites": [
+      "Light-sheet fluorescence microscopy reveals microtubules as filamentous structures within neurons, with fine fluorescent fibers extending along axons and dendrites. This intricate mesh of cytoskeletal tracks, visualized as glowing lines, represents the internal framework of neural processes.",
+      "Light-sheet fluorescence microscopy images depict microtubules as filamentous structures, which extend along axons and dendrites, forming a complex network within neurons. These images highlight the intricate mesh of microtubules as the internal framework of neural processes.",
+      "Light-sheet fluorescence microscopy demonstrates microtubules as filamentous structures within neurons, with fine fluorescent fibers extending along axons and dendrites. This intricate mesh of cytoskeletal tracks, visualized as glowing structures, represents the internal framework of neural processes.",
+      "Light-sheet fluorescence microscopy images depict microtubules as filamentous structures within neurons, with fine fluorescent fibers extending along axons and dendrites. These fibers form an intricate network, appearing as high-contrast cytoskeletal tracks that delineate the internal framework of neural processes.",
+      "Light-sheet fluorescence microscopy reveals microtubules as filamentous structures within neurons, with fine fluorescent fibers extending along axons and dendrites. This intricate mesh of cytoskeletal tracks forms the internal framework of neural processes.",
+      "Light-sheet fluorescence microscopy reveals microtubules as filamentous structures within neurons, with fine fluorescent fibers extending along axons and dendrites. This intricate mesh of cytoskeletal tracks forms the internal framework of neural processes, as depicted by the glowing microtubule labeling."
+    ]
+  },
+  "neurofilament": {
+    "orig": "Axonal architecture is highlighted by neurofilament staining, which appears in LSFM images as thick, fibrous fluorescent strands interlaced with thinner fibers. Together they form bright, elongated tracts that map out long-range neuronal projections across the brain.",
+    "rewrites": [
+      "Neurofilament immunolabeling reveals axonal structures as thick, fibrous fluorescent strands interspersed with thinner fibers in LSFM images. These structures delineate elongated tracts, mapping long-range neuronal projections within the brain.",
+      "Neurofilament immunolabeling reveals axonal structures as thick, fibrous fluorescent strands interspersed with thinner fibers in LSFM images. These structures form elongated tracts with high fluorescence intensity, delineating long-range neuronal projections in the brain.",
+      "Neurofilament immunolabeling reveals axonal structures as thick, fibrous fluorescent strands interspersed with thinner fibers in LSFM images. These structures form elongated tracts with high fluorescence intensity, delineating long-range neuronal projections within the brain.",
+      "Neurofilament immunolabeling reveals axonal structures as thick, fibrous fluorescent strands interspersed with thinner fibers in LSFM images. These structures delineate long-range neuronal projections as elongated, bright tracts.",
+      "Neurofilament immunolabeling reveals axonal structures as thick, fibrous fluorescent strands interspersed with thinner fibers in LSFM images. These structures form elongated tracts with high contrast, delineating long-range neuronal projections within the brain."
+    ]
+  },
+  "neurotrace": {
+    "orig": "NeuroTrace labeling marks neuronal somata, producing bright, rounded signals scattered through gray matter. In three dimensions, the stain forms a dense constellation of glowing cell bodies, emphasizing laminar distribution and separating neuronal populations from surrounding tissue.",
+    "rewrites": [
+      "NeuroTrace immunolabeling highlights neuronal somata as distinct, spherical structures with high fluorescence intensity in gray matter. In three dimensions, these structures form a dense aggregation, accentuating their laminar arrangement and distinguishing neuronal populations from neighboring tissue.",
+      "NeuroTrace immunolabeling highlights neuronal somata as distinct, spherical structures with intense fluorescence in gray matter. In three dimensions, these structures form a dense aggregation, accentuating their laminar arrangement and distinguishing neuronal populations from neighboring tissue.",
+      "NeuroTrace immunolabeling highlights neuronal somata as bright, round structures in gray matter. In three dimensions, these signals form a dense aggregation, accentuating laminar organization and distinguishing neuronal populations from adjacent tissue.",
+      "NeuroTrace immunolabeling highlights neuronal somata as distinct, spherical structures with high fluorescence intensity in gray matter. In three dimensions, these structures form a dense aggregation, accentuating laminar organization and distinguishing neuronal populations from adjacent tissue.",
+      "NeuroTrace immunolabeling highlights neuronal somata as distinct, spherical structures with intense fluorescence in gray matter. In three dimensions, these structures form a dense aggregation, accentuating laminar organization and distinguishing neuronal populations from neighboring tissue."
+    ]
+  },
+  "pericyte": {
+    "orig": "NeuroTrace labeling marks neuronal somata, producing bright, rounded signals scattered through gray matter. In three dimensions, the stain forms a dense constellation of glowing cell bodies, emphasizing laminar distribution and separating neuronal populations from surrounding tissue.",
+    "rewrites": [
+      "NeuroTrace immunolabeling highlights neuronal somata as distinct, spherical structures with intense fluorescence in gray matter. In three dimensions, the labeled cells form a densely packed constellation, accentuating laminar organization and distinguishing neuronal populations from adjacent tissue.",
+      "NeuroTrace immunolabeling highlights neuronal somata as distinct, spherical structures with intense fluorescence in gray matter. In three dimensions, these structures form a dense aggregation, accentuating laminar organization and distinguishing neuronal populations from neighboring tissue.",
+      "NeuroTrace immunolabeling highlights neuronal somata as distinct, spherical structures with high fluorescence intensity in gray matter. In three dimensions, the labeled cells form a dense aggregation, accentuating laminar organization and distinguishing neuronal populations from adjacent tissue.",
+      "NeuroTrace immunolabeling identifies neuronal somata, appearing as distinct, spherical fluorescent signals in gray matter. In three dimensions, these signals form a dense aggregation, highlighting laminar organization and distinguishing neuronal populations from adjacent tissue.",
+      "NeuroTrace immunolabeling highlights neuronal somata as distinct, spherical structures with intense fluorescence in gray matter. In three dimensions, these signals form a dense aggregation, accentuating laminar organization and distinguishing neuronal populations from adjacent tissue.",
+      "NeuroTrace immunolabeling highlights neuronal somata as distinct, spherical structures with high fluorescence intensity in gray matter. In three dimensions, these structures form a dense aggregation, accentuating laminar organization and distinguishing neuronal populations from adjacent tissue."
+    ]
+  },
+  "syto16": {
+    "orig": "Syto16 nuclear staining produces a cloud of tiny, brilliant points filling the tissue volume. Each nucleus glows as a distinct dot, and together they create a fine speckled texture that reveals overall cell density and cortical laminar patterns in 3D reconstructions.",
+    "rewrites": [
+      "Syto16 nuclear labeling results in numerous, high-contrast puncta distributed throughout the tissue volume. Each nucleus is discernible as an individual point, and the collective appearance of these points delineates overall cellular density and cortical laminar architecture in three-dimensional reconstructions.",
+      "Syto16 nuclear labeling results in numerous, high-contrast puncta throughout the tissue volume. Each nucleus is individually distinguishable, and the collective appearance of these puncta provides information on cell density and cortical laminar organization in three-dimensional reconstructions.",
+      "Syto16 nuclear labeling results in numerous, high-contrast puncta throughout the tissue volume. Each nucleus is discernible as an individual point, enabling the visualization of overall cellular distribution and cortical laminar architecture in three-dimensional reconstructions.",
+      "Syto16 nuclear labeling results in a multitude of small, intense fluorescent foci distributed throughout the tissue volume. Each nucleus is discernible as an individual, high-contrast spot, enabling the visualization of cellular density and cortical laminar structures in three-dimensional reconstructions.",
+      "Syto16 nuclear labeling results in a multitude of small, intense fluorescent foci distributed throughout the tissue volume. Each focus corresponds to a distinct nucleus, enabling visualization of individual cells and delineation of cortical laminar structures in three-dimensional reconstructions."
+    ]
+  },
+  "calretinin": {
+    "orig": "In this light-sheet fluorescence microscopy image of a cleared human cortical slice (BA44/45), calretinin-positive interneurons are visible. The staining produces bright punctate somata with delicate fluorescent processes, giving rise to a sparse, scattered pattern of glowing cells concentrated in superficial cortical layers.",
+    "rewrites": [
+      "Calretinin immunolabeling highlights interneurons in a cleared human cortical slice (BA44/45) as punctate structures with bright somata and fine fluorescent processes, resulting in a sparse, scattered distribution primarily in superficial cortical layers.",
+      "Calretinin immunolabeling reveals interneurons as discrete, punctate structures with fine fluorescent processes in the cleared human cortical slice (BA44/45) under light-sheet fluorescence microscopy. The distribution of labeled cells is sparse and scattered, primarily localized to superficial cortical layers.",
+      "Calretinin immunolabeling reveals scattered interneurons in the superficial layers of the cleared human cortical slice (BA44/45), characterized by bright punctate somata and delicate fluorescent processes.",
+      "In this cleared human cortical slice (BA44/45), calretinin immunolabeling highlights interneurons as punctate structures with bright somata and fine fluorescent processes. The distribution of labeled cells is sparse and scattered, primarily localized to superficial cortical layers.",
+      "Calretinin immunolabeling reveals interneurons as punctate structures with fluorescent processes in a human cortical slice (BA44/45), resulting in a sparse, scattered distribution of labeled cells primarily localized to superficial cortical layers.",
+      "In this light-sheet fluorescence microscopy image of a cleared human cortical slice (BA44/45), calretinin immunolabeling highlights interneurons as punctate structures with fluorescent somata and fine processes. The distribution of labeled cells is sparse and scattered, primarily localized to superficial cortical layers."
+    ]
+  },
+  "gad67": {
+    "orig": "Light-sheet fluorescence microscopy image patch of a cleared human cortical slice labeled for GAD67, a marker of GABAergic neurons. The staining produces bright cytoplasmic fluorescence filling neuronal somata and proximal processes, creating a scattered constellation of glowing inhibitory neurons that outlines the distribution of the cortical GABAergic network.",
+    "rewrites": [
+      "Light-sheet fluorescence microscopy image of a cleared human cortical slice, labeled for GAD67. The image depicts GAD67-positive neuronal somata and proximal processes with bright cytoplasmic fluorescence. The scattered distribution of these structures represents the cortical GABAergic network.",
+      "Light-sheet fluorescence microscopy image of a cleared human cortical slice, labeled for GAD67. The staining reveals GABAergic neurons as distinct cells with bright cytoplasmic fluorescence, filling their somata and proximal processes. These cells are scattered throughout the image, highlighting the distribution of the cortical GABAergic network.",
+      "Light-sheet fluorescence microscopy image of a cleared human cortical slice, labeled for GAD67. The staining reveals GAD67-positive neuronal somata and proximal processes with bright cytoplasmic fluorescence. These structures form a scattered distribution, highlighting the presence of GABAergic neurons in the cortical tissue.",
+      "Light-sheet fluorescence microscopy image of a cleared human cortical slice, labeled for GAD67. The image reveals numerous GABAergic neurons, identified by their bright cytoplasmic fluorescence, scattered throughout the slice.",
+      "Light-sheet fluorescence microscopy image of a cleared human cortical slice, labeled for GAD67. The staining reveals GAD67-positive neuronal somata and proximal processes with bright cytoplasmic fluorescence. These structures form a scattered distribution, highlighting the cortical GABAergic network.",
+      "Light-sheet fluorescence microscopy image of a cleared human cortical slice, labeled for GAD67. The image reveals GAD67-positive neuronal somata and proximal processes with bright cytoplasmic fluorescence. The scattered distribution of these neurons delineates the cortical GABAergic network."
+    ]
+  },
+  "neun": {
+    "orig": "Light-sheet fluorescence microscopy image patch of a SWITCH/TDE-cleared human cortical section immunolabeled for NeuN. The marker generates intense nuclear and perinuclear fluorescence, revealing dense fields of glowing neuronal cell bodies across cortical laminae, with sharp contrast between gray and white matter.",
+    "rewrites": [
+      "Light-sheet fluorescence microscopy image of a human cortical section cleared with SWITCH/TDE protocol and immunolabeled for NeuN. NeuN immunoreactivity produces intense nuclear and perinuclear fluorescence, highlighting distinct neuronal cell bodies as bright puncta against the contrasting gray and white matter backgrounds.",
+      "Light-sheet fluorescence microscopy image of a cleared human cortical section, immunolabeled for NeuN. Neuronal nuclei and perinuclear regions exhibit intense fluorescence, resulting in distinct, high-contrast labeling of cell bodies. Gray and white matter are discernible."
+    ]
+  },
+  "nuclei": {
+    "orig": "The nuclear stain in this light-sheet fluorescence microscopy image of cleared human brain tissue produces numerous small, round fluorescent signals. Each nucleus appears as a tiny glowing sphere, generating a fine-grained, speckled pattern of high density in cortical laminae and reduced density in underlying white matter.",
+    "rewrites": [
+      "In this light-sheet fluorescence microscopy image of cleared human brain tissue, nuclear staining results in multiple small, round fluorescent foci. Each nucleus is visualized as a distinct, glowing sphere, yielding a speckled pattern of high fluorescence intensity in cortical laminae and lower intensity in underlying white matter.",
+      "In this light-sheet fluorescence microscopy image of cleared human brain tissue, nuclear staining results in multiple small, round fluorescent foci. Each nucleus is visualized as a distinct, spherical fluorescent entity, leading to a speckled pattern of varying fluorescence intensity in cortical laminae and less intense fluorescence in underlying white matter.",
+      "In this light-sheet fluorescence microscopy image of cleared human brain tissue, nuclear staining results in multiple small, round fluorescent foci. Each nucleus is visualized as a distinct, spherical fluorescent entity, yielding a speckled pattern of varying intensity in cortical laminae and less intense staining in underlying white matter.",
+      "In this light-sheet fluorescence microscopy image of cleared human brain tissue, nuclear staining results in multiple small, round fluorescent foci. Each nucleus is discernible as a distinct, glowing entity, yielding a speckled pattern of varying fluorescence intensity across cortical laminae and lower white matter."
+    ]
+  },
+  "somatostatin": {
+    "orig": "Somatostatin-positive interneurons are highlighted in this 3D light-sheet reconstruction of a cleared human cortex slice. The antibody staining yields bright, isolated fluorescent cell bodies in deeper cortical layers, often accompanied by faint dendritic extensions, creating a sparse but distinct distribution of inhibitory neurons within the tissue.",
+    "rewrites": [
+      "In this 3D light-sheet reconstruction of a cleared human cortex slice, somatostatin-positive interneurons are identified by their bright, isolated fluorescence. These cells are primarily located in deeper cortical layers, with some dendritic extensions also visible as faint fluorescence. The distribution of these inhibitory neurons is sparse but distinct within the tissue.",
+      "In this 3D light-sheet reconstruction of a cleared human cortex slice, somatostatin-positive interneurons are identified by their bright, isolated fluorescence. The deeper cortical layers contain these cells, which are characterized by both distinct cell bodies and faint dendritic extensions. The distribution of these inhibitory neurons is sparse but discernible within the tissue.",
+      "In this 3D light-sheet reconstruction of a cleared human cortex slice, somatostatin-immunolabeled interneurons are depicted as discrete, brightly fluorescent cell bodies in deeper cortical layers, accompanied by faintly fluorescent dendritic extensions. The distribution of these inhibitory neurons is sparse but distinct within the tissue.",
+      "In this 3D light-sheet reconstruction of a cleared human cortex slice, somatostatin-positive interneurons are identified by their bright, isolated fluorescence in deeper cortical layers. The staining also reveals faint dendritic extensions, resulting in a sparse distribution of inhibitory neurons with distinct fluorescence."
+    ]
+  },
+  "ab_plaque": {
+    "orig": "Light-sheet fluorescence microscopy image patch of a cleared transgenic mouse brain containing amyloid-β (Aβ) plaques. The tissue was immunolabeled with antibodies against Aβ, producing bright fluorescence that reveals extracellular plaque deposits distributed throughout cortical and subcortical regions. The labeling highlights dense-core plaques and surrounding structures, enabling visualization of hallmark Alzheimer's disease pathology in three dimensions.",
+    "rewrites": [
+      "Three-dimensional light-sheet fluorescence microscopy image of a cleared transgenic mouse brain, where amyloid-β (Aβ) plaques are immunodetected using antibodies. The image reveals extracellular Aβ deposits distributed in cortical and subcortical areas, with dense-core plaques and surrounding structures distinctly labeled.",
+      "Three-dimensional light-sheet fluorescence microscopy image of a cleared transgenic mouse brain, with extracellular amyloid-β (Aβ) plaques labeled using antibodies. The image reveals numerous plaque deposits distributed in cortical and subcortical areas, with dense-core plaques and surrounding structures distinctly visible.",
+      "Three-dimensional light-sheet fluorescence microscopy image of a cleared transgenic mouse brain, with extracellular Aβ plaques labeled using antibodies. The image reveals numerous, brightly fluorescent deposits distributed in cortical and subcortical regions. The labeling specifically identifies dense-core plaques and their surrounding structures.",
+      "Three-dimensional light-sheet fluorescence microscopy image of a cleared transgenic mouse brain, where amyloid-β (Aβ) plaques are labeled using antibodies, resulting in bright fluorescence. The image reveals the distribution of extracellular Aβ plaque deposits in cortical and subcortical regions. The labeling specifically identifies dense-core plaques and their surrounding structures.",
+      "Three-dimensional light-sheet fluorescence microscopy image of a cleared transgenic mouse brain, with Aβ plaques labeled using antibodies against Aβ. The image reveals extracellular plaque deposits distributed in cortical and subcortical regions, characterized by dense-core structures. The labeling allows for visualization of Aβ plaques, a hallmark of Alzheimer's disease.",
+      "Three-dimensional light-sheet fluorescence microscopy image of a cleared transgenic mouse brain, with Aβ plaques identified by immunolabeling using anti-Aβ antibodies. The image reveals extracellular plaque deposits distributed in cortical and subcortical regions, characterized by dense-core structures."
+    ]
+  },
+  "astrocytes": {
+    "orig": "In this mouse brain imaged with light-sheet fluorescence microscopy, glial fibrillary acidic protein (GFAP) immunolabeling reveals star-shaped astrocytic cell bodies and intricate filamentous processes. The signal appears as bright, branching fluorescent fibers that weave through the tissue, forming a complex three-dimensional network that stands out clearly from the surrounding background.",
+    "rewrites": [
+      "In this light-sheet fluorescence microscopy image of a mouse brain, GFAP immunolabeling highlights astrocytic somata and processes as bright, branching structures. The resulting fluorescent signal forms a complex three-dimensional network, distinguishable from the background.",
+      "In this mouse brain imaged with light-sheet fluorescence microscopy, GFAP immunolabeling highlights astrocytic somata and processes as bright, branching structures interconnected by filamentous fibers. The resulting network is distinct from the background.",
+      "In this light-sheet fluorescence microscopy image of a mouse brain, astrocytes are identified by their GFAP immunolabeling, which highlights their star-shaped somata and intricate filamentous processes as bright, branching structures. The GFAP signal contrasts with the background, forming a distinct three-dimensional network.",
+      "In this mouse brain imaged using light-sheet fluorescence microscopy, GFAP immunolabeling highlights astrocytic somata and processes as bright, branching structures. The resulting fluorescent signal delineates a three-dimensional network of GFAP-labeled astrocytes that contrasts distinctly from the unlabeled tissue.",
+      "In this mouse brain imaged using light-sheet fluorescence microscopy, GFAP immunolabeling highlights astrocytic somata and processes as bright, branching structures. The fluorescent signal delineates a complex three-dimensional network of astrocytes, distinguishable from the background due to its high contrast.",
+      "In this mouse brain imaged using light-sheet fluorescence microscopy, GFAP immunolabeling highlights astrocytic somata and processes as bright, branching structures. The fluorescent signal delineates a three-dimensional network of filamentous astrocytes that contrasts distinctly from the surrounding tissue background."
+    ]
+  },
+  "beta3tubulin_cranial_nerve": {
+    "orig": "",
+    "rewrites": []
+  },
+  "cfos": {
+    "orig": "Light-sheet fluorescence microscopy image patch of a cleared WT adult mouse brain, immunolabeled with antibodies against the activity-dependent protein c-Fos. The staining produces bright fluorescence in c-Fos-positive neurons, revealing the distribution of recently activated cells across brain regions. This labeling enables whole-brain mapping of neuronal activity patterns by highlighting somata and dendritic processes of active neurons within the tissue.",
+    "rewrites": [
+      "Light-sheet fluorescence microscopy image of a cleared WT adult mouse brain section, labeled with antibodies against c-Fos. The immunolabeling results in bright fluorescence in neurons expressing c-Fos, delineating their somata and dendritic processes. This labeling facilitates whole-brain analysis of neuronal activity by visualizing the distribution of activated neurons within the tissue.",
+      "Light-sheet fluorescence microscopy image of a cleared WT adult mouse brain section, labeled with antibodies against c-Fos. The immunostaining results in intense fluorescence in neurons expressing c-Fos, delineating their somata and dendrites. This method facilitates comprehensive mapping of neuronal activity by visualizing activated neurons throughout the brain tissue.",
+      "Light-sheet fluorescence microscopy image of a cleared adult mouse brain section, labeled with antibodies against c-Fos. The immunostaining results in bright fluorescence in neurons expressing c-Fos, delineating the locations of activated cells. This labeling facilitates whole-brain analysis of neuronal activity by visualizing somata and dendrites of activated neurons within the tissue.",
+      "Light-sheet fluorescence microscopy image of a cleared adult mouse brain section, labeled with antibodies against c-Fos. The immunostaining results in bright fluorescence in neurons expressing c-Fos, delineating their somata and dendritic processes. This labeling facilitates whole-brain analysis of neuronal activity by visualizing the distribution of activated neurons within the tissue.",
+      "Light-sheet fluorescence microscopy image of a cleared adult mouse brain section, labeled with antibodies against c-Fos. The immunolabeling results in bright fluorescence in c-Fos-expressing neurons, delineating their somata and dendritic processes. This labeling facilitates whole-brain analysis of neuronal activity by visualizing the distribution of activated neurons within the tissue.",
+      "Light-sheet fluorescence microscopy image of a cleared adult mouse brain section, labeled with antibodies against c-Fos. The immunolabeling results in bright fluorescence in neurons expressing c-Fos, delineating the somata and dendrites of these cells. This technique facilitates whole-brain analysis of neuronal activity by visualizing the distribution of activated neurons within the tissue."
+    ]
+  },
+  "chondrocytes": {
+    "orig": "Light-sheet fluorescence microscopy image patch of a cleared human embryo head (PCW7-PCW11.3), immunolabeled for Collagen II (Col2). Strong fluorescence marks differentiated chondrocytes embedded within the extracellular matrix of developing cranial cartilage. The labeling highlights the architecture of chondrocranial elements, including the sphenoid, nasal capsule, and occipital regions, enabling visualization of cartilage maturation and structural organization at embryonic stages.",
+    "rewrites": [
+      "Light-sheet fluorescence microscopy image of a cleared human embryo head (PCW7-PCW11.3) specimen, featuring Collagen II (Col2) immunolabeling. The image reveals chondrocytes within the extracellular matrix of the developing cranial cartilage, with enhanced fluorescence intensity. The labeling delineates the architecture of cranial cartilage",
+      "Light-sheet fluorescence microscopy image of a cleared human embryo head (PCW7-PCW11.3) specimen, featuring Collagen II (Col2) immunolabeling. This labeling reveals chondrocytes within the extracellular matrix of the developing cranial cartilage, illustrating the architecture of chondrocranial elements, such as the sphenoid, nasal",
+      "Light-sheet fluorescence microscopy image of a cleared human embryo head (PCW7-PCW11.3) specimen, displaying Collagen II (Col2) immunolabeling. This labeling reveals chondrocytes within the extracellular matrix of the developing cranial cartilage, showcasing the architecture of chondrocranial elements, such as the sphenoid,",
+      "Light-sheet fluorescence microscopy image of a cleared human embryo head (PCW7-PCW11.3) specimen, with Collagen II (Col2) immunolabeling. The image reveals chondrocytes within the extracellular matrix of the developing cranial cartilage, which exhibit strong fluorescence. The labeling delineates the architecture of cranial cartilage",
+      "Light-sheet fluorescence microscopy image of a cleared human embryo head (PCW7-PCW11.3) specimen, labeled for Collagen II (Col2). The image reveals chondrocytes within the extracellular matrix of the developing cranial cartilage, which exhibit strong fluorescence. The labeling delineates the architecture of chondrocranial elements, such as the",
+      "Light-sheet fluorescence microscopy image of a cleared human embryo head (PCW7-PCW11.3) specimen, featuring Collagen II (Col2) immunolabeling. This labeling reveals chondrocytes within the extracellular matrix of the developing cranial cartilage, showcasing the architecture of chondrocranial elements, such as the sphenoid, nas"
+    ]
+  },
+  "chondrogenic_cells": {
+    "orig": "Light-sheet fluorescence microscopy image patch of a cleared human embryo head (PCW5.6-PCW11.3), immunolabeled for Sox9. The staining reveals clusters of chondrogenic progenitor cells within mesenchymal condensations, marking the earliest stages of cartilage formation. These Sox9-positive cells define the sites of future skeletal elements, showing how progenitor populations begin organizing into cartilage templates before matrix deposition.",
+    "rewrites": [
+      "Light-sheet fluorescence microscopy image of a cleared human embryo head (PCW5.6-PCW11.3) specimen, with Sox9 immunolabeling highlighting clusters of chondrogenic progenitor cells within mesenchymal condensations. These regions represent the earliest stages of cartilage development, as indicated by the presence of Sox9-positive cells.",
+      "Light-sheet fluorescence microscopy image of a cleared human embryo head (PCW5.6-PCW11.3) specimen, with Sox9 immunolabeling highlighting clusters of cells within mesenchymal condensations. These condensations represent the earliest stages of cartilage development, as indicated by the presence of Sox9-positive cells. These cells delineate the sites of",
+      "Light-sheet fluorescence microscopy image of a cleared human embryo head (PCW5.6-PCW11.3) specimen, with Sox9 immunolabeling. Sox9-positive cells are observed in clusters within mesenchymal condensations, indicating the initiation of chondrogenesis. These sites correspond to future skeletal elements, illustrating the organization of progenitor populations",
+      "Light-sheet fluorescence microscopy image of a cleared human embryo head (PCW5.6-PCW11.3) specimen, with Sox9 immunolabeling. Sox9-positive cells are localized within mesenchymal condensations, indicating the presence of chondrogenic progenitor cells, which are the earliest identifiable stage of cartilage development. These sites correspond to",
+      "Light-sheet fluorescence microscopy image of a cleared human embryo head (PCW5.6-PCW11.3) specimen, with Sox9 immunolabeling highlighting clusters of cells within mesenchymal condensations. These condensations represent the earliest stages of cartilage development, as indicated by the presence of Sox9-positive cells. The labeled cells delineate the sites"
+    ]
+  },
+  "ctip2_neurons": {
+    "orig": "In a cleared mouse brain imaged with light-sheet fluorescence microscopy, immunolabeling for CTIP2 (BCL11B) marks deep-layer cortical projection neurons, particularly in layer V. The stain produces bright, nuclear and perinuclear fluorescence within these neurons, forming dense clusters of glowing somata in the lower cortical layers and scattered signal in subcortical projection regions. The labeled cells stand out sharply from the surrounding tissue, revealing the laminar organization of CTIP2-positive neurons in three dimensions.",
+    "rewrites": [
+      "In a cleared mouse brain imaged using light-sheet fluorescence microscopy, CTIP2 (BCL11B) immunolabeling highlights deep-layer cortical projection neurons, predominantly in layer V. The stain results in intense, nuclear and perinuclear fluorescence within these neurons, delineating compact clusters of labeled somata in the lower cortical layers and sparse signal in subcortical projection",
+      "In a cleared mouse brain imaged using light-sheet fluorescence microscopy, CTIP2 (BCL11B) immunolabeling highlights deep-layer cortical projection neurons, predominantly in layer V. The stain results in intense, nuclear and perinuclear fluorescence within these neurons, forming compact clusters of labeled somata in the lower cortical layers and sparse signal in subcortical projection areas.",
+      "In a cleared mouse brain imaged using light-sheet fluorescence microscopy, CTIP2 (BCL11B) immunolabeling highlights deep-layer cortical projection neurons, predominantly in layer V. The stain results in intense, nuclear and perinuclear fluorescence within these neurons, leading to compact clusters of fluorescent somata in the lower cortical layers and sparse signal in subcortical",
+      "In a cleared mouse brain imaged using light-sheet fluorescence microscopy, CTIP2 (BCL11B) immunolabeling highlights deep-layer cortical projection neurons, predominantly in layer V. The stain results in intense, nuclear and perinuclear fluorescence within these neurons, creating compact clusters of labeled somata in the lower cortical layers and sparse signal in subcortical projection areas.",
+      "In a cleared mouse brain imaged using light-sheet fluorescence microscopy, CTIP2 (BCL11B) immunolabeling highlights deep-layer cortical projection neurons, predominantly in layer V. The stain results in distinct, nuclear and perinuclear fluorescence within these neurons, delineating dense aggregations of labeled somata in the lower cortical layers and sparse signal in subcortical"
+    ]
+  },
+  "lyve1_lymphatic_vessel": {
+    "orig": "In the cleared mouse brain, immunolabeling for LYVE1 highlights slender, branching fluorescent vessels that trace the pathways of the meningeal and perivascular lymphatic network. Viewed with light-sheet fluorescence microscopy, these delicate tubular structures appear as continuous glowing strands outlining the brain’s lymphatic architecture in three dimensions.",
+    "rewrites": [
+      "LYVE1 immunolabeling reveals slender, branching structures in the cleared mouse brain, which represent the meningeal and perivascular lymphatic network. These tubular structures are visualized as continuous, glowing strands using light-sheet fluorescence microscopy.",
+      "In the cleared mouse brain, LYVE1 immunolabeling reveals tubular structures of the meningeal and perivascular lymphatic network as slender, branching fluorescent vessels. These structures are visualized in three dimensions using light-sheet fluorescence microscopy as continuous, glowing strands.",
+      "In the cleared mouse brain, LYVE1 immunolabeling reveals slender, branching structures corresponding to the meningeal and perivascular lymphatic vessels. These tubular structures are visualized as continuous, glowing strands using light-sheet fluorescence microscopy, providing a three-dimensional representation of the brain's lymphatic architecture.",
+      "LYVE1 immunolabeling reveals slender, branching fluorescent vessels in the cleared mouse brain, depicted as continuous glowing strands in three-dimensional light-sheet fluorescence microscopy images, which represent the meningeal and perivascular lymphatic network.",
+      "In the cleared mouse brain, LYVE1 immunolabeling reveals slender, branching structures corresponding to the meningeal and perivascular lymphatic network. These tubular structures are visualized as continuous, glowing strands using light-sheet fluorescence microscopy, illustrating the three-dimensional organization of the brain's lymphatic architecture."
+    ]
+  },
+  "nf_peripheral_nerve": {
+    "orig": "In the cleared mouse head, neurofilament (NF) immunolabeling reveals bright, thread-like fluorescent fibers representing peripheral nerves. The labeled axons appear as fine, elongated strands coursing through brain-adjacent tissues, forming a distinct filamentous network visible in three dimensions under light-sheet fluorescence microscopy.",
+    "rewrites": [
+      "Neurofilament immunolabeling in the cleared mouse head highlights elongated, thread-like structures corresponding to peripheral nerves. These axons are visualized as fine, filamentous strands traversing brain-adjacent tissues in three dimensions using light-sheet fluorescence microscopy.",
+      "Neurofilament immunolabeling in the cleared mouse head highlights elongated, thread-like structures corresponding to peripheral nerves. These axons are visualized as thin, extended fibers in brain-adjacent tissues using three-dimensional light-sheet fluorescence microscopy.",
+      "Neurofilament immunolabeling in the cleared mouse head highlights elongated, thread-like structures representing peripheral nerves. These axons are visible as fine, filamentous networks in three dimensions under light-sheet fluorescence microscopy.",
+      "Neurofilament immunolabeling in the cleared mouse head highlights elongated, thread-like structures corresponding to peripheral nerves. These axons are depicted as fine, linear features traversing brain-adjacent tissues, forming a distinct three-dimensional network observable under light-sheet fluorescence microscopy."
+    ]
+  },
+  "nucleus": {
+    "orig": "Light-sheet fluorescence microscopy imaging of centimeter-scale cleared human brain slices treated with the SHANEL deep-tissue histology protocol. Following permeabilization and delipidation, nuclei were labeled with propidium iodide (PI) or TO-PRO-3, producing stable fluorescent signals across large tissue volumes. This labeling enabled three-dimensional mapping of nuclear organization, revealing the density and morphology of cell populations across cortical and subcortical regions, and supporting long-term structural studies of intact human brain tissue.",
+    "rewrites": [
+      "Light-sheet fluorescence microscopy was employed to image centimeter-scale cleared human brain slices following the SHANEL protocol for deep-tissue histology. Post-permeabilization and delipidation, nuclei were labeled with either propidium iodide (PI) or TO-PRO-3, yielding stable fluorescent signals throughout the tissue. This labeling facilitated three-dimensional analysis of nuclear organization, revealing",
+      "Light-sheet fluorescence microscopy was used to image centimeter-scale cleared human brain slices following the SHANEL protocol for deep tissue histology. After permeabilization and delipidation, nuclei were labeled with either propidium iodide (PI) or TO-PRO-3, resulting in stable fluorescent signals. This labeling facilitated three-dimensional analysis of nuclear organization, revealing the distribution and morphology of",
+      "Light-sheet fluorescence microscopy was employed to image centimeter-scale cleared human brain slices following the SHANEL protocol for deep tissue histology. Post-permeabilization and delipidation, nuclei were labeled with either propidium iodide (PI) or TO-PRO-3, yielding stable fluorescent signals throughout the tissue. This labeling facilitated three-dimensional analysis of nuclear organization, revealing the distribution",
+      "Light-sheet microscopy imaging of centimeter-scale cleared human brain slices processed with the SHANEL protocol. Post-permeabilization and delipidation, nuclei were labeled with either propidium iodide (PI) or TO-PRO-3, yielding stable fluorescence signals throughout the tissue. This labeling facilitated three-dimensional analysis of nuclear organization, exposing the distribution and features of various cell populations across",
+      "Light-sheet fluorescence microscopy was employed to image centimeter-scale cleared human brain slices processed using the SHANEL protocol. Post-permeabilization and delipidation, nuclei were labeled with either propidium iodide (PI) or TO-PRO-3, yielding stable fluorescent signals throughout the tissue. This labeling facilitated three-dimensional analysis of nuclear organization, exposing the distribution and morphology",
+      "Light-sheet fluorescence microscopy was employed to image centimeter-scale cleared human brain slices following the SHANEL protocol. Post-permeabilization and delipidation, nuclei were labeled with either propidium iodide (PI) or TO-PRO-3, resulting in stable fluorescent signals throughout the tissue. This labeling facilitated three-dimensional analysis of nuclear organization, revealing the distribution and morphology of cell"
+    ]
+  },
+  "p75_nerves": {
+    "orig": "In the cleared mouse head imaged with light-sheet fluorescence microscopy, immunolabeling for the p75 neurotrophin receptor (p75 NTR) highlights peripheral and cranial nerves with strong, continuous fluorescence. The labeled fibers appear as smooth, tubular fluorescent strands tracing nerve pathways through the tissue, often running in parallel bundles. This staining delineates the glowing trajectories of peripheral nerves and their branching patterns in three dimensions.",
+    "rewrites": [
+      "Light-sheet fluorescence microscopy reveals p75 neurotrophin receptor (p75 NTR) immunolabeling as strong, continuous fluorescence along peripheral and cranial nerves. The labeled fibers are depicted as smooth, tubular structures, tracing nerve pathways through the tissue and frequently arranged in parallel bundles. This staining defines the trajectories of peripheral nerves and their branching patterns in three",
+      "In the cleared mouse head imaged using light-sheet fluorescence microscopy, p75 neurotrophin receptor (p75 NTR) immunolabeling reveals peripheral and cranial nerves as distinct, continuous structures with strong fluorescence. The labeled fibers are depicted as smooth, tubular fluorescent strands, tracing the nerve pathways through the tissue and frequently arranged in parallel bundles. This st",
+      "Light-sheet fluorescence microscopy reveals p75 neurotrophin receptor (p75 NTR) immunolabeling as continuous, strong fluorescence along peripheral and cranial nerves. The labeled fibers are depicted as smooth, tubular structures, tracing nerve pathways through the cleared tissue and frequently arranged in parallel bundles. This staining provides a three-dimensional representation of peripheral nerve trajectories and branch",
+      "In the cleared mouse head imaged with light-sheet fluorescence microscopy, p75 neurotrophin receptor (p75 NTR) immunolabeling reveals peripheral and cranial nerves as distinct, continuous structures with strong fluorescence intensity. The labeled fibers are depicted as smooth, tubular fluorescent structures, tracing the nerve pathways through the tissue and frequently arranged in parallel bundles. This st"
+    ]
+  },
+  "pgp_peripheral_nerve": {
+    "orig": "In the cleared mouse head, PGP9.5 immunolabeling outlines bright, slender fluorescent fibers corresponding to cranial and peripheral nerves. These smooth, thread-like strands run through brain-adjacent tissues and along the skull base, forming a clear three-dimensional network of nerve projections visible under light-sheet fluorescence microscopy.",
+    "rewrites": [
+      "In the cleared mouse head, PGP9.5 immunolabeling reveals slender, fluorescent fibers representing cranial and peripheral nerves. These fibers, characterized by their smooth, thread-like morphology, traverse brain-adjacent tissues and align along the skull base. They form a distinct three-dimensional network of nerve projections observable under light-sheet fluorescence microscopy.",
+      "In the cleared mouse head, PGP9.5 immunolabeling highlights slender fluorescent fibers representing cranial and peripheral nerves. These fibers, characterized by their smooth, thread-like morphology, traverse brain-adjacent tissues and align along the skull base, creating a distinct three-dimensional network of nerve projections observable under light-sheet fluorescence microscopy.",
+      "In the cleared mouse head, PGP9.5 immunolabeling reveals slender, fluorescent fibers representing cranial and peripheral nerves. These fibers, characterized by their smooth texture and thread-like morphology, traverse brain-adjacent tissues and align along the skull base. They form a distinct three-dimensional network of nerve projections observable under light-sheet fluorescence microscopy.",
+      "In the cleared mouse head, PGP9.5 immunolabeling reveals slender, fluorescent fibers representing cranial and peripheral nerves. These fibers, characterized by their smooth texture, traverse brain-adjacent tissues and align along the skull base. They form a distinct three-dimensional network of nerve projections observable under light-sheet fluorescence microscopy.",
+      "In the cleared mouse head, PGP9.5 immunolabeling highlights slender, fluorescent fibers representing cranial and peripheral nerves. These fibers, characterized by their smooth, thread-like morphology, traverse brain-adjacent tissues and align along the skull base. They form a distinct three-dimensional network of nerve projections observable under light-sheet fluorescence microscopy.",
+      "In the cleared mouse head, PGP9.5 immunolabeling reveals slender, fluorescent fibers representing cranial and peripheral nerves. These fibers, characterized by their smooth and thread-like morphology, traverse brain-adjacent tissues and align along the skull base, forming a distinct three-dimensional network of nerve projections observable under light-sheet fluorescence microscopy."
+    ]
+  },
+  "sma_artery": {
+    "orig": "In the cleared mouse head imaged with light-sheet fluorescence microscopy, immunolabeling for smooth muscle actin (SMA) highlights arterial walls as bright, continuous tubular structures. The signal forms thick, glowing vessels that branch into smaller arterioles, showing the smooth, layered morphology characteristic of muscular arteries. These fluorescent tubes trace the three-dimensional architecture of the arterial network, standing out clearly against the surrounding tissue.",
+    "rewrites": [
+      "Light-sheet fluorescence microscopy reveals SMA immunolabeling as intense, continuous structures delineating arterial walls in the cleared mouse head. The labeled structures exhibit thick, luminescent features, branching into smaller arterioles, and maintaining the layered morphology typical of muscular arteries. These fluorescent structures accurately depict the three-dimensional organization of the arterial network.",
+      "In the cleared mouse head imaged using light-sheet fluorescence microscopy, smooth muscle actin (SMA) immunolabeling delineates arterial walls as continuous, tubular structures with thick, glowing fluorescence. The labeled vessels branch into smaller arterioles, revealing their smooth, layered morphology typical of muscular arteries. The fluorescent tubes depict the three-dimensional structure of",
+      "In the cleared mouse head imaged using light-sheet fluorescence microscopy, smooth muscle actin (SMA) immunolabeling delineates arterial walls as continuous, tubular structures with thick, glowing fluorescence. The signal reveals the smooth, layered morphology of muscular arteries, with branches into smaller arterioles. The fluorescent tubes depict the three-dimensional architecture of the",
+      "In the cleared mouse head imaged using light-sheet fluorescence microscopy, smooth muscle actin (SMA) immunolabeling delineates arterial walls as continuous, tubular structures with thick, glowing fluorescence. This labeling reveals the branching morphology of muscular arteries, characterized by a smooth, layered appearance. The fluorescent tubes depict the three-dimensional architecture of the ar",
+      "In the cleared mouse head imaged using light-sheet fluorescence microscopy, smooth muscle actin (SMA) immunolabeling delineates arterial walls as continuous, tubular structures with thick, glowing fluorescence. This labeling reveals the smooth, layered morphology of muscular arteries, with branching vessels identified as smaller arterioles. The three-dimensional architecture of the arterial network"
+    ]
+  },
+  "th_neurons": {
+    "orig": "Immunolabeling for tyrosine hydroxylase (TH) in light-sheet fluorescence microscopy reveals bright, fluorescent neuronal somata and slender processes characteristic of dopaminergic and noradrenergic cells. The labeled neurons form distinct clusters of glowing cell bodies with projecting fibers visible in three dimensions, delineating catecholaminergic populations across midbrain and brainstem regions.",
+    "rewrites": [
+      "TH immunolabeling in light-sheet fluorescence microscopy highlights dopaminergic and noradrenergic neurons as distinct clusters of brightly labeled somata and elongated processes. The three-dimensional image reveals projecting fibers, defining catecholaminergic populations in midbrain and brainstem regions.",
+      "In light-sheet fluorescence microscopy, TH immunolabeling highlights somata and processes of dopaminergic and noradrenergic neurons as bright, fluorescent structures. These neurons are distinguishable as clusters of labeled cell bodies with projecting fibers, illustrating the distribution of catecholaminergic populations in midbrain and brainstem regions.",
+      "In light-sheet fluorescence microscopy, TH immunolabeling identifies dopaminergic and noradrenergic neurons as distinct populations based on their bright, fluorescent somata and slender processes. Three-dimensional visualization of the labeled neurons reveals clusters of cell bodies with projecting fibers, delineating catecholaminergic populations in midbrain and brainstem regions.",
+      "TH immunolabeling in light-sheet fluorescence microscopy highlights dopaminergic and noradrenergic neuronal somata and processes as bright, fluorescent structures. These neurons are organized into distinct clusters, with visible projecting fibers, delineating catecholaminergic populations in midbrain and brainstem regions.",
+      "In light-sheet fluorescence microscopy, TH immunolabeling identifies dopaminergic and noradrenergic neurons as distinct populations based on their bright, fluorescent somata and slender processes. Three-dimensional visualization of the labeled neurons reveals clusters of glowing cell bodies with projecting fibers, delineating catecholaminergic populations in midbrain and brainstem regions.",
+      "In light-sheet fluorescence microscopy, TH immunolabeling identifies dopaminergic and noradrenergic neurons as cells with brightly fluorescent somata and elongated processes. These neurons are organized into clusters of labeled cell bodies, with projecting fibers discernible in three dimensions, thereby demarcating catecholaminergic populations in midbrain and brainstem areas."
+    ]
+  },
+  "th_sympathetic_nerve": {
+    "orig": "In the cleared mouse head imaged with light-sheet fluorescence microscopy, immunolabeling for tyrosine hydroxylase (TH) reveals bright, thin fluorescent fibers corresponding to sympathetic nerves. These labeled axons form delicate, branching networks that follow blood vessels and peripheral pathways. The staining produces fine, glowing filaments that trace the distribution of catecholaminergic innervation in three dimensions.",
+    "rewrites": [
+      "In the cleared mouse head imaged via light-sheet fluorescence microscopy, TH immunolabeling highlights thin, fluorescent fibers representing sympathetic axons. These fibers form intricate, branched networks that follow the courses of blood vessels and peripheral pathways. The resulting image displays fine, luminescent filaments delineating the three-dimensional distribution of catecholaminergic innervation.",
+      "In the cleared mouse head imaged using light-sheet fluorescence microscopy, TH immunolabeling highlights axons as thin, brightly fluorescent structures. These labeled axons form intricate, branching networks that follow the contours of blood vessels and peripheral pathways. The resulting image displays TH-positive axons as fine, glowing filaments, illustrating the three-dimensional distribution of catecholaminerg",
+      "In the cleared mouse head imaged with light-sheet fluorescence microscopy, TH immunolabeling highlights axons as thin, fluorescent structures corresponding to sympathetic nerves. These labeled axons form intricate, branched networks that follow the contours of blood vessels and peripheral pathways. The resulting image reveals the three-dimensional distribution of catecholaminergic innervation through fine, glowing filaments.",
+      "In the cleared mouse head imaged using light-sheet fluorescence microscopy, TH immunolabeling highlights thin, fluorescent fibers representing sympathetic nerves. These axons form intricate, branched networks that align with blood vessels and peripheral pathways. The staining results in fine, luminescent filaments delineating the three-dimensional distribution of catecholaminergic innervation.",
+      "Light-sheet fluorescence microscopy of the cleared mouse head reveals TH immunolabeled axons as thin, bright structures. These fibers form intricate, branching networks that follow the paths of blood vessels and peripheral nerves. The resulting image displays the three-dimensional distribution of catecholaminergic innervation as fine, glowing filaments.",
+      "Light-sheet fluorescence microscopy of cleared mouse head reveals TH immunolabeling, highlighting thin, fluorescent fibers representing sympathetic nerves. These axons form intricate, branched networks, following blood vessels and peripheral pathways. The staining delineates catecholaminergic innervation distribution in three dimensions as fine, glowing filaments."
+    ]
+  },
+  "vessel_eb": {
+    "orig": "Light-sheet fluorescence microscopy image patch of a cleared adult mouse brain, labeled with Evans Blue (EB). EB dye was injected intraperitoneally 12 hours before fixation, allowing it to circulate with serum albumin and strongly label large blood vessels such as the middle cerebral artery and the circle of Willis. The fluorescence signal in the 640 nm range highlights the architecture of major vessels with high contrast, enabling whole-brain vascular mapping.",
+    "rewrites": []
+  },
+  "vessel_wga": {
+    "orig": "Light-sheet fluorescence microscopy image patch of a cleared adult mouse brain, perfused during fixation with wheat germ agglutinin (WGA) conjugated to Alexa 594. WGA binds to the endothelial glycocalyx, producing bright signal in the 561 nm channel and strongly labeling microvessels and capillaries with high signal-to-noise ratio. This staining provides detailed visualization of fine-scale vasculature throughout the brain.",
+    "rewrites": []
+  },
+  "01_aa1_po_c_r45": {
+    "orig": "Light-sheet fluorescence microscopy patch from a cleared adult wildtype (WT) mouse brain. Tissue was immunostained for tyrosine hydroxylase (TH), a marker of dopaminergic neurons. Fluorescence was captured in the 639 nm channel. TH signal is localized to the cytoplasm of neuronal soma, producing intense, homogeneous labeling of dopaminergic cells. This image highlights detailed cellular morphology within the brain region.",
+    "rewrites": []
+  },
+  "02_az10_sr3b_6_a": {
+    "orig": "3D light-sheet microscopy image patch acquired from a cleared wildtype adult mouse brain. Immunolabeling for CTIP2, a nuclear transcription factor involved in cortical neuron differentiation, was performed and visualized using the 561 nm fluorescence channel. CTIP2 staining reveals nuclear-localized puncta within deep-layer projection neurons, with clearly defined nuclear boundaries and dense labeling patterns.",
+    "rewrites": []
+  },
+  "03_aj12_lg1e_n_a": {
+    "orig": "Volumetric fluorescence image from an adult WT mouse brain section stained for glial fibrillary acidic protein (GFAP), an intermediate filament protein expressed in astrocytes. The tissue was imaged using light-sheet microscopy in the 639 nm channel. GFAP signal is distributed throughout the astrocytic cytoplasm and processes, producing a filamentous pattern that outlines astrocyte morphology and highlights the fine arborization of glial networks.",
+    "rewrites": []
+  },
+  "04_ae2_wf2a_a": {
+    "orig": "High-resolution light-sheet image patch from a cleared WT mouse brain, immunolabeled for the neurotrophin receptor p75NTR. Fluorescence signal was captured in the 639 nm channel. p75NTR is expressed in both the cytoplasm and plasma membrane of certain neurons and glial cells. The staining reveals membrane-associated fluorescence outlining cell boundaries and diffuse cytoplasmic signal, consistent with p75NTR localization in neurogenic regions.",
+    "rewrites": []
+  },
+  "05_ch1_pcw1a_a": {
+    "orig": "Light-sheet fluorescence image patch of an adult WT mouse brain showing immunolabeling for dopamine beta-hydroxylase (DBH), an enzyme involved in norepinephrine synthesis. Signal was acquired in the 639 nm channel. DBH is localized to the cytoplasm and synaptic vesicles of noradrenergic neurons. This image highlights punctate and cytoplasmic fluorescence, reflecting DBH's role in vesicular catecholamine transport and storage.",
+    "rewrites": []
+  },
+  "06_az10_sr3b_6_a": {
+    "orig": "Fluorescent nuclear staining in a cleared adult WT mouse brain, acquired using light-sheet microscopy. The DNA-binding dye SYTO 24 was used to label cell nuclei and was imaged in the 488 nm channel. The resulting pattern shows uniform, high-contrast labeling of nuclei throughout the tissue volume, facilitating identification of cell density and spatial organization across cortical and subcortical regions.",
+    "rewrites": []
+  },
+  "07_az10_sr3b_6_a": {
+    "orig": "Sparse neuronal labeling in a WT adult mouse brain, visualized via expression of cytoplasmic green fluorescent protein (GFP) from a pAAV viral vector. Acquired using light-sheet microscopy in the 639 nm channel, this patch contains isolated, fully labeled neuron soma and processes. The cytoplasmic GFP signal allows clear visualization of neuronal morphology and trajectory within descending motor pathways.",
+    "rewrites": []
+  },
+  "08_af3_br4_a1_a": {
+    "orig": "In this light-sheet fluorescence microscopy image patch of a cleared WT adult mouse brain, neurons expressing the G protein-coupled receptor 85 (GPR85) were labeled using systemic delivery of an AAV.PHP.eB-tdTomato viral vector. The labeling produces bright red fluorescence in the 561 nm channel, outlining GPR85-positive neuronal somata and processes against the background tissue.",
+    "rewrites": []
+  },
+  "09_bh1_tm2b_f_a": {
+    "orig": "Light-sheet fluorescence microscopy image patch from the right central amygdala (CeA) of a cleared WT adult mouse brain. Neurons were sparsely labeled via iontophoretic delivery of an AAV2.1-tdTomato viral vector, producing bright red fluorescence in the 561 nm channel. The labeling highlights distinct neuronal somata and fine processes against a predominantly unlabeled background, enabling clear visualization of individual cell morphology.",
+    "rewrites": []
+  },
+  "10_af3_br6c_a": {
+    "orig": "Light-sheet fluorescence microscopy image patch from a cleared WT adult mouse brain, highlighting neurons that express the serotonin receptor 5-HT2A. An AAV.PHP.eB-tdTomato viral vector was used for labeling, producing vivid red fluorescence in the 561 nm channel. The signal delineates 5-HT2A-positive neuronal somata and projections with clear contrast against surrounding tissue structures.",
+    "rewrites": []
+  },
+  "11_aa1_po40_1_a": {
+    "orig": "In this light-sheet fluorescence microscopy image patch of a cleared WT adult mouse brain, cells expressing the serotonin transporter (Sert) protein from embryonic development onward are visualized. A Cre::tdTomato genetic labeling strategy was used to drive red fluorescence in the 561 nm channel, highlighting Sert-positive neuronal cell bodies and processes with clear contrast against the surrounding tissue.",
+    "rewrites": []
+  },
+  "12_aa1_po40_3_a": {
+    "orig": "This light-sheet fluorescence microscopy image patch shows cells in a cleared WT adult mouse brain that express the prodynorphin (Pdyn) protein from embryonic development onward. Genetic labeling with Cre::tdTomato produces vivid red fluorescence in the 561 nm channel, revealing Pdyn-positive neuronal somata and projections with fine structural detail against the surrounding tissue background.",
+    "rewrites": []
+  },
+  "13_aa1_po40_4_a": {
+    "orig": "Light-sheet fluorescence microscopy image patch of a cleared WT adult mouse brain, showing neurons that have expressed vesicular glutamate transporter 3 (Vglut3) since embryonic development. Using a Cre::tdTomato genetic labeling approach, these Vglut3-positive cells exhibit bright red fluorescence in the 561 nm channel, making their somata and fine processes clearly visible within the surrounding tissue.",
+    "rewrites": []
+  },
+  "14_af3_br6b_d5_a": {
+    "orig": "This light-sheet fluorescence microscopy image patch shows neurons in a cleared WT adult mouse brain that express the serotonin receptor 5-HT2A. Labeling was achieved using a Cre-ERT2::tdTomato genetic strategy, resulting in bright red fluorescence in the 561 nm channel. The signal highlights 5-HT2A-positive neuronal somata and processes with fine structural detail visible against the background tissue.",
+    "rewrites": []
+  },
+  "15_al2_xd1b_a_a": {
+    "orig": "Light-sheet fluorescence microscopy image patch from a cleared WT adult mouse brain, showing sparsely labeled retinal ganglion cell projections from the left eye. Using a Kcng::AAV-WGA-mCherry viral tracer, bright red fluorescence in the far-red channel reveals fine axonal fibers coursing through brain tissue toward central visual targets, including the lateral geniculate nucleus (LGN) and superior colliculus, standing out clearly against surrounding structures.",
+    "rewrites": [
+      "In this light-sheet fluorescence microscopy image, axonal fibers of retinal ganglion cells from the left eye are sparsely labeled with Kcng::AAV-WGA-mCherry viral tracer, appearing as discrete, bright red structures in the far-red channel. These fibers traverse brain tissue and terminate at central visual targets, such as the lateral geniculate nucleus (LGN",
+      "In this light-sheet fluorescence microscopy image, retinal ganglion cell projections from the left eye are sparsely labeled with Kcng::AAV-WGA-mCherry viral tracer, resulting in discrete, bright red fluorescent fibers that traverse brain tissue and terminate at central visual targets, such as the lateral geniculate nucleus (LGN) and superior colliculus.",
+      "In this light-sheet fluorescence microscopy image from a cleared adult mouse brain, retinal ganglion cell projections from the left eye are sparsely labeled with red fluorescence using Kcng::AAV-WGA-mCherry viral tracer in the far-red channel. Axonal fibers are visualized as fine structures, coursing through brain tissue and terminating at central visual targets, such as the",
+      "In this patch from a cleared adult mouse brain imaged by light-sheet fluorescence microscopy, retinal ganglion cell projections from the left eye are sparsely labeled with Kcng::AAV-WGA-mCherry viral tracer, resulting in discrete, bright red fluorescence in the far-red channel. Axonal fibers are visualized as fine structures, coursing through brain tissue and terminating",
+      "In this patch from a cleared adult mouse brain imaged using light-sheet fluorescence microscopy, retinal ganglion cell projections originating from the left eye are sparsely labeled with Kcng::AAV-WGA-mCherry viral tracer, resulting in discrete, bright red fluorescence in the far-red channel. Axonal fibers of these cells are depicted as fine structures, coursing through brain",
+      "In this light-sheet fluorescence microscopy image from a cleared WT adult mouse brain, retinal ganglion cell projections from the left eye are sparsely labeled with Kcng::AAV-WGA-mCherry viral tracer, resulting in discrete, bright red fluorescence in the far-red channel. Axonal fibers are visualized as fine structures, coursing through brain tissue and projecting to"
+    ]
+  },
+  "16_al2_xd1b_e_a": {
+    "orig": "Light-sheet fluorescence microscopy image patch from a cleared WT adult mouse brain, showing sparsely labeled retinal ganglion cell projections from the right eye. Labeling was performed using a KO6Cad::AAV-YFP viral tracer, producing bright fluorescence in the far-red channel. The signal outlines fine axonal fibers extending toward central visual targets, including the lateral geniculate nucleus (LGN) and superior colliculus, against a mostly unlabeled background.",
+    "rewrites": [
+      "Far-red channel image from cleared adult mouse brain's light-sheet fluorescence microscopy depicts sparse KO6Cad::AAV-YFP labeling of retinal ganglion cell projections originating from the right eye. The labeled fibers, appearing as bright structures, extend toward central visual targets, such as the lateral geniculate nucleus (LGN) and superior colliculus, amidst an otherwise un",
+      "In this light-sheet fluorescence microscopy image patch from a cleared WT adult mouse brain, retinal ganglion cell projections from the right eye are sparsely labeled using a KO6Cad::AAV-YFP viral tracer, resulting in bright fluorescence in the far-red channel. The labeled fibers are outlined, extending toward central visual targets, such as the lateral geniculate nucleus (",
+      "Far-red channel light-sheet fluorescence image of a cleared adult mouse brain slice reveals sparse KO6Cad::AAV-YFP labeling of retinal ganglion cell projections originating from the right eye. The labeled axonal fibers are depicted as fine structures, extending toward central visual targets, such as the lateral geniculate nucleus (LGN) and superior colliculus, against a predominantly unlabeled",
+      "In this light-sheet fluorescence microscopy image, axonal projections from retinal ganglion cells of the right eye in a cleared WT adult mouse brain are sparsely labeled using KO6Cad::AAV-YFP viral tracer, resulting in bright fluorescence in the far-red channel. The image reveals fine axonal fibers extending toward central visual targets, such as the lateral geniculate nucle",
+      "In this patch from a cleared adult mouse brain imaged using light-sheet fluorescence microscopy, retinal ganglion cell projections from the right eye are sparsely labeled with KO6Cad::AAV-YFP viral tracer, resulting in bright fluorescence in the far-red channel. The signal delineates fine axonal fibers that extend toward central visual targets, such as the lateral geniculate"
+    ]
+  },
+  "17_al2_xd1b_j_a": {
+    "orig": "In this light-sheet fluorescence microscopy image patch of a cleared WT adult mouse brain, sparse retinal ganglion cell projections from the left eye are visualized. A Kcng::AAV-mYFP viral tracer labels these axons, producing bright far-red fluorescence that reveals long, slender fibers traveling through the brain toward key visual processing regions such as the lateral geniculate nucleus (LGN) and superior colliculus.",
+    "rewrites": [
+      "In this light-sheet fluorescence microscopy image, retinal ganglion cell axons from the left eye are depicted as sparse, elongated structures labeled with Kcng::AAV-mYFP. The image reveals these axons traveling through the cleared WT adult mouse brain, with bright far-red fluorescence indicating their presence in regions such as the lateral geniculate nucleus (LGN) and superior col",
+      "In this cleared adult mouse brain image patch obtained via light-sheet fluorescence microscopy, retinal ganglion cell axons from the left eye are depicted as sparse, elongated structures labeled with Kcng::AAV-mYFP. These axons exhibit bright far-red fluorescence and traverse the brain, terminating in key visual processing areas including the lateral geniculate nucleus (LGN) and superior",
+      "In this cleared adult mouse brain image patch obtained using light-sheet fluorescence microscopy, retinal ganglion cell axons from the left eye are depicted as sparse, elongated structures labeled with Kcng::AAV-mYFP. These axons exhibit bright far-red fluorescence and traverse the brain, terminating in regions including the lateral geniculate nucleus (LGN) and superior colliculus",
+      "In this cleared adult mouse brain image patch obtained using light-sheet fluorescence microscopy, axons from the left eye's retinal ganglion cells are depicted as sparsely distributed. These axons are labeled with Kcng::AAV-mYFP, resulting in bright, far-red fluorescence that highlights elongated fibers traversing the brain and terminating in key visual processing areas, including the lateral gen",
+      "In this light-sheet fluorescence microscopy image, retinal ganglion cell axons from the left eye are depicted as sparse, elongated structures labeled with Kcng::AAV-mYFP, resulting in bright far-red fluorescence. These axons are discernible as they traverse the brain, passing through structures such as the lateral geniculate nucleus (LGN) and superior colliculus",
+      "In this light-sheet fluorescence microscopy image, axons from the left eye's retinal ganglion cells, sparsely labeled with Kcng::AAV-mYFP, are depicted. These axons exhibit bright far-red fluorescence, allowing visualization of their long, slender structure as they traverse the brain and terminate in key visual processing areas, including the lateral geniculate nucleus ("
+    ]
+  },
+  "18_ac17_cr7c_w23_a": {
+    "orig": "Light-sheet fluorescence microscopy image patch from a mouse brain collected 8 days after footpad injection of West Nile Virus. The tissue was immunolabeled for the viral nonstructural protein NS1, producing bright signal in the 639 nm channel. The staining highlights infected cells and surrounding structures, enabling visualization of viral protein distribution within the brain.",
+    "rewrites": []
+  },
+  "19_aj12_lg1e_j_a": {
+    "orig": "Light-sheet fluorescence microscopy image patch of a cleared Alzheimer's disease model mouse brain acquired in the 445 nm autofluorescence channel. The signal appears as a diffuse, low-intensity glow outlining general tissue architecture and anatomical features. Autofluorescence provides broad structural contrast but does not highlight specific cell types, serving instead as a contextual reference within the 3D dataset.",
+    "rewrites": []
+  },
+  "20_aj12_lg1e_j_a": {
+    "orig": "In this light-sheet fluorescence microscopy image of a cleared Alzheimer's disease model mouse brain, β-amyloid immunolabeling is visible as intensely fluorescent puncta distributed throughout the tissue. The deposits form irregular or rounded clusters of bright signal, marking extracellular plaque aggregates. These glowing spots are sharply contrasted against the surrounding parenchyma, allowing the three-dimensional pattern of amyloid plaques to be observed across cortical and hippocampal regions.",
+    "rewrites": [
+      "In this light-sheet fluorescence microscopy image of a cleared Alzheimer's disease model mouse brain, β-amyloid is detected as intensely fluorescent puncta distributed throughout the tissue. These puncta represent extracellular plaque aggregates, appearing as irregular or rounded clusters of bright signal. The contrast between these clusters and the surrounding tissue enables visualization of the three-dimensional distribution of β-amyloid",
+      "In this cleared Alzheimer's disease model mouse brain imaged using light-sheet fluorescence microscopy, β-amyloid is identified by immunolabeling as intensely fluorescent puncta scattered throughout the tissue. The deposits appear as irregularly shaped or rounded clusters of bright signal, indicating extracellular plaque aggregates. These distinct puncta contrast sharply with the surrounding tissue, enabling visualization of the three",
+      "In this light-sheet fluorescence microscopy image of a cleared Alzheimer's disease model mouse brain, β-amyloid is detected as intensely fluorescent puncta distributed throughout the tissue. These puncta form irregular or rounded clusters, indicating the presence of extracellular plaque aggregates. The contrast between these clusters and the surrounding tissue facilitates visualization of the three-dimensional distribution of β-amylo",
+      "In this light-sheet fluorescence microscopy image of a cleared Alzheimer's disease model mouse brain, β-amyloid is detected as intensely fluorescent puncta distributed throughout the tissue. These puncta represent extracellular plaque aggregates, appearing as irregular or rounded clusters of bright signal. The contrast between these clusters and the surrounding tissue facilitates visualization of the three-dimensional distribution of β-amy",
+      "In this cleared Alzheimer's disease model mouse brain imaged using light-sheet fluorescence microscopy, β-amyloid is identified by immunolabeling as distinct, intensely fluorescent puncta. These puncta form irregular clusters throughout the tissue, representing extracellular plaque aggregates. The contrast between these clusters and the surrounding parenchyma enables visualization of the three-dimensional distribution of am",
+      "In this light-sheet fluorescence microscopy image of a cleared Alzheimer's disease model mouse brain, β-amyloid is identified by immunolabeling as intensely fluorescent puncta dispersed throughout the tissue. The deposits appear as irregularly shaped or rounded clusters of bright signal, indicative of extracellular plaque aggregates. These puncta exhibit high contrast against the surrounding tissue, enabling visualization"
+    ]
+  },
+  "21_aj12_lg1e_j_a": {
+    "orig": "In this light-sheet fluorescence microscopy image of a cleared Alzheimer's disease model mouse brain, phosphorylated paired helical filament tau (PHF-tau) is revealed by immunolabeling. The signal appears as irregular, brightly fluorescent accumulations within neuronal cell bodies and their processes. These deposits form clusters and streak-like patterns of light against the surrounding tissue, making the three-dimensional spread of tau pathology across vulnerable brain regions clearly visible.",
+    "rewrites": [
+      "In this cleared Alzheimer's disease model mouse brain imaged using light-sheet fluorescence microscopy, PHF-tau is detected by immunolabeling, resulting in irregular, bright fluorescent foci within neuronal somata and processes. These aggregates form clusters and elongated structures, revealing the three-dimensional distribution of PHF-tau in susceptible brain areas.",
+      "In this light-sheet fluorescence microscopy image of a cleared Alzheimer's disease model mouse brain, PHF-tau is identified by immunolabeling as irregularly distributed, brightly fluorescent aggregates within neuronal somata and processes. These aggregates form clusters and streak-like structures, providing a three-dimensional representation of the PHF-tau distribution in the brain.",
+      "In this cleared Alzheimer's disease model mouse brain imaged using light-sheet fluorescence microscopy, PHF-tau is identified by immunolabeling as irregular, brightly fluorescent aggregates within neuronal somata and processes. These aggregates form clusters and streak-like patterns, revealing the three-dimensional distribution of PHF-tau in the brain.",
+      "In this cleared Alzheimer's disease model mouse brain imaged using light-sheet fluorescence microscopy, PHF-tau is detected by immunolabeling as irregular, bright fluorescent aggregates within neuronal somata and processes. These aggregates form clusters and elongated structures, revealing the three-dimensional distribution of PHF-tau in susceptible brain areas.",
+      "In this light-sheet fluorescence microscopy image, PHF-tau immunolabeling highlights irregular accumulations within neuronal somata and processes, appearing as bright fluorescent foci. These deposits form clusters and streak-like patterns, revealing the three-dimensional distribution of PHF-tau in the cleared Alzheimer's disease model mouse brain.",
+      "In this light-sheet fluorescence microscopy image of a cleared Alzheimer's disease model mouse brain, PHF-tau is detected by immunolabeling as irregular, brightly fluorescent aggregates within neuronal somata and processes. These aggregates form clusters and streak-like patterns, revealing the three-dimensional distribution of PHF-tau in the brain."
+    ]
+  },
+  "22_aj12_lg1e_j_a": {
+    "orig": "Light-sheet fluorescence microscopy image patch of a cleared Alzheimer's disease model mouse brain immunolabeled for glial fibrillary acidic protein (GFAP). The staining highlights astrocytic cell bodies and their fine processes as bright, filamentous fluorescent structures extending through the tissue. These glowing fibers form a dense, branching network that outlines astrocytic morphology in three dimensions, standing out distinctly against the darker background.",
+    "rewrites": [
+      "Three-dimensional light-sheet fluorescence microscopy image of a cleared Alzheimer's disease model mouse brain, immunolabeled for glial fibrillary acidic protein (GFAP). The staining reveals astrocytic somata and processes as bright, filamentous structures, extending throughout the tissue. GFAP-labeled fibers form a complex, three-dimensional network, contrasting against the darker background.",
+      "Three-dimensional light-sheet fluorescence microscopy image of a cleared Alzheimer's disease model mouse brain, labeled for glial fibrillary acidic protein (GFAP). The immunolabeling reveals astrocytic somata and processes as bright, filamentous structures, forming a complex, three-dimensional network. The network is characterized by a high density of branching fibers, which contrasts with the darker",
+      "Three-dimensional light-sheet fluorescence microscopy image of a cleared Alzheimer's disease model mouse brain, immunolabeled for glial fibrillary acidic protein (GFAP). The image depicts GFAP-labeled astrocytes as bright, filamentous structures, with somata and processes distinguishable. The fibers form a complex, three-dimensional network, contrasting against the darker background.",
+      "Three-dimensional light-sheet fluorescence microscopy image of a cleared Alzheimer's disease model mouse brain, labeled for glial fibrillary acidic protein (GFAP). The immunolabeling reveals astrocytic somata and processes as bright, filamentous structures, delineating a complex, three-dimensional network within the tissue.",
+      "Three-dimensional light-sheet fluorescence microscopy image of a cleared Alzheimer's disease model mouse brain, labeled for glial fibrillary acidic protein (GFAP). The immunolabeling reveals astrocytic somata and processes as bright, filamentous structures, forming a dense, three-dimensional network of GFAP-positive fibers."
+    ]
+  },
+  "23_bh1_tm6a_a_a": {
+    "orig": "This light-sheet fluorescence microscopy image patch shows neurons in a cleared WT adult mouse brain that express dopamine β-hydroxylase (DBH) beginning in embryonic development. A Flp::tdTomato genetic labeling strategy was used, producing strong red fluorescence in the 639 nm channel. The labeling reveals DBH-positive neuronal somata and processes with clear contrast against the surrounding brain tissue.",
+    "rewrites": []
+  },
+  "24_bh1_tm6b_f_a": {
+    "orig": "Light-sheet fluorescence microscopy image patch from a cleared WT adult mouse brain, showing sparsely labeled neurons in the A1, A2, and A5 brainstem catecholaminergic groups, which are involved in autonomic and arousal regulation. Labeling was achieved with an AAV2.1-tdTomato viral vector, producing bright red fluorescence in the 561 nm channel. The signal highlights distinct neuronal somata and processes with clear contrast against the surrounding brain tissue.",
+    "rewrites": []
+  }
+}
