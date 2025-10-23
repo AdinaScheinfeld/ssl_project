@@ -58,7 +58,9 @@ srun --label python "/home/ads4015/ssl_project/rewrite_prompts/rewrite_text_prom
   --sim_thresh "$SIM_THRESH" \
   --temperature "$TEMP" \
   --top_p "$TOPP" \
-  --max_new_tokens "$MAX_NEW"
+  --max_new_tokens "$MAX_NEW" \
+  --rw_self_sim_thresh 0.92 \
+  --rw_jaccard_thresh 0.6
 
 STATUS=$?
 if [[ $STATUS -ne 0 ]]; then
@@ -66,14 +68,14 @@ if [[ $STATUS -ne 0 ]]; then
   exit $STATUS
 fi
 
-# print a few keys and 1–2 rewrites to stdout as sanity check
+# print a few keys, show kept vs. rejected, and preview reasons
 echo "[INFO] Sanity check on $OUT_JSON"
 
 # pass the OUT_JSON path to the inline Python
 export OUT_JSON_PATH="$OUT_JSON"
 
 srun --label python - <<'PYCODE'
-import json, random, os
+import json, os
 p = os.environ.get("OUT_JSON_PATH", "/home/ads4015/ssl_project/rewrite_prompts/text_prompts_expanded.json")
 with open(p, "r") as f:
     d = json.load(f)
@@ -84,14 +86,19 @@ for k in keys:
     entry = d[k]
     orig = entry.get("orig", "")
     rws = entry.get("rewrites", [])
+    rej = entry.get("rejection_reasons", [])
     print(f"\nKEY: {k}")
     print(f"  ORIG: {orig[:180]}{'...' if len(orig)>180 else ''}")
+    print(f"  kept: {len(rws)} | rejected: {len(rej)}")
     if rws:
         print(f"  RW1 : {rws[0][:180]}{'...' if len(rws[0])>180 else ''}")
         if len(rws) > 1:
             print(f"  RW2 : {rws[1][:180]}{'...' if len(rws[1])>180 else ''}")
-    else:
-        print("  (no rewrites kept by filters)")
+    for j, r in enumerate(rej, 1):
+        txt = r.get('text','')
+        reasons = r.get('rejection_reasons') or r.get('reasons')
+        sim = r.get('similarity')
+        print(f"  REJ{j}: {txt[:140]}{'...' if len(txt)>140 else ''} | reasons={reasons} | sim={sim}")
 PYCODE
 
 echo "[INFO] Done at $(date)"

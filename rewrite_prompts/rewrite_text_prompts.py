@@ -62,7 +62,8 @@ SYSTEM_MSG = (
     "- avoids speculation, demographics, or causal language not in the source;\n"
     "- removes subjective adjectives unless measurement-like (e.g., 'dense', 'sparse');\n"
     "- never invents new markers, regions, or claims not present in the source;\n"
-    "- stays concise (1-2 sentences)."
+    "- stays concise (1-2 sentences);\n"
+    "- maybe uses a different sentence opening than the input (do NOT begin with the same 2-4 words as the input)."
 )
 
 # few shot examples (show samples of good rewrites)
@@ -116,27 +117,31 @@ def postprocess_text(text):
 def basic_filtering(original, rewritten, banned_terms):
 
     # regex for bad words
-    RE_BAD = re.compile(r"\b(beautiful|lovely|gorgeous|stunning|obvious|clear|clearly)\b", re.IGNORECASE)
+    RE_BAD = re.compile(r"\b(beautiful|lovely|gorgeous|stunning|obvious)\b", re.IGNORECASE)
+
+    # create list to hold reasons for rejection
+    reject_reasons = []
 
     # ensure not too short
-    if len(rewritten) < 15:
-        return False
+    if len(rewritten.strip()) < 15:
+        reject_reasons.append('too_short (<15 chars)')
     
     # ensure subjective adjectives not present
     if RE_BAD.search(rewritten):
-        return False
+        reject_reasons.append('subjective_adjectives_present')
     
     # ensure banned terms not present
     for b in banned_terms:
         if re.search(rf"\b{re.escape(b)}\b", rewritten, re.IGNORECASE):
-            return False
+            reject_reasons.append(f'banned_term_present: {b}')
         
     # avoid "unknown", "unannotated" if original is specific
-    if ("Unknown" in rewritten or "unannotated" in rewritten.lower()) and len(original) > 40:
-        return False
+    rw_low = rewritten.lower()
+    if (('unknown' in rw_low) or ('unannotated' in rw_low)) and len(original.strip()) > 40:
+        reject_reasons.append('inappropriate_unknown_for_specific_original')
 
-    # if all checks passed, return True
-    return True
+    # if all checks passed, return True and return list of reasons
+    return (len(reject_reasons) == 0), reject_reasons
 
 # function to build whitelist of terms from original prompts (ex: wavelengths, antibody)
 def build_whitelist_from_original(original):
@@ -144,9 +149,10 @@ def build_whitelist_from_original(original):
     # create whitelist
     whitelist = set()
 
-    # wavelengths
-    for m in re.findall(r"\b(4\d{2}|5\d{2}|6\d{2})\s*nm\b", original):
+    # wavelengths (store both '### nm' and '###' forms)
+    for m in re.findall(r"\b(4\d{2}|5\d{2}|6\d{2}|7\d{2})\s*nm\b", original):
         whitelist.add(f'{m} nm')
+        whitelist.add(f'{m}')
 
     # antibodies/markers (simple heuristic of uppercase words >= 3 letters, ex: CTIP2, GFAP, LYVE1, DBH, etc)
     for m in re.findall(r"\b([A-Z0-9]{3,})\b", original):
@@ -157,14 +163,35 @@ def build_whitelist_from_original(original):
 # function to reject rewrites that introduce new all caps marker-like tokens that were'nt in the original
 def introduces_new_markers(original_whitelist, rewritten):
 
-    # find all new and old caps
-    new_caps = set(re.findall(r"\b[A-Z0-9]{3,}\b", rewritten))
-    old_caps = set([w for w in original_whitelist if w.isupper()])
+    # find tokens that look like markers/wavelengths (3+ A-Z or digits)
+    new_tokens = set(re.findall(r"\b[A-Z0-9]{3,}\b", rewritten))
+
+    # split whitelist into markers and wavelengths
+    original_alpha = {w for w in original_whitelist if any(c.isalpha() for c in w)}
+    original_alpha = {w for w in original_alpha if w.upper() == w} # keep only all caps
+    original_num = {w for w in original_whitelist if w.isdigit()}
+
+    ## UP TO HERE
 
     # see if any new all caps
-    extra_caps = new_caps - old_caps
+    extra_caps = set()
+    for tok in new_tokens:
+        if tok.isdigit(): # numeric token only ok if present in whitelist
+            if tok not in original_num:
+                extra_caps.add(tok) 
 
-    return len(extra_caps) > 0
+        else: # alphabetic token only ok if present in whitelist
+            if tok not in original_alpha:
+                extra_caps.add(tok)
+
+    # return whether new caps were found and list of them
+    return (len(extra_caps) > 0), extra_caps
+
+
+
+
+
+
 
 
 # --- Generate Rewrites ---
@@ -225,8 +252,30 @@ def normalize_key(key):
 
     return key.strip().lower().replace(" ", "_").replace("-", "_")
 
+# function to turn a sentence into a list of tokens for ngram overlap checks
+def _normalize_for_ngrams(text):
+
+    # make lowercase and remove punctuation
+    text = re.sub(r"[^\w\s-]", " ", text.lower()).strip()
+    return re.findall(r"\w+(?:-\w+)?", text) # extract words and hyphenated words
+
+# function to get ngram set from a string
+def ngram_set(text, n):
+    words = _normalize_for_ngrams(text) # tokenize
+    if len(words) < n:
+        return {" ".join(words)} if words else set()
+    return {" ".join(words[i:i+n]) for i in range(len(words)-n+1)} # return n-grams
+
+# function to compute jaccard similarity for 4-grams
+def jaccard_4gram(a, b):
+    A, B = ngram_set(a, 4), ngram_set(b, 4)
+    if not A and not B:
+        return 0.0
+    return len(A & B) / len(A | B) # return intersection over union
+
 # function to expand and merge prompts
-def expand_prompts(input_jsons, pipe, encoder, k, sim_thresh=0.80, max_new_tokens=96, temperature=0.2, top_p=0.9, banned_words=None):
+def expand_prompts(input_jsons, pipe, encoder, k, sim_thresh=0.80, max_new_tokens=96, 
+                   temperature=0.2, top_p=0.9, banned_words=None, rw_self_sim_thresh=0.92, rw_jaccard_thresh=0.60):
 
     # create dict for merged prompts
     merged = {}
@@ -259,6 +308,9 @@ def expand_prompts(input_jsons, pipe, encoder, k, sim_thresh=0.80, max_new_token
 
         orig = payload['orig'].strip()
 
+        # store detailed rejection reasons per rewrite
+        payload.setdefault('rejection_reasons', [])
+
         # skip empty originals
         if not orig:
             continue
@@ -272,28 +324,49 @@ def expand_prompts(input_jsons, pipe, encoder, k, sim_thresh=0.80, max_new_token
         # lexical filtering
         whitelist = build_whitelist_from_original(orig)
 
-        # list of accepted rewrites
-        accepted_rewrites = []
-
-        # loop over candidates
-        for rw in cand_rewrites:
+        # loop over candidates and keep track of whether they pass prelim filtering or why they were rejected
+        prelim_pass = []
+        prelim_records = []
+        
+        for idx, rw in enumerate(cand_rewrites):
 
             # basic filtering
-            if not basic_filtering(orig, rw, banned_words):
+            ok, reasons = basic_filtering(orig, rw, banned_words)
+            if not ok:
+                payload['rejection_reasons'].append({'text': rw, 'rejection_reasons': reasons})
+                print(f'[INFO] {key}: rewrite #{idx} rejected by basic filtering: {reasons}', flush=True)
                 continue
 
             # check for new markers
-            if introduces_new_markers(whitelist, rw):
+            introduces, extras = introduces_new_markers(whitelist, rw)
+            if introduces:
+                reason = [f'introduced_new_marker:{m}' for m in extras]
+                payload['rejection_reasons'].append({'text': rw, 'rejection_reasons': reason})
+                print(f'[INFO] {key}: rewrite #{idx} rejected for introducing new markers: {extras}', flush=True)
                 continue
 
-            # keep if passes all filters
-            accepted_rewrites.append(rw)
+            prelim_pass.append(rw)
+            prelim_records.append({'idx': idx, 'text': rw})
 
-        # similarity filtering to keep diverse set
-        if accepted_rewrites:
-            similarities = encoder.cosine_sim([orig] * len(accepted_rewrites), accepted_rewrites).reshape(-1)
-            filtered_rewrites = [rw for rw, s in zip(accepted_rewrites, similarities) if float(s) >= sim_thresh]
+        # after prelim filtering, apply similarity filtering
+        if prelim_pass:
+            sim_matrix = encoder.cosine_sim([orig], prelim_pass) # shape (1, n)
+            similarities = sim_matrix[0].tolist() # get first row
 
+            # map text to similarity for convenience
+            text_to_sim = {record['text']: float(sim) for record, sim in zip(prelim_records, similarities)}
+
+            filtered_rewrites = []
+            for record, sim in zip(prelim_records, similarities):
+                if float(sim) >= sim_thresh:
+                    filtered_rewrites.append(record['text'])
+                else:
+                    payload['rejection_reasons'].append({
+                        'text': record['text'],
+                        'rejection_reasons': [f'low_similarity:{sim:.3f} < {sim_thresh:.3f}'],
+                        'similarity': float(sim)
+                    })
+                    print(f'[INFO] {key}: rewrite #{record["idx"]} rejected for low similarity: {sim:.3f} < {sim_thresh:.3f}', flush=True)
         else:
             filtered_rewrites = []
 
@@ -305,15 +378,68 @@ def expand_prompts(input_jsons, pipe, encoder, k, sim_thresh=0.80, max_new_token
             if key_rw not in seen:
                 unique_rewrites.append(rw)
                 seen.add(key_rw)
+            else:
+                payload['rejection_reasons'].append({'text': rw, 'rejection_reasons': ['duplicate_rewrite']})
+                print(f'[INFO] {key}: duplicate rewrite rejected: {rw}', flush=True)
+
+        # diversity gating among rewrites to keep only if dissimilar to those already kept
+        diverse_rewrites = []
+        for rw in unique_rewrites:
+            keep = True
+
+            # loop over already kept rewrites
+            for kept in diverse_rewrites:
+
+                # check cosine similarity (rewrite vs rewrite)
+                cos_sim = float(encoder.cosine_sim([rw], [kept])[0, 0])
+
+                # check jaccard 4-gram similarity (lexical overlap)
+                jac = jaccard_4gram(rw, kept)
+                if cos_sim >= rw_self_sim_thresh or jac > rw_jaccard_thresh:
+                    keep = False
+                    payload['rejection_reasons'].append({
+                        'text': rw,
+                        'rejection_reasons': [f'too_similar_to_other_rewrite: cos={cos_sim:.3f}, jacc={jac:.3f}']
+                    })
+                    print(f'[INFO] {key}: rewrite rejected for similarity to other rewrite: cos={cos_sim:.3f}, jacc={jac:.3f}', flush=True)
+                    break
+            if keep:
+                diverse_rewrites.append(rw)
+
+        # sort prelim records by similarity descending
+        prelim_records_sorted = sorted(prelim_records, key=lambda r: text_to_sim[r['text']], reverse=True)
+
+        # guarantee at least 2 rewrites by relaxing similarity if needed
+        if prelim_pass and len(diverse_rewrites) < 2:
+
+            for cand in prelim_records_sorted:
+
+                text = cand['text']
+                norm = re.sub(r'\s+', ' ', text.strip().lower())
+
+                # avoid duplicates against anything already kept
+                if any(re.sub(r'\s+', ' ', rw.strip().lower()) == norm for rw in diverse_rewrites):
+                    continue
+
+                # force add to final kept list
+                diverse_rewrites.append(text)
+                payload['rejection_reasons'].append({
+                    'text': text,
+                    'rejection_reasons': ['force_add_to_meet_minimum_rewrites'],
+                    'similarity': float(text_to_sim.get(text, 0.0))
+                })
+                print(f'[INFO] {key}: added rewrite to meet minimum: {text}', flush=True)
+                if len(diverse_rewrites) >= 2:
+                    break
 
         # log how many rewrites kept
-        num_accepted = len(unique_rewrites)
+        num_accepted = len(diverse_rewrites)
         total_accepted += num_accepted # increment accepted counter
         num_total = len(cand_rewrites)
         print(f'[INFO] {key}: kept {num_accepted} / {num_total} rewrites after filtering', flush=True)
 
         # store final rewrites
-        payload['rewrites'].extend(unique_rewrites)
+        payload['rewrites'].extend(diverse_rewrites)
 
     print(f'[INFO] Processed {total_keys} keys: {total_accepted} accepted rewrites out of {total_candidates} candidates', flush=True)
 
@@ -337,6 +463,8 @@ def main():
     parser.add_argument('--temperature', type=float, default=0.2, help='Sampling temperature for LLM')
     parser.add_argument('--top_p', type=float, default=0.9, help='Top-p sampling parameter for LLM')
     parser.add_argument('--batch_size', type=int, default=1, help='Unused; kept for compatibility')
+    parser.add_argument('--rw_self_sim_thresh', type=float, default=0.92, help='Max cosine similarity between rewrites to consider them unique')
+    parser.add_argument('--rw_jaccard_thresh', type=float, default=0.6, help='Max Jaccard similarity between rewrites to consider them unique')
     args = parser.parse_args()
 
     # get device
@@ -387,7 +515,9 @@ def main():
         max_new_tokens=args.max_new_tokens,
         temperature=args.temperature,
         top_p=args.top_p,
-        banned_words=['beautiful', 'lovely', 'gorgeous', 'stunning', 'obvious', 'clear', 'clearly', 'cause', 'caused by']
+        banned_words=['beautiful', 'lovely', 'gorgeous', 'stunning', 'obvious', 'cause', 'caused by'],
+        rw_self_sim_thresh=args.rw_self_sim_thresh,
+        rw_jaccard_thresh=args.rw_jaccard_thresh,
     )
 
     # save to output json
