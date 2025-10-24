@@ -4,7 +4,7 @@
 #SBATCH --error=logs/all_clip_pretrain_2_rewrites_%j.err
 #SBATCH --time=12:00:00
 #SBATCH --partition=minilab-gpu
-#SBATCH --gres=gpu:h100:2 # select number of gpus ***
+#SBATCH --gres=gpu:2 # select number of gpus ***
 #SBATCH --mem=180G
 #SBATCH --cpus-per-task=16
 #SBATCH --nodes=1
@@ -32,7 +32,7 @@ export NCCL_IB_DISABLE=0 # when set to 0, allows NCCL to use InfiniBand for bett
 export TORCH_NCCL_ASYNC_ERROR_HANDLING=1 # when set to 1, allows NCCL to handle errors asynchronously (can improve performance in some cases)
 
 # set path to config file
-CONFIG_PATH="/home/ads4015/ssl_project/configs/all_datasets_clip_pretrain_2_config_rewrites.yaml"
+CONFIG_PATH="/home/ads4015/ssl_project/rewrite_prompts/all_datasets_clip_pretrain_2_config_rewrites.yaml"
 
 # clock job start time
 export START_EPOCH="$(date +%s)"

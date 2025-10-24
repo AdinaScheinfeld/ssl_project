@@ -171,8 +171,6 @@ def introduces_new_markers(original_whitelist, rewritten):
     original_alpha = {w for w in original_alpha if w.upper() == w} # keep only all caps
     original_num = {w for w in original_whitelist if w.isdigit()}
 
-    ## UP TO HERE
-
     # see if any new all caps
     extra_caps = set()
     for tok in new_tokens:

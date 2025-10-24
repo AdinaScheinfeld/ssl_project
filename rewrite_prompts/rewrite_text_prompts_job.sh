@@ -37,7 +37,7 @@ INP_WU="/home/ads4015/ssl_project/data/text_prompts_wu.json"
 # output merged+expanded JSON
 OUT_JSON="$OUT_DIR/text_prompts_expanded.json"
 
-# LLM to use ## UP TO HERE
+# LLM to use
 MODEL_ID="mistralai/Mistral-7B-Instruct-v0.2"
 
 # Generation settings

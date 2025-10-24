@@ -34,17 +34,31 @@ def load_prompt_dicts(json_paths):
     for jp in json_paths:
         with open(jp, 'r') as f:
             d = json.load(f)
-            for k,v in d.items():
-                key = _normalize_key(k)
-                if isinstance(v, dict) and 'orig' in v:
-                    rew = v.get('rewrites', [])
-                    pool = [v.get('orig', '')] + (rew if isinstance(rew, list) else [])
-                else:
-                    pool = [str(v)]
-                
-                # clean and keep nonempty strings
-                clean_pool = [s.strip() for s in pool if isinstance(s, str) and s.strip()]
-                merged[key] = clean_pool
+        for k,v in d.items():
+            key = _normalize_key(k)
+            if isinstance(v, dict) and 'orig' in v:
+                pool = [v.get('orig', '')] + (v.get('rewrites', []) or [])
+            else:
+                pool = [str(v)]
+            
+            # clean
+            clean = [s.strip() for s in pool if isinstance(s, str) and s.strip()]
+            if not clean:
+                continue
+
+            # add to merged dict
+            merged.setdefault(key, [])
+            merged[key].extend(clean)
+
+        # dedupe while preserving order
+        for k in list(merged.keys()):
+            seen, out = set(), []
+            for s in merged[k]:
+                norm = s.lower()
+                if norm not in seen:
+                    seen.add(norm)
+                    out.append(s)
+            merged[k] = out
 
     return merged
 
@@ -277,6 +291,8 @@ class MultiSourceNiftiTextPatchDatasetRewrites(Dataset):
             # image and text
             image_np, _, src_path = self.sub_patches[idx]
             text_pool = self.extract_text_pool(src_path)
+            if not text_pool:
+                text_pool = ['Unknown microscopy patch with unannotated staining and location.']
             text = random.choice(text_pool) # sample 1 rewrite from pool
             data = {'image': image_np, 'text': text, 'path': src_path} # include path for debugging
             if self.transforms_no_load:
@@ -288,6 +304,8 @@ class MultiSourceNiftiTextPatchDatasetRewrites(Dataset):
             # image and text
             path = self.file_paths[idx]
             text_pool = self.extract_text_pool(path)
+            if not text_pool:
+                text_pool = ['Unknown microscopy patch with unannotated staining and location.']
             text = random.choice(text_pool) # sample 1 rewrite from pool
             data = {'image': path, 'text': text, 'path': path} # include path for debugging
             if self.full_transforms:
