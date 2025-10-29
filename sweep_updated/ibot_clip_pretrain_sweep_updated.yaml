@@ -1,0 +1,85 @@
+# sweep/ibot_clip_pretrain_sweep_updated.yaml
+# TUNES: max_epochs, patience, accumulate_grad_batches, global_batch_size,
+#        num_workers, downsample.enabled, mask_ratio_warmup, warmup_epochs,
+#        ema_decay, mask_patch_size, temp_student, temp_teacher,
+#        embed_dim, clip_temperature, feature_size
+# Keeps: seed=100, devices=2, train_frac=0.9, data_subset_frac=1.0,
+#        use_sub_patches=False, base_patch_size=96, target_size=64
+
+program: sweep_updated/run_pretrain_wandb_updated.py # small wrapper that merges overrides and launches trainer
+name: ibot-clip-pretrain-lsm-sweep-updated
+project: ibot-clip-pretrain-lsm-all-updated # matches training.project_name in your base YAML
+
+method: bayes
+metric:
+  name: val_loss_report
+  goal: minimize
+
+parameters:
+  training.max_epochs:
+    values: [500, 1000, 2000]
+  training.patience:
+    values: [100, 150, 200]
+
+  dist.accumulate_grad_batches:
+    values: [4, 8, 16]
+
+  data.global_batch_size:
+    values: [8, 16, 32]  # per‑GPU BS = global / (2 * accumulate)
+  data.num_workers:
+    values: [0, 1]
+  data.downsample.enabled:
+    values: [true, false]
+
+  model.mask_ratio_warmup:
+    values: [0.05, 0.1]
+  model.warmup_epochs:
+    values: [20, 30, 50]
+  model.ema_decay:
+    values: [0.996, 0.998]
+  model.mask_patch_size:
+    values: [8]
+  model.temp_student:
+    values: [0.025, 0.05, 0.1]
+  model.temp_teacher:
+    values: [0.05]
+  model.embed_dim:
+    values: [512]
+  model.clip_temperature:
+    values: [0.04, 0.07, 0.1]
+  model.feature_size:
+    values: [12, 24, 36]
+
+  # loss weights to sweep and tune
+  loss_weights.clip_weight:
+    distribution: uniform
+    min: 0.15
+    max: 0.60
+  loss_weights.align_weight:
+    distribution: uniform
+    min: 0.02
+    max: 0.12
+  loss_weights.reconstruction_weight:
+    distribution: uniform
+    min: 0.15
+    max: 0.40
+  loss_weights.distill_weight:
+    distribution: uniform
+    min: 0.20
+    max: 0.50
+
+  # warmup epochs for loss weights (so they don't dominate early training)
+  loss_warmup.clip_warmup_epochs:
+    values: [10, 20, 40]
+  loss_warmup.align_warmup_epochs:
+    values: [10, 20, 40]
+
+  
+
+# prune weak trials early to recycle GPUs
+early_terminate:
+  type: hyperband
+  min_iter: 15
+
+
+
