@@ -17,38 +17,38 @@ metric:
 
 parameters:
   training.max_epochs:
-    values: [200, 500, 1000]
+    values: [500, 1000, 2000]
   training.patience:
-    values: [20, 50, 100]
+    values: [100, 150, 200]
 
   dist.accumulate_grad_batches:
-    values: [1, 2, 4]
+    values: [4, 8, 16]
 
   data.global_batch_size:
-    values: [16, 32, 64]  # per‑GPU BS = global / (2 * accumulate)
+    values: [8, 16, 32]  # per‑GPU BS = global / (2 * accumulate)
   data.num_workers:
-    values: [0, 1, 2]
+    values: [0, 1]
   data.downsample.enabled:
     values: [true, false]
 
   model.mask_ratio_warmup:
-    values: [0.05, 0.1, 0.2]
+    values: [0.05, 0.1]
   model.warmup_epochs:
-    values: [10, 20, 30]
+    values: [20, 30, 50]
   model.ema_decay:
-    values: [0.994, 0.996, 0.998]
+    values: [0.996, 0.998]
   model.mask_patch_size:
-    values: [4, 8, 16]
+    values: [8]
   model.temp_student:
-    values: [0.05, 0.1, 0.2]
+    values: [0.025, 0.05, 0.1]
   model.temp_teacher:
-    values: [0.03, 0.04, 0.05]
+    values: [0.05]
   model.embed_dim:
-    values: [128, 256, 512]
+    values: [512]
   model.clip_temperature:
     values: [0.04, 0.07, 0.1]
   model.feature_size:
-    values: [12, 24, 48]
+    values: [6, 12, 24]
 
 # prune weak trials early to recycle GPUs
 early_terminate:

@@ -5,11 +5,11 @@
 #SBATCH --partition=minilab-gpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gres=gpu:h100:2 # each task needs 2 GPUs
+#SBATCH --gres=gpu:2 # each task needs 2 GPUs
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=180G
 #SBATCH --time=72:00:00
-#SBATCH --array=1-2%2 # submit 2 tasks, cap concurrency at 2 (elastic)
+#SBATCH --array=1-4 # submit 4 tasks
 
 # USAGE: sbatch sweep/run_agent_array.sh <SWEEP_ID>
 # EXAMPLE: sbatch sweep/run_agent_array.sh adinas-wcm/ibot-clip-pretrain-lsm-all/abc123xy
