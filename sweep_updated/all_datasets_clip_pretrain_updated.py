@@ -63,7 +63,7 @@ def compute_per_device_batch_size(cfg, world_override=None):
 
     # ensure correct dimensions and divisibility
     if per_dev < 1:
-        raise ValueError(f'Global batch size {global_batch_size} is too small for {world} devices with accumulate_grad_batches={accumulate_grad_batches}. Set a larger global batch size.', flush=True)
+        raise ValueError(f'Global batch size {global_batch_size} is too small for {world} devices with accumulate_grad_batches={accumulate_grad_batches}. Set a larger global batch size.')
     if global_batch_size % (world * accumulate_grad_batches) != 0:
         print(f'[WARNING] global_batch_size={global_batch_size} not divisible by world*accumulate_grad_batches={world*accumulate_grad_batches}.'
               f'Using per-device batch_size={per_dev} and effective global={per_dev*world*accumulate_grad_batches}.', flush=True)
