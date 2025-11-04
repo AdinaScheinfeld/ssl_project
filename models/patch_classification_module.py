@@ -15,7 +15,9 @@ import pytorch_lightning as pl
 # --- Helper Functions ---
 
 # function to strip module prefixes from state dict
-def _strip_module_prefixes(state_dict, prefixes=('model.', 'module.', 'encoder.', 'net.')):
+def _strip_module_prefixes(state_dict, 
+                           prefixes=('student_encoder.', 'ema_student_encoder.', 
+                                     'model.', 'module.', 'encoder.', 'net.')):
 
     # dict for new state
     new_state_dict = {}
@@ -54,6 +56,11 @@ def _load_backbone_encoder_from_ckpt(model, ckpt_path):
     # load state dict into model and check for missing/unexpected keys and count how many keys were loaded
     missing, unexpected = model.load_state_dict(state_dict, strict=False)
     loaded = sum(1 for k in state_dict.keys() if k in model.state_dict())
+
+    # log info
+    print(f'[INFO] Encoder load: loaded={loaded}, missing={len(missing)}, unexpected={len(unexpected)}', flush=True)
+    if missing: print(f'[DEBUG] Missing keys: {missing}', flush=True)
+    if unexpected: print(f'[DEBUG] Unexpected keys: {unexpected}', flush=True)
 
     # return info
     return loaded, missing, unexpected
@@ -101,6 +108,7 @@ class PatchClassificationModule(pl.LightningModule):
             feats = self.backbone.swinViT(dummy_input)
             deepest = feats[-1] if isinstance(feats, (list, tuple)) else feats
             encoder_channel_dim = deepest.shape[1]
+        print(f'[INFO] Encoder deepest C={encoder_channel_dim} (feature size={feature_size})', flush=True)
         self.head = nn.Linear(encoder_channel_dim, num_classes) # classification head
 
         # use class weights in loss if provided
