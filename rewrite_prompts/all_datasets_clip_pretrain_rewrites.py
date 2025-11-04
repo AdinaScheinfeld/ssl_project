@@ -164,6 +164,10 @@ if __name__ == '__main__':
     # initialize model
     model = IBOTCLIPPretrainModule(config)
 
+    # create periodic checkpoint directory if needed
+    periodic_ckpt_dir = os.path.join(config['model']['save_dirpath'], 'periodic_checkpoints')
+    os.makedirs(periodic_ckpt_dir, exist_ok=True)
+
     # callbacks
     callbacks = [
         # callback for early stopping
@@ -180,6 +184,19 @@ if __name__ == '__main__':
             verbose=True
         )
     ]
+
+    # add periodic checkpointing callback if enabled
+    every_n = int(config['training'].get('checkpoint_every_n_epochs', 0))
+    if every_n > 0:
+        callbacks.append(
+            ModelCheckpoint(
+                dirpath=periodic_ckpt_dir,
+                filename='epoch{epoch:06d}',
+                save_top_k=-1, # save all periodic checkpoints
+                every_n_epochs=every_n, # save every n epochs
+                save_on_train_epoch_end=True # save at end of each epoch
+            )
+        )
 
     # pytorch lightning trainer
     trainer = pl.Trainer(
