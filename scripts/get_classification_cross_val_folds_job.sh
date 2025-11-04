@@ -20,29 +20,34 @@ source activate monai-env1
 
 # paths
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches" # root data dir
-OUT_JSON="/ministorage/adina/classification_eval/selma_classification_folds.json"  # <- where to write folds
-mkdir -p "$(dirname "$OUT_JSON")"
+OUTDIR="/ministorage/adina/classification_eval/folds3_test2"  # location to write folds
+mkdir -p "$OUTDIR"
 
 # Tuning knobs for folds creation
-REPEATS=5 # number of folds (i.e., how many train/eval splits)
+REPEATS=3 # number of folds (i.e., how many train/eval splits)
 TEST_FRAC=0.2 # percent of data held out per fold (distributed per class)
 LOCK_TEST=false # if true, same eval set for every repeat
 CHANNEL_SUBSTR=ALL # filter e.g. "ch0,ch1" or use ALL for no filter
 SEED=100
+FIXED_TEST_PER_CLASS=2 # fixed number of test samples per class (overrides TEST_FRAC if set; caps at available)
 
 # build a single global, stratified split
-python /home/ads4015/ssl_project/src/get_classification_cross_val_folds.py \
-  --root_dir "$ROOT" \
-  --repeats "$REPEATS" \
-  --test_frac "$TEST_FRAC" \
-  $( $LOCK_TEST && echo "--lock_test" || true ) \
-  --channel_substr "$CHANNEL_SUBSTR" \
-  --seed "$SEED" \
-  --output_json "$OUT_JSON"
+for TR in 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+  python /home/ads4015/ssl_project/src/get_classification_cross_val_folds.py \
+    --root_dir "$ROOT" \
+    --repeats "$REPEATS" \
+    --fixed_test_per_class "$FIXED_TEST_PER_CLASS" \
+    --train_per_class "$TR" \
+    --test_frac "$TEST_FRAC" \
+    $( $LOCK_TEST && echo "--lock_test" || true ) \
+    --channel_substr "$CHANNEL_SUBSTR" \
+    --seed "$SEED" \
+    --output_json "$OUTDIR/cls_folds_tr${TR}_test${FIXED_TEST_PER_CLASS}_rep${REPEATS}.json"
+done
 
 
 # indicate done
-echo "[INFO] Wrote folds to: $OUT_JSON"
+echo "[INFO] Wrote folds to: $OUTDIR"
 
 
 

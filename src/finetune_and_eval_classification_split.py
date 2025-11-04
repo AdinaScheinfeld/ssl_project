@@ -63,7 +63,7 @@ def list_class_dirs(root_dir):
     return sorted([d for d in root_dir.iterdir() if d.is_dir()])
 
 # function to gather samples from class directories
-def discover_samples(root_dir, class_filter=None, exclude=None):
+def discover_samples(root_dir, class_filter=None, exclude=None, channel_substr='ALL'):
 
     # get class dirs
     class_dirs = list_class_dirs(root_dir)
@@ -85,12 +85,21 @@ def discover_samples(root_dir, class_filter=None, exclude=None):
 
     # gather samples
     samples = []
+
+    # normalize channel filters
+    subs = None
+    s = str(channel_substr).strip() if channel_substr is not None else 'ALL'
+    if s and s.upper() != 'ALL':
+        subs = [t.strip().lower() for t in s.split(',') if t.strip()]
+
     for n in names:
         dd = root_dir / n
         for p in sorted(dd.glob('*.nii*')):
             low = p.name.lower()
             if low.endswith('_label.nii') or low.endswith('_label.nii.gz'):
                 continue # skip segmentation label files
+            if subs is not None and not any(tok in low for tok in subs):
+                continue # skip if channel substrings not found
             samples.append({'path': p, 'label_idx': name_to_idx[n], 'label_name': n})
 
     return samples, names
@@ -240,7 +249,10 @@ def metrics_from_counts(cm):
 def run_once(root_dir, args, device):
 
     # 1) discover samples and build class map
-    all_samples, class_names = discover_samples(root_dir, class_filter=args.subtypes, exclude=args.exclude_subtypes)
+    all_samples, class_names = discover_samples(root_dir, 
+                                                class_filter=args.subtypes, 
+                                                exclude=args.exclude_subtypes,
+                                                channel_substr=args.channel_substr)
     K = len(class_names)
     if K == 0:
         print(f'[ERROR] No classes found in {root_dir} after filtering', flush=True)
@@ -298,7 +310,7 @@ def run_once(root_dir, args, device):
     dataloader_kwargs = dict(
         num_workers=num_workers,
         pin_memory=torch.cuda.is_available(),
-        persistent_workers=False,
+        persistent_workers=(num_workers > 0),
         worker_init_fn=_seed_worker
     )
 
@@ -322,7 +334,7 @@ def run_once(root_dir, args, device):
         eval_pct = args.eval_percent if args.eval_percent is not None else (len(test_set) / total)
         split_tag = f'percent_tr{tr_pct:.2f}_eval{eval_pct:.2f}_ntr{len(train_pool)}_ntest{len(test_set)}'
 
-    tag = f'{split_tag}_fttr{len(train_set)}_ftval{len(val_set)}_seed{args.seed}'
+    tag = f'{args.init_mode}_{split_tag}_fttr{len(train_set)}_ftval{len(val_set)}_seed{args.seed}'
     run_name = f'CLS_{tag}'
 
     # wandb logger

@@ -27,10 +27,11 @@ INIT_MODE="${3:-pretrained}" # default: pretrained (use "random" for baseline)
 
 # paths
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches" # root data dir
-CKPT_DIR="/ministorage/adina/classification_eval_image_only/checkpoints/finetune_cls" # checkpoint output dir
-METRICS_ROOT="/ministorage/adina/classification_eval_image_only/cls_metrics" # metrics output dir
-PRETRAINED="/ministorage/adina/pretrain_sweep_no_clip/checkpoints/r605gzgj/all_datasets_pretrained_no_clip-epochepoch=183-valval_loss=0.0201-stepstep=10672.ckpt" # pretrained backbone checkpoint
-FEATURE_SIZE=24 # feature size must match backbone pretraining
+CKPT_DIR="/ministorage/adina/classification_eval/folds3_test2/checkpoints/finetune_cls" # checkpoint output dir
+METRICS_ROOT="/ministorage/adina/classification_eval/folds3_test2/cls_metrics" # metrics output dir
+PRETRAINED="/ministorage/adina/pretrain_sweep_updated/checkpoints/kjvlrs45/all_datasets_clip_pretrained-updated-epochepoch=354-val-reportval_loss_report=0.0968-stepstep=20590.ckpt" # pretrained backbone checkpoint (image+clip)
+# PRETRAINED="/ministorage/adina/pretrain_sweep_no_clip/checkpoints/r605gzgj/all_datasets_pretrained_no_clip-epochepoch=183-valval_loss=0.0201-stepstep=10672.ckpt" # pretrained backbone checkpoint (image only)
+FEATURE_SIZE=36 # feature size must match backbone pretraining (use 24 for no-clip pretraining, use 36 for clip pretraining)
 
 # create output dirs
 mkdir -p "$CKPT_DIR" "$METRICS_ROOT"

@@ -56,7 +56,8 @@ def discover_images_by_class(root_dir, include_subtypes=None, exclude_subtypes=N
     return class_to_paths
     
 # function to get stratified cross-validation folds (each fold has balanced class distribution and is a dict with 'train' and 'test' keys)
-def stratified_cv_folds(paths_by_class, repeats, seed=100, test_frac=0.2, lock_test=False):
+def stratified_cv_folds(paths_by_class, repeats, seed=100, test_frac=0.2, lock_test=False, 
+                        fixed_test_per_class=None, train_per_class=None):
 
     # set random seed
     rng = random.Random(seed)
@@ -90,8 +91,11 @@ def stratified_cv_folds(paths_by_class, repeats, seed=100, test_frac=0.2, lock_t
             if n_total == 0:
                 continue
 
-            # determine how many samples from this class go to test set
-            k = max(1, int(round(n_total * test_frac)))
+            # determine test count
+            if fixed_test_per_class is not None:
+                k = max(1, min(int(fixed_test_per_class), n_total - 1)) # at least 1, at most total - 1
+            else:
+                k = max(1, int(round(n_total * test_frac))) # at least 1
 
             # if lock test, use fixed split
             if lock_test:
@@ -102,7 +106,16 @@ def stratified_cv_folds(paths_by_class, repeats, seed=100, test_frac=0.2, lock_t
                 start = (rep * k) % n_total
                 test_block = [arr[(start + i) % n_total] for i in range(k)]
             test_set = set(test_block)
-            train_block = [p for p in arr if p not in test_set]
+            
+            # get train block
+            pool = [p for p in arr if p not in test_set]
+
+            # optionally limit train samples per class
+            if train_per_class is not None:
+                ktr = min(int(train_per_class), len(pool)) # at most available samples
+                train_block = pool[:ktr]
+            else:
+                train_block = pool
 
             # add to train and test lists
             train += train_block
@@ -134,6 +147,8 @@ def main():
     parser.add_argument('--channel_substr', type=str, default='ALL', help='Comma-separated substrings to filter image channels (default: ALL).')
     parser.add_argument('--repeats', type=int, default=5, help='Number of cross-validation repeats (default: 5).')
     parser.add_argument('--test_frac', type=float, default=0.2, help='Fraction of data to use for testing (default: 0.2).')
+    parser.add_argument('--fixed_test_per_class', type=int, default=None, help='Fixed number of test samples per class (overrides test_frac if set; caps at available).')
+    parser.add_argument('--train_per_class', type=int, default=None, help='Fixed number of train samples per class (caps at available; default: all).')
     parser.add_argument('--lock_test', action='store_true', help='Lock test sets across repeats (default: False).')
     parser.add_argument('--seed', type=int, default=100, help='Random seed for reproducibility (default: 100).')
     parser.add_argument('--output_json', type=str, required=True, help='Output JSON file to save the folds.')
@@ -156,7 +171,9 @@ def main():
         repeats=args.repeats,
         seed=args.seed,
         test_frac=args.test_frac,
-        lock_test=args.lock_test
+        lock_test=args.lock_test,
+        fixed_test_per_class=args.fixed_test_per_class,
+        train_per_class=args.train_per_class
     )
 
     # metadata
@@ -164,6 +181,8 @@ def main():
         'classes': sorted(paths_by_class.keys()),
         'repeats': args.repeats,
         'test_frac': args.test_frac,
+        'fixed_test_per_class': args.fixed_test_per_class,
+        'train_per_class': args.train_per_class,
         'lock_test': args.lock_test,
         'seed': args.seed,
         'counts': {k: len(v) for k, v in paths_by_class.items()},
