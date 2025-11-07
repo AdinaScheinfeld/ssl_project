@@ -35,9 +35,9 @@ source activate monai-env1
 
 # define constants
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches"
-CKPT_DIR="/ministorage/adina/checkpoints/finetune_infer_expert_sweep_31"
+CKPT_DIR="/ministorage/adina/selma_segmentation_preds_expert_sweep_31/checkpoints" # output dir for finetune checkpoints
 CKPT="/ministorage/adina/pretrain_sweep_no_clip/checkpoints/r605gzgj/all_datasets_pretrained_no_clip-epochepoch=183-valval_loss=0.0201-stepstep=10672.ckpt"
-PRED_ROOT="/ministorage/adina/selma_segmentation_preds_expert_sweep_31/preds"
+PRED_ROOT="/ministorage/adina/selma_segmentation_preds_expert_sweep_31/preds" # output dir for preds
 
 # pretty-name mapping for outputs
 case "$SUBTYPE" in

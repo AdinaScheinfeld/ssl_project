@@ -18,14 +18,14 @@ set -euo pipefail
 
 # config
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches"
-OUTDIR="/ministorage/adina/selma_segmentation_preds_expert_sweep_31/cv_folds"
+OUTDIR="/ministorage/adina/selma_segmentation_preds_expert_sweep_31/cv_folds" # output dir for folds jsons and tasks file
 REPEATS=3
 SEED=100
 CHANNELS="ALL"
 TEST_SIZE=2
 JOB_PREFIX="cv31"
 ARRAY_SCRIPT="/home/ads4015/ssl_project/scripts/finetune_and_inference_cv_array_job.sh"
-MAX_CONCURRENT=6 # array concurrency cap (set to "" for no cap, set to e.g. "3" for max 3 concurrent tasks)
+MAX_CONCURRENT="" # array concurrency cap (set to "" for no cap, set to e.g. "3" for max 3 concurrent tasks)
 
 # sweep counts per subtype
 declare -A COUNTS
@@ -85,7 +85,7 @@ else
   echo "[INFO] Submitting ${NUM_TASKS} GPU tasks as an array (no explicit concurrency cap)..."
 fi
 
-# Submit the array with the computed ARRAY_SPEC
+# submit the array with the computed ARRAY_SPEC
 ARRAY_JOBID=$(sbatch --parsable \
   --job-name "${JOB_PREFIX}_sweep" \
   --array="${ARRAY_SPEC}" \
