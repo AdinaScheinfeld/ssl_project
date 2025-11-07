@@ -324,8 +324,6 @@ class BinarySegmentationModule(pl.LightningModule):
         decoder_params = []
 
         for name, param in self.model.named_parameters():
-            if not param.requires_grad:
-                continue
             (encoder_params if name.startswith('swinViT') else decoder_params).append(param)
 
         base_lr = float(self.lr)
