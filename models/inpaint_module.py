@@ -6,12 +6,14 @@
 import wandb
 
 from monai.data.meta_tensor import MetaTensor
+from monai.losses import SSIMLoss
 from monai.networks.nets import SwinUNETR
 
 import pytorch_lightning as pl
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.serialization import add_safe_globals
 
 # get build_components from your pretrain utils
@@ -152,9 +154,14 @@ class InpaintModule(pl.LightningModule):
             bottleneck_dim = 768 if feature_size <=24 else 1024 # swinUNETR bottleneck dim
             self.text_adaptor = TextConditioner(text_dim=text_dim, feature_dim=bottleneck_dim) # FiLM adaptor
 
+            # learnable gate for text conditioning (start with 0 so text does not collapse training)
+            self.text_gate = nn.Parameter(torch.tensor(0.0))
+
         # losses and lr
         self.l1_masked = nn.L1Loss(reduction='mean')
         self.l1_global = nn.L1Loss(reduction='mean')
+        self.ssim_masked = SSIMLoss(spatial_dims=3, data_range=1.0)
+        self.edge_weight = 0.1 # small weight for global loss to stabilize training
         self.lr = float(lr)
         self.encoder_lr_mult = float(encoder_lr_mult)
 
@@ -234,11 +241,12 @@ class InpaintModule(pl.LightningModule):
         input = torch.cat([x, mask], dim=1) # (B, 2, D, H, W) concatenate masked image and mask
         output = self.model(input) # (B, 1, D, H, W) raw model output
 
-        # apply text conditioning if enabled
+        # only allow a masked region offset and learn its strength from data
         if self.text_cond and t_emb is not None:
-            proj = torch.nn.functional.normalize(t_emb, dim=-1) # normalize text embedding (B, text_dim)
-            res = proj.mean(dim=-1, keepdim=True).view(-1, 1, 1, 1, 1) # (B,1,1,1,1) mean pooled projection
-            output = output + 0.05 * res # simple addition conditioning
+
+            # robust 0-mean scalar from text
+            t_scalar = torch.tanh(t_emb.mean(dim=-1, keepdim=True)).view(-1, 1, 1, 1, 1) # (B, 1, 1, 1, 1)
+            output = output + self.text_gate * t_scalar * mask # modulate only in masked region
         return output
 
     # *** Training ***
@@ -252,6 +260,24 @@ class InpaintModule(pl.LightningModule):
                 1.0 - m, kernel_size=3, stride=1, padding=1
             )
         return m
+
+    # finite difference 3D gradient
+    @staticmethod
+    def _grad3d(x):
+
+        # d/dz (depth axis = 2)
+        dz_core = x[:, :, 1:, :, :] - x[:, :, :-1, :, :] # central differences
+        dz = F.pad(dz_core, (0, 0, 0, 0, 0, 1)) # pad last slice
+
+        # d/dy (height axis = 3)
+        dy_core = x[:, :, :, 1:, :] - x[:, :, :, :-1, :] # central differences
+        dy = F.pad(dy_core, (0, 0, 0, 1, 0, 0)) # pad last row
+
+        # d/dx (width axis = 4)
+        dx_core = x[:, :, :, :, 1:] - x[:, :, :, :, :-1] # central differences
+        dx = F.pad(dx_core, (0, 1, 0, 0, 0, 0)) # pad last column
+
+        return dz, dy, dx
 
     # on train epoch start
     def on_train_epoch_start(self):
@@ -288,13 +314,28 @@ class InpaintModule(pl.LightningModule):
 
         # compute losses (strong loss inside masked region, weak loss globally)
         loss_masked = self.l1_masked(pred * mask_eroded, target_vol * mask_eroded)
+        loss_ssim = self.ssim_masked(pred * mask_eroded, target_vol * mask_eroded)
+
+        # edge/gradient l1 only where masked (to encourage structure rather than smooth fill)
+        pdz, pdy, pdx = self._grad3d(pred * mask_eroded)
+        tdz, tdy, tdx = self._grad3d(target_vol * mask_eroded)
+        loss_edge = (pdz.abs() - tdz.abs()).abs().mean() + \
+                    (pdy.abs() - tdy.abs()).abs().mean() + \
+                    (pdx.abs() - tdx.abs()).abs().mean()
         loss_global = self.l1_global(composite, target_vol)
-        loss = self.hparams.l1_weight_masked * loss_masked + self.hparams.l1_weight_global * loss_global
+        loss = (
+            self.hparams.l1_weight_masked * loss_masked
+            + self.hparams.l1_weight_global * loss_global
+            + self.edge_weight * loss_edge
+            + 0.2 * loss_ssim
+        )
 
         # log losses
         self.log('train_l1_loss_masked', loss_masked, on_step=True, on_epoch=True, prog_bar=False)
         self.log('train_l1_loss_global', loss_global, on_step=True, on_epoch=True, prog_bar=False)
+        self.log('train_l1_loss_edge', loss_edge, on_step=True, on_epoch=True, prog_bar=False)
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log('train_ssim_loss', 1.0-loss_ssim, on_step=False, on_epoch=True, prog_bar=False)
         return loss
     
     # *** Validation ***
@@ -331,8 +372,19 @@ class InpaintModule(pl.LightningModule):
 
         # validation metrics (psnr in masked region)
         loss_masked = self.l1_masked(pred * mask_eroded, target_vol * mask_eroded)
+        loss_ssim = self.ssim_masked(pred * mask_eroded, target_vol * mask_eroded)
+        pdz, pdy, pdx = self._grad3d(pred * mask_eroded)
+        tdz, tdy, tdx = self._grad3d(target_vol * mask_eroded)
+        loss_edge = (pdz.abs() - tdz.abs()).abs().mean() + \
+                    (pdy.abs() - tdy.abs()).abs().mean() + \
+                    (pdx.abs() - tdx.abs()).abs().mean()
         loss_global = self.l1_global(composite, target_vol)
-        loss = self.hparams.l1_weight_masked * loss_masked + self.hparams.l1_weight_global * loss_global
+        loss = (
+            self.hparams.l1_weight_masked * loss_masked
+            + self.hparams.l1_weight_global * loss_global
+            + self.edge_weight * loss_edge
+            + 0.2 * loss_ssim
+        )
 
         # compute PSNR in masked region (peak signal to noise ratio)
         mse_masked = torch.mean(((pred - target_vol) * mask_eroded) ** 2) + 1e-8
@@ -341,8 +393,10 @@ class InpaintModule(pl.LightningModule):
         # log metrics
         self.log('val_l1_loss_masked', loss_masked, on_step=False, on_epoch=True, prog_bar=False)
         self.log('val_l1_loss_global', loss_global, on_step=False, on_epoch=True, prog_bar=False)
+        self.log('val_l1_loss_edge', loss_edge, on_step=False, on_epoch=True, prog_bar=False)
         self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log('val_psnr_masked', psnr_masked, on_step=False, on_epoch=True, prog_bar=True)
+        self.log('val_ssim_loss', 1.0-loss_ssim, on_step=False, on_epoch=True, prog_bar=False)
 
         # log images to wandb (only first few batches)
         if isinstance(self.logger, pl.loggers.WandbLogger) and self.logged_images < 5:
@@ -393,7 +447,8 @@ class InpaintModule(pl.LightningModule):
         )
 
         # per epoch lr scheduler
-        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100, eta_min=self.lr * 0.1)
+        tmax = getattr(self.trainer, 'max_epochs', None) or 500
+        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=int(tmax), eta_min=self.lr * 0.1)
 
         return {'optimizer': optimizer, 'lr_scheduler': {'scheduler': lr_scheduler, 'interval': 'epoch'}}
 

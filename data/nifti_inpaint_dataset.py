@@ -50,6 +50,24 @@ def _percentile_norm(vol, low=1.0, high=99.0):
 
     return vol.astype(np.float32) # return as float32
 
+# function to fill masked region with random noise (to prevent model cheating)
+def _fill_masked_region_with_noise(vol, mask, rng):
+
+    # compute mean and stddev of unmasked voxels
+    unmasked_voxels = vol[mask == 0.0]
+    if unmasked_voxels.size == 0:
+        mu, sigma = 0.0, 1.0
+    else:
+        mu = float(np.mean(unmasked_voxels))
+        sigma = float(np.std(unmasked_voxels))
+
+    # generate noise and fill in masked region
+    noise = rng.normal(loc=mu, scale=max(1e-6, 0.3*sigma), size=vol.shape).astype(np.float32)
+    vol_filled = vol * (1.0 - mask) + noise * mask
+
+    # clamp to [0, 1] and return
+    return np.clip(vol_filled, 0.0, 1.0)
+
 # function to create single rectangular block mask of specified ratio of voxels
 def _make_block_mask(shape, ratio, rng):
 
@@ -173,14 +191,14 @@ class NiftiInpaintDataset(Dataset):
 
         # jitter ratio slightly if augmenting
         if self.augment:
-            ratio = float(np.clip(self.rng.normal(loc=self.mask_ratio, scale=0.05), 0.05, 0.7))
+            ratio = float(np.clip(self.rng.normal(loc=self.mask_ratio, scale=0.10), 0.10, 0.60))
         
         # create block mask
         mask3d = _make_block_mask((D, H, W), ratio, self.rng) # (D,H,W)
         mask = mask3d[None, ...] # (1,D,H,W)
 
-        # zero out masked region in input volume
-        masked_vol = vol * (1.0 - mask) # (1,D,H,W)
+        # fill masked region with noise instead of zeros
+        masked_vol = _fill_masked_region_with_noise(vol, mask, self.rng)
 
         # return everything needed by model
         return {
