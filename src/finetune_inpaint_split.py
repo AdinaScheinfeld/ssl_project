@@ -13,6 +13,7 @@ import nibabel as nib
 import numpy as np
 import os
 from pathlib import Path
+import random
 import sys
 import time
 
@@ -160,8 +161,11 @@ def run_one_subtype(subdir, args, device):
 
     # split finetune training pool into train/val for model selection
     val_count = args.val_count if args.val_count is not None else max(1, int(round(args.val_percent * max(1, len(train_items)))))
-    ft_val_items = train_items[:val_count]
-    ft_train_items = train_items[val_count:]
+    rng = random.Random(args.seed + 1) # different seed from main
+    train_items_shuffled = list(train_items)
+    rng.shuffle(train_items_shuffled)
+    ft_val_items = train_items_shuffled[:val_count]
+    ft_train_items = train_items_shuffled[val_count:]
 
     # ensure minimum sizes
     if len(ft_train_items) < args.min_finetune_train or len(ft_val_items) < args.min_finetune_val:

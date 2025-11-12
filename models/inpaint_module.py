@@ -335,7 +335,7 @@ class InpaintModule(pl.LightningModule):
         self.log('train_l1_loss_global', loss_global, on_step=True, on_epoch=True, prog_bar=False)
         self.log('train_l1_loss_edge', loss_edge, on_step=True, on_epoch=True, prog_bar=False)
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
-        self.log('train_ssim_loss', 1.0-loss_ssim, on_step=False, on_epoch=True, prog_bar=False)
+        self.log('train_ssim', 1.0-loss_ssim, on_step=False, on_epoch=True, prog_bar=False)
         return loss
     
     # *** Validation ***
@@ -396,7 +396,7 @@ class InpaintModule(pl.LightningModule):
         self.log('val_l1_loss_edge', loss_edge, on_step=False, on_epoch=True, prog_bar=False)
         self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log('val_psnr_masked', psnr_masked, on_step=False, on_epoch=True, prog_bar=True)
-        self.log('val_ssim_loss', 1.0-loss_ssim, on_step=False, on_epoch=True, prog_bar=False)
+        self.log('val_ssim', 1.0-loss_ssim, on_step=False, on_epoch=True, prog_bar=False)
 
         # log images to wandb (only first few batches)
         if isinstance(self.logger, pl.loggers.WandbLogger) and self.logged_images < 5:
