@@ -100,6 +100,62 @@ def _make_block_mask(shape, ratio, rng):
     mask[z0:z0 + d, y0:y0 + h, x0:x0 + w] = 1.0
     return mask
 
+# function to return boolean foreground mask excluding padding and very dark background
+def _foreground_mask(vol, low_p=2.0, hi_p=99.5, min_frac=0.02):
+
+    # get vol and compute intensity thresholds
+    v = vol[0] # remove channel dim
+    lo, hi = np.percentile(v, (low_p, hi_p))
+    thresh = max(1e-6, lo) # avoid zero threshold
+    fg_mask = v > thresh
+    
+    # ensure minimum fraction of voxels are foreground
+    if fg_mask.mean() < min_frac:
+        thresh = 0.5 * thresh
+        fg_mask = v > thresh
+
+    return fg_mask
+
+# function to sample block in foreground region
+def _sample_block_in_foreground(fg_mask, ratio, rng, margin=2, max_tries=50, min_fg_frac=0.90):
+
+    # get shape
+    D, H, W = fg_mask.shape
+    target_voxels = max(1, int(round(ratio * D * H * W)))
+    side = max(1, int(round(target_voxels ** (1/3))))
+
+    # initial dimensions
+    d0 = max(1, min(D - 2*margin, int(side * rng.uniform(0.7, 1.3))))
+    h0 = max(1, min(H - 2*margin, int(side * rng.uniform(0.7, 1.3))))
+    w0 = max(1, min(W - 2*margin, int(round(target_voxels / max(1, d0 * h0)))))
+
+    # check if block fits in foreground
+    for _ in range(max_tries):
+        d, h, w = d0, h0, w0
+        z0 = rng.randint(margin, max(margin + 1, D - d - margin + 1))
+        y0 = rng.randint(margin, max(margin + 1, H - h - margin + 1))
+        x0 = rng.randint(margin, max(margin + 1, W - w - margin + 1))
+
+        # check if block stays in foreground
+        sub = fg_mask[z0:z0 + d, y0:y0 + h, x0:x0 + w]
+        if sub.mean() >= min_fg_frac:
+            m = np.zeros((D, H, W), dtype=np.float32)
+            m[z0:z0 + d, y0:y0 + h, x0:x0 + w] = 1.0
+            print(f"Block successfully sampled at position: {(z0, y0, x0)} with size: {(d, h, w)}.")
+            return m
+        
+        # if not, slightly reduce size and try again
+        d0 = max(1, int(d0 * 0.9))
+        h0 = max(1, int(h0 * 0.9))
+        w0 = max(1, int(w0 * 0.9))
+
+        print(f"Retrying block sampling with smaller size: {(d0, h0, w0)}")
+
+    # if all tries fail, return random block mask
+    print("Failed to sample block in foreground after max tries, using random block mask.")
+    return _make_block_mask((D, H, W), ratio, rng)
+
+
 
 # --- Dataset Class ---
 
@@ -193,8 +249,9 @@ class NiftiInpaintDataset(Dataset):
         if self.augment:
             ratio = float(np.clip(self.rng.normal(loc=self.mask_ratio, scale=0.10), 0.10, 0.60))
         
-        # create block mask
-        mask3d = _make_block_mask((D, H, W), ratio, self.rng) # (D,H,W)
+        # foreground aware block placement to avoid trivial background holes
+        fg_mask = _foreground_mask(vol) # (D,H,W), boolean
+        mask3d = _sample_block_in_foreground(fg_mask, ratio, self.rng, margin=2) # (D,H,W), float32
         mask = mask3d[None, ...] # (1,D,H,W)
 
         # fill masked region with noise instead of zeros

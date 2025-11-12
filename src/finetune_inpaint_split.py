@@ -172,10 +172,10 @@ def run_one_subtype(subdir, args, device):
 
     # get default captions from folder names
     default_captions = {
-        'amyloid_plaque_patches': 'amyloid plaque',
-        'c_fos_positive_patches': 'c-Fos positive',
-        'cell_nucleus_patches': 'cell nucleus',
-        'vessels_patches': 'vessels'
+        'amyloid_plaque_patches': 'Bright, compact fluorescent deposits marking extracellular amyloid plaques in a cleared mouse brain.',
+        'c_fos_positive_patches': 'Small, sharply defined glowing nuclei indicating activity-dependent c-Fos expression in cleared tissue.',
+        'cell_nucleus_patches': 'Numerous small, round fluorescent dots—each dot a cell nucleus—forming a dense speckled 3D pattern.',
+        'vessels_patches': 'Interconnected tubular fluorescent strands tracing blood vessels from large channels to fine capillaries.'
     }
 
     # build datasets and dataloaders

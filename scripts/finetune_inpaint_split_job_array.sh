@@ -52,6 +52,7 @@ case "$SUBTYPE" in
 
 echo "[INFO] Starting inpainting finetune for ${SUBTYPE} (K=${K}, FID=${FID})..."
 
+# use for finetuning with pretraining
 # feature size is 24 for image only, 36 for image+text
 python /home/ads4015/ssl_project/src/finetune_inpaint_split.py \
   --data_root "$ROOT" \
@@ -77,6 +78,30 @@ python /home/ads4015/ssl_project/src/finetune_inpaint_split.py \
   --text_backend clip \
   --clip_ckpt "$CKPT_PRETR" \
   --mask_ratio 0.3 --mask_ratio_test 0.3
+
+# use for random init (no pretraining)
+# python /home/ads4015/ssl_project/src/finetune_inpaint_split.py \
+#   --data_root "$ROOT" \
+#   --subtypes "$SUBTYPE" \
+#   --ckpt_dir "$CKPT_DIR" \
+#   --val_percent 0.2 \
+#   --seed 100 \
+#   --batch_size 2 \
+#   --feature_size 36 \
+#   --max_epochs 500 \
+#   --freeze_encoder_epochs 0 \
+#   --encoder_lr_mult 1.0 \
+#   --l1_weight_masked 1.0 \
+#   --l1_weight_global 0.1 \
+#   --wandb_project selma3d_inpaint \
+#   --num_workers 1 \
+#   --channel_substr ALL \
+#   --preds_root "$PRED_ROOT" \
+#   --folds_json "$FJSON" \
+#   --fold_id "$FID" \
+#   --train_limit "$K" \
+#   --mask_ratio 0.3 --mask_ratio_test 0.3 \
+#   --disable_text_cond
 
 # indicate done
 echo "[INFO] Done: ${SUBTYPE} (K=${K}, FID=${FID})"
