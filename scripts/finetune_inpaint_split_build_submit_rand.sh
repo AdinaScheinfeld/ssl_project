@@ -1,14 +1,14 @@
 #!/bin/bash
-#SBATCH --job-name=build_submit_inpaint_cv_ntc
-#SBATCH --output=logs/build_submit_inpaint_cv_ntc_%j.out
-#SBATCH --error=logs/build_submit_inpaint_cv_ntc_%j.err
+#SBATCH --job-name=build_submit_inpaint_cv_rand
+#SBATCH --output=logs/build_submit_inpaint_cv_rand_%j.out
+#SBATCH --error=logs/build_submit_inpaint_cv_rand_%j.err
 #SBATCH --partition=minilab-cpu
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=4G
 #SBATCH --time=02:00:00
 
 
-# finetune_inpaint_split_build_submit.sh - Build and submit inpainting CV jobs
+# finetune_inpaint_split_build_submit_rand.sh - Build and submit inpainting CV jobs
 
 # Build CV folds and submit inpainting array jobs
 set -euo pipefail
@@ -19,13 +19,13 @@ echo "[INFO] Starting build & submit for inpainting CV jobs..."
 
 # parameters
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches" # location of finetuning data
-OUTDIR="/ministorage/adina/selma_inpaint_preds_autumn_sweep_27_ntc/cv_folds" # output dir for folds and tasks
+OUTDIR="/ministorage/adina/selma_inpaint_preds_rand/cv_folds" # output dir for folds and tasks
 REPEATS=3
 SEED=100
 CHANNELS="ALL"
 TEST_SIZE=2
-JOB_PREFIX="inpaint27"
-ARRAY_SCRIPT="/home/ads4015/ssl_project/scripts/finetune_inpaint_split_job_array.sh"
+JOB_PREFIX="rand"
+ARRAY_SCRIPT="/home/ads4015/ssl_project/scripts/finetune_inpaint_split_job_array_rand.sh"
 MAX_CONCURRENT=""   # set to "" for no cap
 
 # sweep counts per subtype
