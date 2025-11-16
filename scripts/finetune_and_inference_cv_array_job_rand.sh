@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH --job-name=finetune_infer_cv_array
-#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_autumn_sweep_27_v2/logs/finetune_infer_cv_array_%A_%a.out
-#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_autumn_sweep_27_v2/logs/finetune_infer_cv_array_%A_%a.err
-#SBATCH --partition=scu-gpu
-#SBATCH --gres=gpu:1
+#SBATCH --job-name=finetune_infer_cv_array_rand
+#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_rand_v2/logs/finetune_infer_cv_array_rand_%A_%a.out
+#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_rand_v2/logs/finetune_infer_cv_array_rand_%A_%a.err
+#SBATCH --partition=minilab-gpu
+#SBATCH --gres=gpu:l40:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
 #SBATCH --time=48:00:00
@@ -35,11 +35,9 @@ source activate monai-env1
 
 # define constants
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches"
-CKPT_DIR="/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_autumn_sweep_27_v2/checkpoints" # output dir for finetune checkpoints
-# CKPT="/ministorage/adina/pretrain_sweep_no_clip/checkpoints/r605gzgj/all_datasets_pretrained_no_clip-epochepoch=183-valval_loss=0.0201-stepstep=10672.ckpt" # checkpoint with no CLIP
-# CKPT="/ministorage/adina/pretrain_sweep_updated/checkpoints/kjvlrs45/all_datasets_clip_pretrained-updated-epochepoch=354-val-reportval_loss_report=0.0968-stepstep=20590.ckpt"
-CKPT="/midtier/paetzollab/scratch/ads4015/checkpoints/autumn_sweep_27/all_datasets_clip_pretrained-updated-epochepoch=354-val-reportval_loss_report=0.0968-stepstep=20590.ckpt" # checkpoint from autumn_sweep_27
-PRED_ROOT="/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_autumn_sweep_27_v2/preds" # output dir for preds
+CKPT_DIR="/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_rand_v2/checkpoints" # output dir for finetune checkpoints
+# CKPT=""
+PRED_ROOT="/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_rand_v2/preds" # output dir for preds
 
 # pretty-name mapping for outputs
 case "$SUBTYPE" in
@@ -54,21 +52,19 @@ esac
 echo "[INFO] Starting finetune+infer for ${SUBTYPE} (K=${K}, FID=${FID})..."
 
 # run finetuning and inference
-# feature size 24 for expert_sweep_31; 36 for autumn_sweep_27
 python /home/ads4015/ssl_project/src/finetune_and_inference_split.py \
   --root "$ROOT" \
   --subtypes "$SUBTYPE" \
   --ckpt_dir "$CKPT_DIR" \
-  --pretrained_ckpt "$CKPT" \
   --val_percent 0.2 \
   --seed 100 \
   --batch_size 4 \
-  --feature_size 36 \
+  --feature_size 24 \
   --max_epochs 1000 \
-  --freeze_encoder_epochs 5 \
-  --encoder_lr_mult 0.05 \
+  --freeze_encoder_epochs 0 \
+  --encoder_lr_mult 1.0 \
   --loss_name dicece \
-  --wandb_project selma3d_finetune \
+  --wandb_project selma3d_finetune_rand \
   --num_workers 4 \
   --channel_substr ALL \
   --preds_root "$PRED_ROOT" \

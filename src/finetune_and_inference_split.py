@@ -190,6 +190,18 @@ def save_pred_nii(mask_bin, like_path, out_path):
         affine, header = np.eye(4), nib.Nifti1Header()
     nib.save(nib.Nifti1Image(vol, affine, header), str(out_path))
 
+# function to save raw probability predictions as NIfTI files
+def save_prob_nii(probs, like_path, out_path):
+
+    # probs: expected shape (1, 1, D, H, W)
+    vol = probs.squeeze().detach().cpu().numpy().astype(np.float32)
+    try:
+        like = nib.load(str(like_path))
+        affine, header = like.affine, like.header
+    except Exception:
+        affine, header = np.eye(4), nib.Nifti1Header()
+    nib.save(nib.Nifti1Image(vol, affine, header), str(out_path))
+
 
 # *** Run per subtype ***
 
@@ -429,35 +441,55 @@ def run_for_subtype(subtype_dir, args, device):
         x = batch['image'] # (1, 1, D, H, W)
         y = batch['label'] # (1, 1, D, H, W)
         fname = Path(batch['filename'][0])
-        logits = predict_logits(best_model, x)
+
+        # logits and probabilities
+        logits = predict_logits(best_model, x)  # (1, 1, D, H, W)
+        probs = torch.sigmoid(logits) # (1, 1, D, H, W)
         dice_050 = dice_at_threshold(logits, y, threshold=0.5)
 
-        # save pred
-        mask_bin = (torch.sigmoid(logits) >= 0.5).to(torch.uint8)
-        out_path = preds_dir / (fname.stem.replace('.nii', '') + f'_pred{pred_suffix}.nii.gz')
-        save_pred_nii(mask_bin, fname, out_path)
-        rows.append({'subtype': subtype, 'filename': str(fname.name), 'dice_050': f'{dice_050:.6f}', 'pred_path': str(out_path)})
+        # save preds (binary mask at 0.5 threshold and raw probabilities)
+        mask_bin = (probs >= 0.5).to(torch.uint8)
+        base_stem = fname.stem.replace('.nii', '').replace('.gz', '')
+        mask_pred_path = preds_dir / f'{base_stem}_pred{pred_suffix}.nii.gz'
+        prob_pred_path = preds_dir / f'{base_stem}_prob{pred_suffix}.nii.gz'
+        save_pred_nii(mask_bin, like_path=fname, out_path=mask_pred_path)
+        save_prob_nii(probs, like_path=fname, out_path=prob_pred_path)
+
+        # log
+        rows.append({
+            'subtype': subtype,
+            'image_path': str(fname),
+            'filename': str(fname.name),
+            'dice_050': f'{dice_050:.6f}',
+            'pred_path': str(mask_pred_path),
+            'prob_path': str(prob_pred_path)
+        })
         print(f'[INFO] {subtype}: Eval {fname.name} -> Dice@0.5: {dice_050:.6f}', flush=True)
 
     # compute mean and append an average line at the bottom of the csv
     metrics_csv = preds_dir / f'metrics_test{pred_suffix}.csv'
     if rows:
         mean_dice = float(np.mean([float(r['dice_050']) for r in rows if r['filename'] != 'MEAN']))
-        rows.append({'subtype': subtype, 'filename': 'MEAN', 'dice_050': f'{mean_dice:.6f}', 'pred_path': ''})
+        rows.append({'subtype': subtype,
+                     'filename': 'MEAN',
+                     'image_path': '',
+                     'dice_050': f'{mean_dice:.6f}',
+                     'pred_path': '',
+                     'prob_path': ''})
         print(f'[INFO] {subtype}: Eval mean Dice@0.5 over {len(rows)-1} samples: {mean_dice:.6f}', flush=True)
         if wandb_logger:
             wandb_logger.experiment.summary[f'{subtype}/{tag}/test_mean_dice_050'] = mean_dice
 
     # save metrics CSV
     with open(metrics_csv, 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=['subtype', 'filename', 'dice_050', 'pred_path'])
+        writer = csv.DictWriter(f, fieldnames=['subtype', 'filename', 'image_path', 'dice_050', 'pred_path', 'prob_path'])
         writer.writeheader()
         writer.writerows(rows)
 
     # summary
     if rows:
-        mean_dice = float(np.mean([float(r['dice_050']) for r in rows]))
-        print(f'[INFO] {subtype}: Eval mean Dice@0.5 over {len(rows)} samples: {mean_dice:.6f}', flush=True)
+        mean_dice = float(np.mean([float(r['dice_050']) for r in rows if r['filename'] != 'MEAN']))
+        print(f'[INFO] {subtype}: Eval mean Dice@0.5 over {len(rows)-1} samples: {mean_dice:.6f}', flush=True)
         if wandb_logger:
             wandb_logger.experiment.summary[f'{subtype}/{tag}/test_mean_dice_050'] = mean_dice
 

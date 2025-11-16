@@ -1,13 +1,13 @@
 #!/bin/bash
-#SBATCH --job-name=build_submit_ft_cv
-#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_autumn_sweep_27_v2/logs/build_submit_ft_cv_%j.out
-#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_autumn_sweep_27_v2/logs/build_submit_ft_cv_%j.err
+#SBATCH --job-name=build_submit_ft_cv_rand
+#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_rand_v2/logs/build_submit_ft_cv_rand_%j.out
+#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_rand_v2/logs/build_submit_ft_cv_rand_%j.err
 #SBATCH --partition=minilab-cpu
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=4G
 #SBATCH --time=02:00:00
 
-# finetune_and_inference_cv_build_and_submit.sh - Script to build cross-validation folds and submit finetuning+inference array jobs using SLURM.
+# finetune_and_inference_cv_build_and_submit_rand.sh - Script to build cross-validation folds and submit finetuning+inference array jobs using SLURM.
 
 
 # indicate starting
@@ -18,13 +18,13 @@ set -euo pipefail
 
 # config
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches"
-OUTDIR="/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_autumn_sweep_27_v2/cv_folds" # output dir for folds jsons and tasks file
+OUTDIR="/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_rand_v2/cv_folds" # output dir for folds jsons and tasks file
 REPEATS=3
 SEED=100
 CHANNELS="ALL"
 TEST_SIZE=2
-JOB_PREFIX="cv27"
-ARRAY_SCRIPT="/home/ads4015/ssl_project/scripts/finetune_and_inference_cv_array_job.sh"
+JOB_PREFIX="rand"
+ARRAY_SCRIPT="/home/ads4015/ssl_project/scripts/finetune_and_inference_cv_array_job_rand.sh"
 MAX_CONCURRENT="" # array concurrency cap (set to "" for no cap, set to e.g. "3" for max 3 concurrent tasks)
 
 # sweep counts per subtype
