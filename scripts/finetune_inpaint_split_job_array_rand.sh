@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=finetune_inpaint_rand
-#SBATCH --output=logs/finetune_inpaint_rand_%A_%a.out
-#SBATCH --error=logs/finetune_inpaint_rand_%A_%a.err
+#SBATCH --output=/ministorage/adina/selma_inpaint_preds_rand_ntc/logs/finetune_inpaint_rand_ntc_%A_%a.out
+#SBATCH --error=/ministorage/adina/selma_inpaint_preds_rand_ntc/logs/finetune_inpaint_rand_ntc_%A_%a.err
 #SBATCH --partition=minilab-gpu
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
@@ -101,7 +101,7 @@ python /home/ads4015/ssl_project/src/finetune_inpaint_split.py \
   --fold_id "$FID" \
   --train_limit "$K" \
   --mask_ratio 0.3 --mask_ratio_test 0.3 \
-  --text_backend dummy
+  --disable_text_cond
 
 # indicate done
 echo "[INFO] Done: ${SUBTYPE} (K=${K}, FID=${FID})"

@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=build_submit_inpaint_cv_ntc
-#SBATCH --output=logs/build_submit_inpaint_cv_ntc_%j.out
-#SBATCH --error=logs/build_submit_inpaint_cv_ntc_%j.err
+#SBATCH --job-name=build_submit_inpaint_cv
+#SBATCH --output=/ministorage/adina/selma_inpaint_preds_autumn_sweep_27/logs/build_submit_inpaint_cv_%j.out
+#SBATCH --error=/ministorage/adina/selma_inpaint_preds_autumn_sweep_27/logs/build_submit_inpaint_cv_%j.err
 #SBATCH --partition=minilab-cpu
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=4G
@@ -19,7 +19,7 @@ echo "[INFO] Starting build & submit for inpainting CV jobs..."
 
 # parameters
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches" # location of finetuning data
-OUTDIR="/ministorage/adina/selma_inpaint_preds_autumn_sweep_27_ntc/cv_folds" # output dir for folds and tasks
+OUTDIR="/ministorage/adina/selma_inpaint_preds_autumn_sweep_27/cv_folds" # output dir for folds and tasks
 REPEATS=3
 SEED=100
 CHANNELS="ALL"
