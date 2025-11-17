@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=finetune_inpaint2
-#SBATCH --output=/ministorage/adina/selma_inpaint_preds_expert_sweep_31/logs/finetune_inpaint_%A_%a.out
-#SBATCH --error=/ministorage/adina/selma_inpaint_preds_expert_sweep_31/logs/finetune_inpaint_%A_%a.err
+#SBATCH --output=/ministorage/adina/selma_inpaint_preds_expert_sweep_31_ntc/logs/finetune_inpaint_%A_%a.out
+#SBATCH --error=/ministorage/adina/selma_inpaint_preds_expert_sweep_31_ntc/logs/finetune_inpaint_%A_%a.err
 #SBATCH --partition=minilab-gpu
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
@@ -38,9 +38,9 @@ source activate monai-env1
 
 # set paths
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches" # root dir of finetuning data
-CKPT_DIR="/ministorage/adina/selma_inpaint_preds_expert_sweep_31/checkpoints" # dir to save finetuning checkpoints
+CKPT_DIR="/ministorage/adina/selma_inpaint_preds_expert_sweep_31_ntc/checkpoints" # dir to save finetuning checkpoints
 CKPT_PRETR="/ministorage/adina/pretrain_sweep_no_clip/checkpoints/r605gzgj/all_datasets_pretrained_no_clip-epochepoch=183-valval_loss=0.0201-stepstep=10672.ckpt" # path to pretrained checkpoint expert-sweep-31
-PRED_ROOT="/ministorage/adina/selma_inpaint_preds_expert_sweep_31/preds" # dir to save finetuning predictions
+PRED_ROOT="/ministorage/adina/selma_inpaint_preds_expert_sweep_31_ntc/preds" # dir to save finetuning predictions
 
 case "$SUBTYPE" in
   amyloid_plaque_patches) PRETTY_SUBTYPE="amyloid_plaque" ;;
@@ -77,7 +77,8 @@ python /home/ads4015/ssl_project/src/finetune_inpaint_split.py \
   --train_limit "$K" \
   --text_backend clip \
   --clip_ckpt "$CKPT_PRETR" \
-  --mask_ratio 0.3 --mask_ratio_test 0.3
+  --mask_ratio 0.3 --mask_ratio_test 0.3 \
+  --disable_text_cond
 
 # use for random init (no pretraining)
 # python /home/ads4015/ssl_project/src/finetune_inpaint_split.py \
