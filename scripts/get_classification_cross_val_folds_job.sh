@@ -20,7 +20,7 @@ source activate monai-env1
 
 # paths
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches" # root data dir
-OUTDIR="/ministorage/adina/classification_eval/folds3_test2"  # location to write folds
+OUTDIR="/ministorage/adina/selma_classification_preds_expert_sweep_31"  # location to write folds
 mkdir -p "$OUTDIR"
 
 # Tuning knobs for folds creation
