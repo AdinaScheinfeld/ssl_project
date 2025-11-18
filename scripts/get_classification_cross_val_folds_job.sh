@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=mk_cls_folds
-#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_classification_preds_expert_sweep_31/logs/mk_cls_folds_%j.out
-#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_classification_preds_expert_sweep_31/logs/mk_cls_folds_%j.err
+#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_classification_preds_autumn_sweep_27/logs/mk_cls_folds_%j.out
+#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_classification_preds_autumn_sweep_27/logs/mk_cls_folds_%j.err
 #SBATCH --partition=minilab-cpu
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
@@ -20,7 +20,7 @@ source activate monai-env1
 
 # paths
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches" # root data dir
-OUTDIR="/midtier/paetzollab/scratch/ads4015/temp_selma_classification_preds_expert_sweep_31"  # location to write folds
+OUTDIR="/midtier/paetzollab/scratch/ads4015/temp_selma_classification_preds_autumn_sweep_27"  # location to write folds
 mkdir -p "$OUTDIR"
 
 # additional root for new classes

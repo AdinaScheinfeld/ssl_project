@@ -15,6 +15,8 @@
 #
 #   ./submit_all_cls_folds.sh   # uses defaults below
 
+# THIS SCRIPT GETS RUN FROM THE LOGIN NODE, NOT THE COMPUTE NODES!
+
 set -euo pipefail
 
 # --- Config defaults ---
