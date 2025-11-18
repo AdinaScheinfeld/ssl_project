@@ -4,6 +4,7 @@
 
 # imports
 import argparse
+import glob
 import json
 from pathlib import Path
 import random
@@ -11,7 +12,10 @@ import random
 # --- Functions ---
 
 # function to discover images and return dict of class to image paths
-def discover_images_by_class(root_dir, include_subtypes=None, exclude_subtypes=None, channel_substr='ALL'):
+def discover_images_by_class(root_dir, 
+                             include_subtypes=None, exclude_subtypes=None, 
+                             channel_substr='ALL',
+                             extra_class_globs=None):
 
     # get class directories
     class_dirs = sorted([d for d in root_dir.iterdir() if d.is_dir()])
@@ -52,6 +56,44 @@ def discover_images_by_class(root_dir, include_subtypes=None, exclude_subtypes=N
 
             # add to dict
             class_to_paths[cname].append(str(p.resolve()))
+
+    # handle extra class globs
+    extra_class_globs = extra_class_globs or []
+    for spec in extra_class_globs:
+        if ':' not in spec:
+            print(f'[WARN] Invalid extra_class_glob spec "{spec}", skipping.', flush=True)
+            continue
+
+        # get class name and glob pattern
+        cname, pattern = spec.split(':', 1)
+        cname = cname.strip()
+        pattern = pattern.strip()
+        if not cname or not pattern:
+            print(f'[WARN] Invalid extra_class_glob spec "{spec}", skipping.', flush=True)
+            continue
+
+        # ensure key exists
+        if cname not in class_to_paths:
+            class_to_paths[cname] = []
+
+        # glob for files
+        matches = sorted(glob.glob(pattern))
+        if not matches:
+            print(f'[WARN] No matches found for extra_class_glob pattern "{pattern}" for class "{cname}".', flush=True)
+            continue
+
+        for p in matches:
+            p_path = Path(p)
+            low = p_path.name.lower()
+
+            # channel filtering
+            if subs is not None and not any(tok in low for tok in subs):
+                continue
+        
+            # add to dict
+            resolved_path = str(p_path.resolve())
+            if resolved_path not in class_to_paths[cname]:
+                class_to_paths[cname].append(resolved_path)
 
     return class_to_paths
     
@@ -151,6 +193,7 @@ def main():
     parser.add_argument('--train_per_class', type=int, default=None, help='Fixed number of train samples per class (caps at available; default: all).')
     parser.add_argument('--lock_test', action='store_true', help='Lock test sets across repeats (default: False).')
     parser.add_argument('--seed', type=int, default=100, help='Random seed for reproducibility (default: 100).')
+    parser.add_argument('--extra_class_globs', type=str, action='append', default=[], help='Extra class glob specifications in the format ClassName:glob_pattern (ex: VIP_ASLM_off:"/midtier/.../all_mesospim_patches/*VIP_ASLM_off*.nii*").')
     parser.add_argument('--output_json', type=str, required=True, help='Output JSON file to save the folds.')
     args = parser.parse_args()
 
@@ -162,7 +205,8 @@ def main():
         root_dir,
         include_subtypes=args.subtypes,
         exclude_subtypes=args.exclude_subtypes,
-        channel_substr=args.channel_substr
+        channel_substr=args.channel_substr,
+        extra_class_globs=args.extra_class_globs
     )
 
     # get stratified cross-validation folds
