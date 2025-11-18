@@ -23,8 +23,8 @@ source activate monai-env1
 
 python /home/ads4015/ssl_project/preprocess_patches/src/allen_human_get_patches_nifti.py \
     --sample_index ${SLURM_ARRAY_TASK_ID} \
-    --num_patches 10 \
-    --min_fg 0.025 \
+    --num_patches 1 \
+    --min_fg 0.05 \
     --seed $SLURM_ARRAY_TASK_ID \
     --output_dir /midtier/paetzollab/scratch/ads4015/all_allen_human_patches \
     --patch_size 96

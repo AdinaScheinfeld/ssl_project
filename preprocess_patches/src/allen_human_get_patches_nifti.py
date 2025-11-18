@@ -19,7 +19,7 @@ PATCH_SIZE = 96
 MIN_FOREGROUND_FRACTION = 0.05
 NUM_RANDOM_PATCHES = 1
 SAVE_AS_NIFTI = True
-SKIP_BORDER_XY_TILES = 1 # set to 1 to skip outermost tiles in x and y, set to 0 otherwise
+SKIP_BORDER_XY_TILES = 0 # set to 1 to skip outermost tiles in x and y, set to 0 otherwise
 SKIP_Z_BORDER_BLOCKS = 0 # set to 1 to skip first and last z blocks, set to 0 otherwise
 SYNC_VESSEL_CHANNELS = False # ignored, kept for compatibility
 ROOT_DIR = '/midtier/paetzollab/scratch/ads4015/allen_human'  # base path to allen_human data
@@ -157,6 +157,7 @@ def create_allen_human_patch_prefix(nifti_path):
     # get components from nifti path
     fname = os.path.basename(nifti_path)
     stem = re.sub(r'\.nii(\.gz)?$', '', fname)
+    stem = re.sub(r'\.json$', '', stem)
 
     # get stain
     stain_match = re.search(r'stain-([A-Za-z0-9]+)', stem)
@@ -166,7 +167,11 @@ def create_allen_human_patch_prefix(nifti_path):
     sample_match = re.search(r'sample-([0-9]+)', stem)
     sample_id = sample_match.group(1) if sample_match else 'unknown'
 
-    return f'allenhuman_{stain}_sample{sample_id}'
+    # get chunk number
+    chunk_match = re.search(r'chunk-([0-9]+)', stem)
+    chunk_id = chunk_match.group(1) if chunk_match else 'unknown'
+
+    return f'allenhuman_{stain}_sample{sample_id}_chunk{chunk_id}'
 
 
 # function to get sorted slices and ensure correct ordering
@@ -313,7 +318,7 @@ def extract_patches_from_nifti(nifti_path, output_dir, prefix):
 
     # write selected patches
     to_save = min(NUM_RANDOM_PATCHES, len(selected))
-    print(f'Foreground-qualified candidates found: {candidates_seen}. Will save up to {to_save}.', flush=True)
+    print(f'Foreground-qualified candidates found: {candidates_seen} with threshold {MIN_FOREGROUND_FRACTION}. Will save up to {to_save}.', flush=True)
 
     for saved_count, item in enumerate(selected[:to_save]):
         patch = item['patch']
