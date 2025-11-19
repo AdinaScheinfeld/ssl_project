@@ -1,12 +1,13 @@
 #!/bin/bash
 #SBATCH --job-name=classification_cross_val
-#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_classification_preds_expert_sweep_31/logs/classification_cross_val_%j.out
-#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_classification_preds_expert_sweep_31/logs/classification_cross_val_%j.err
-#SBATCH --partition=minilab-gpu
-#SBATCH --gres=gpu:1
+#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_classification_preds_random/logs/classification_cross_val_%j.out
+#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_classification_preds_random/logs/classification_cross_val_%j.err
+#SBATCH --partition=sablab-gpu
+#SBATCH --gres=gpu:a100:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
 #SBATCH --time=24:00:00
+#SBATCH --account=sablab
 
 # finetune_eval_classification_cross_val_job2.sh - Finetune and evaluate classification model on a single cross-validation fold.
 
@@ -27,8 +28,8 @@ INIT_MODE="${3:-pretrained}" # default: pretrained (use "random" for baseline)
 
 # paths
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches" # root data dir
-CKPT_DIR="/midtier/paetzollab/scratch/ads4015/temp_selma_classification_preds_expert_sweep_31/checkpoints/finetune_cls" # checkpoint output dir
-METRICS_ROOT="/midtier/paetzollab/scratch/ads4015/temp_selma_classification_preds_expert_sweep_31/cls_metrics" # metrics output dir
+CKPT_DIR="/midtier/paetzollab/scratch/ads4015/temp_selma_classification_preds_random/checkpoints/finetune_cls" # checkpoint output dir
+METRICS_ROOT="/midtier/paetzollab/scratch/ads4015/temp_selma_classification_preds_random/cls_metrics" # metrics output dir
 
 # additional roots for new classes
 MESO_ROOT="/midtier/paetzollab/scratch/ads4015/all_mesospim_patches"
@@ -51,8 +52,8 @@ EXTRA_CLASS_GLOBS=(
 )
 
 # PRETRAINED="/ministorage/adina/pretrain_sweep_updated/checkpoints/kjvlrs45/all_datasets_clip_pretrained-updated-epochepoch=354-val-reportval_loss_report=0.0968-stepstep=20590.ckpt" # pretrained backbone checkpoint (image+clip)
-PRETRAINED="/midtier/paetzollab/scratch/ads4015/checkpoints/expert_sweep_31/all_datasets_pretrained_no_clip-epochepoch=183-valval_loss=0.0201-stepstep=10672.ckpt" # pretrained backbone checkpoint (image only)
-FEATURE_SIZE=24 # feature size must match backbone pretraining (use 24 for no-clip pretraining, use 36 for clip pretraining)
+PRETRAINED="" # pretrained backbone checkpoint (image only)
+FEATURE_SIZE=36 # feature size must match backbone pretraining (use 24 for no-clip pretraining, use 36 for clip pretraining)
 
 # create output dirs
 mkdir -p "$CKPT_DIR" "$METRICS_ROOT"
