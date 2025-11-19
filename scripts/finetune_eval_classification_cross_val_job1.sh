@@ -8,6 +8,8 @@
 #SBATCH --mem=128G
 #SBATCH --time=24:00:00
 
+# *** USE THIS FILE FOR AUTUMN_SWEEP_27 (IMAGE+CLIP) ONLY ***
+
 # finetune_eval_classification_cross_val_job1.sh - Finetune and evaluate classification model on a single cross-validation fold.
 
 

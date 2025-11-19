@@ -10,6 +10,8 @@
 #SBATCH --array=0-4 # adjust based on number of folds
 #SBATCH --account=sablab
 
+# *** USE THIS FILE FOR RANDOM INIT MODEL ONLY ***
+
 # finetune_eval_classification_cross_val_job_array3.sh - Finetune and evaluate classification model across multiple cross-validation folds using a SLURM job array.
 # launch with: sbatch scripts/finetune_eval_classification_cross_val_job_array3.sh <path/to/json/with/folds> <[pretrained|random]>
 # ex: sbatch scripts/finetune_eval_classification_cross_val_job_array3.sh /ministorage/adina/classification_eval/selma_classification_folds.json pretrained

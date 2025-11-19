@@ -9,6 +9,8 @@
 #SBATCH --time=24:00:00
 #SBATCH --account=sablab
 
+# *** USE THIS FILE FOR RANDOM INIT MODEL ONLY ***
+
 # finetune_eval_classification_cross_val_job2.sh - Finetune and evaluate classification model on a single cross-validation fold.
 
 

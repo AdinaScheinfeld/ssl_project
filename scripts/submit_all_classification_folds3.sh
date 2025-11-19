@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# *** USE THIS FILE FOR RANDOM INIT MODEL ONLY ***
+
+
 # submit_all_classification_folds3.sh
 #
 # Submit a classification cross-val job array for every cls_folds_*.json

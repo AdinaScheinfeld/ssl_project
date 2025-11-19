@@ -1,5 +1,8 @@
 #!/bin/bash
-# submit_all_classification_folds1.sh
+
+# *** USE THIS FILE FOR AUTUMN_SWEEP_27 (IMAGE+CLIP) ONLY ***
+
+# submit_all_classification_folds1.sh - 
 #
 # Submit a classification cross-val job array for every cls_folds_*.json
 # in a given directory. Each JSON gets its own sbatch array with the

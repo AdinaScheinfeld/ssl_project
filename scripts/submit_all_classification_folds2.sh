@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# *** USE THIS FILE FOR EXPERT_SWEEP_31 (IMAGE-ONLY) ONLY ***
+
+
 # submit_all_classification_folds2.sh
 #
 # Submit a classification cross-val job array for every cls_folds_*.json
