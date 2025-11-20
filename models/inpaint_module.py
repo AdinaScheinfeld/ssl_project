@@ -1,4 +1,4 @@
-# inpaint_module.py - Text conditioned 3D image inpainiting Lightning Module
+# /home/ads4015/ssl_project/models/inpaint_module.py - Text conditioned 3D image inpainiting Lightning Module
 
 # --- Setup ---
 
@@ -344,7 +344,13 @@ class InpaintModule(pl.LightningModule):
     def on_validation_epoch_start(self):
         self.logged_images = 0 # reset logged images counter
         if isinstance(self.logger, pl.loggers.WandbLogger):
-            self.val_table = wandb.Table(columns=['Filename', 'Masked Input (mid-z)', 'Mask', 'Composite pred (mid-z)', 'Target (mid-z)'])
+            self.val_table = wandb.Table(columns=['Filename', 
+                                                  'z_index',
+                                                  'Masked Input', 
+                                                  'Mask', 
+                                                  'Composite pred', 
+                                                  'Target']
+                                                  )
 
     # validation step
     @torch.no_grad()
@@ -402,20 +408,42 @@ class InpaintModule(pl.LightningModule):
         if isinstance(self.logger, pl.loggers.WandbLogger) and self.logged_images < 5:
             B, _, D, H, W = target_vol.shape
             num_log = min(5 - self.logged_images, B)
+
             for i in range(num_log):
-                z = D // 2 # middle slice index
+
+                # select slice that intersects masked region
+                mask_i = mask[i, 0] # (D,H,W)
+
+                # sum over (H,W) per z (slices with masked voxels will have non-zero sum)
+                mask_per_z = mask_i.view(D, -1).sum(dim=1) > 0 # (D,)
+
+                # get indices of slices with masked voxels
+                masked_z_idxs = torch.nonzero(mask_per_z, as_tuple=False).view(-1)
+
+                # fallback to use middle slice if no masked slices found
+                if masked_z_idxs.numel() == 0:
+                    z = D // 2
+
+                # otherwise use middle of masked slices
+                else:
+                    z = int(masked_z_idxs[len(masked_z_idxs) // 2].item())
+
+                # extract 2D slices for logging
                 m_img = masked_vol[i, 0, z].detach().cpu().numpy()
                 m_msk = mask[i, 0, z].detach().cpu().numpy()
                 cp_img = composite[i, 0, z].detach().cpu().numpy()
                 t_img = target_vol[i, 0, z].detach().cpu().numpy()
                 self.val_table.add_data(
                     batch['filename'][i],
+                    z,
                     wandb.Image(m_img),
                     wandb.Image(m_msk),
                     wandb.Image(cp_img),
                     wandb.Image(t_img)
                 )
                 self.logged_images += 1
+
+        # return validation loss
         return {'val_loss': loss}
     
     # on validation epoch end

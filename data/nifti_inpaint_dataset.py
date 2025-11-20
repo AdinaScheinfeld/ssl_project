@@ -1,4 +1,4 @@
-# nifti_inpaint_dataset.py - A dataset class for handling NIfTI images for inpainting tasks.
+# /home/ads4015/ssl_project/data/nifti_inpaint_dataset.py - A dataset class for handling NIfTI images for inpainting tasks.
 
 # --- Setup ---
 
@@ -155,7 +155,63 @@ def _sample_block_in_foreground(fg_mask, ratio, rng, margin=2, max_tries=50, min
     print("Failed to sample block in foreground after max tries, using random block mask.")
     return _make_block_mask((D, H, W), ratio, rng)
 
+# function to sample block in foreground region using specific size (instead of ratio)
+def _sample_block_in_foreground_fixed_size(fg_mask, block_size, rng, margin=2, max_tries=50, min_fg_frac=0.90):
 
+    # get shape of foreground mask
+    D, H, W = fg_mask.shape
+
+    # block size can be int (cubic side) or (d,h,w) tuple
+    if isinstance(block_size, (tuple, list)):
+        d0, h0, w0 = block_size
+    else:
+        d0 = h0 = w0 = int(block_size)
+
+    # clamp to valid range (leave margin from borders)
+    d0 = max(1, min(D - 2*margin, int(d0)))
+    h0 = max(1, min(H - 2*margin, int(h0)))
+    w0 = max(1, min(W - 2*margin, int(w0)))
+
+    # ensure block size is valid
+    if d0 <= 0 or h0 <= 0 or w0 <= 0:
+        d0 = max(1, D - 2*margin)
+        h0 = max(1, H - 2*margin)
+        w0 = max(1, W - 2*margin)
+
+    # try to sample block in foreground
+    for _ in range(max_tries):
+        d, h, w = d0, h0, w0
+
+        # sample random position within valid range
+        z0 = rng.randint(margin, max(margin + 1, D - d - margin + 1))
+        y0 = rng.randint(margin, max(margin + 1, H - h - margin + 1))
+        x0 = rng.randint(margin, max(margin + 1, W - w - margin + 1))
+
+        # check if block stays in foreground
+        sub = fg_mask[z0:z0 + d, y0:y0 + h, x0:x0 + w]
+        if sub.mean() >= min_fg_frac:
+            m = np.zeros((D, H, W), dtype=np.float32)
+            m[z0:z0 + d, y0:y0 + h, x0:x0 + w] = 1.0
+            print(f"Block successfully sampled at position: {(z0, y0, x0)} with size: {(d, h, w)}.")
+            return m
+        
+        # if not, slightly reduce size and try again
+        d0 = max(1, int(d0 * 0.9))
+        h0 = max(1, int(h0 * 0.9))
+        w0 = max(1, int(w0 * 0.9))
+        print(f"Retrying block sampling with smaller size: {(d0, h0, w0)}")
+
+    # if all tries fail, return centered block
+    print('Failed to sample block in foreground after max tries, using centered block mask.')
+    m = np.zeros((D, H, W), dtype=np.float32)
+    d = min(d0, D - 2*margin)
+    h = min(h0, H - 2*margin)
+    w = min(w0, W - 2*margin)
+    z0 = max(margin, (D - d) // 2)
+    y0 = max(margin, (H - h) // 2)
+    x0 = max(margin, (W - w) // 2)
+    m[z0:z0 + d, y0:y0 + h, x0:x0 + w] = 1.0
+    return m
 
 # --- Dataset Class ---
 
@@ -174,7 +230,10 @@ class NiftiInpaintDataset(Dataset):
             items, # discovered items for a subtype
             captions_json=None, # optional path to captions json file that overrides subtype names
             default_caption_by_subtype=None, # optional dict of default captions by subtype
+            mask_mode='ratio', # 'ratio' or 'fixed_size' mode for mask generation
             mask_ratio=0.3, # ratio of voxels to mask for inpainting
+            mask_fixed_size=32, # fixed block size (int or (d,h,w) tuple) for 'fixed_size' mode
+            num_mask_blocks=1, # number of mask blocks to create per volume
             augment=True, # whether to jitter mask_ratio at train time
             seed=100 # random seed for mask placement
     ):
@@ -182,7 +241,18 @@ class NiftiInpaintDataset(Dataset):
         # store basic config
         self.items = items
         self.augment = augment
+        self.mask_mode = str(mask_mode.lower())
         self.mask_ratio = float(mask_ratio)
+
+        # allow scalar or (d,h,w) tuple for fixed size (normalize to 3 tuple of ints)
+        if isinstance(mask_fixed_size, (tuple, list)):
+            self.mask_fixed_size = tuple(int(s) for s in mask_fixed_size)
+
+        # scalar
+        else:
+            self.mask_fixed_size = int(mask_fixed_size)
+            
+        self.num_mask_blocks = max(1, int(num_mask_blocks)) # at least 1 block
         self.rng = np.random.RandomState(seed)
 
         # caption sources (1. captions_json, 2. default_caption_by_subtype, 3. subtype name)
@@ -241,17 +311,71 @@ class NiftiInpaintDataset(Dataset):
         vol = _ensure_channel_first_3d(img_arr) # (1,D,H,W)
         vol = _percentile_norm(vol) # per volume normalization to [0, 1]
 
-        # build rectangular hole
+        # build rectangular hole(s)
         D, H, W = vol.shape[1:] # get spatial shape
-        ratio = self.mask_ratio
+        fg_mask = _foreground_mask(vol) # get foreground mask (D,H,W), boolean
 
-        # jitter ratio slightly if augmenting
-        if self.augment:
-            ratio = float(np.clip(self.rng.normal(loc=self.mask_ratio, scale=0.10), 0.10, 0.60))
-        
-        # foreground aware block placement to avoid trivial background holes
-        fg_mask = _foreground_mask(vol) # (D,H,W), boolean
-        mask3d = _sample_block_in_foreground(fg_mask, ratio, self.rng, margin=2) # (D,H,W), float32
+        # create mask
+        mask3d = np.zeros((D, H, W), dtype=np.float32)
+
+        # sample 1 or more blocks (depending on num_mask_blocks)
+        for _ in range(self.num_mask_blocks):
+
+            # ratio mode
+            if self.mask_mode == 'ratio':
+                ratio = self.mask_ratio
+                if self.augment:
+                    ratio = float(
+                        np.clip(
+                            self.rng.normal(loc=self.mask_ratio, scale=0.10),
+                            0.10,
+                            0.60
+                        )
+                    )
+                
+                # sample block in foreground
+                block_mask = _sample_block_in_foreground(fg_mask, ratio, self.rng, margin=2) # (D,H,W)
+
+            # fixed size mode
+            elif self.mask_mode == 'fixed_size':
+                
+                # if tuple is given, use that as (d,h,w)
+                if isinstance(self.mask_fixed_size, (tuple, list)):
+                    d0, h0, w0 = [int(s) for s in self.mask_fixed_size]
+                    if self.augment:
+                        scale = float(
+                            np.clip(
+                                self.rng.normal(loc=1.0, scale=0.2), 0.5, 1.5
+                            )
+                        )
+                        d0 = max(1, int(d0 * scale))
+                        h0 = max(1, int(h0 * scale))
+                        w0 = max(1, int(w0 * scale))
+                    block_size = (d0, h0, w0)
+
+                # else use cubic size (int)
+                else:
+                    side = int(self.mask_fixed_size)
+                    if self.augment:
+                        side = int(
+                            np.clip(
+                                self.rng.normal(loc=side, scale=0.2*side), 4,  min(D, H, W)
+                            )
+                        )
+                    block_size = side
+
+                # sample block in foreground
+                block_mask = _sample_block_in_foreground_fixed_size(fg_mask, block_size, self.rng, margin=2) # (D,H,W)
+
+
+            # raise error if unknown mode
+            else:
+                raise ValueError(f"Unknown mask_mode: {self.mask_mode}")
+            
+            # combine block mask into overall mask
+            mask3d = np.maximum(mask3d, block_mask)
+
+        # final mask
         mask = mask3d[None, ...] # (1,D,H,W)
 
         # fill masked region with noise instead of zeros

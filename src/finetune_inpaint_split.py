@@ -1,4 +1,4 @@
-# finetune_inpaint_split.py - Finetunes text-conditioned inpainting model and evaluates on validation set
+# /home/ads4015/ssl_project/src/finetune_inpaint_split.py - Finetunes text-conditioned inpainting model and evaluates on validation set
 
 # --- Setup ---
 
@@ -75,6 +75,25 @@ def _split_from_folds(subtype, fold_json, fold_id, train_limit=None):
         train_list = train_list[:min(len(train_list), int(train_limit))]
 
     return train_list, test_list
+
+# function to prase fixed size argument
+# accepts int, or comma-separated dimensions (as str)
+def _parse_fixed_size_arg(size_str):
+
+    # if int, tuple or list, return as is
+    if isinstance(size_str, (int, tuple, list)):
+        return size_str
+    
+    # else, parse string
+    s = str(size_str).strip()
+    if ',' in s:
+        parts = [p.strip() for p in s.split(',') if p.strip()]
+        if len(parts) != 3:
+            raise ValueError(f'Invalid fixed size argument: {size_str}. Expected single integer or comma-separated dimensions (e.g. "16" or "16,16,16").')
+        return tuple(int(p) for p in parts)
+    
+    # single integer
+    return int(s)
 
 # *** I/O helpers ***
 
@@ -183,9 +202,34 @@ def run_one_subtype(subdir, args, device):
     }
 
     # build datasets and dataloaders
-    ds_train = NiftiInpaintDataset(ft_train_items, captions_json=args.captions_json, default_caption_by_subtype=default_captions, mask_ratio=args.mask_ratio, augment=True, seed=args.seed+1)
-    ds_val = NiftiInpaintDataset(ft_val_items, captions_json=args.captions_json, default_caption_by_subtype=default_captions, mask_ratio=args.mask_ratio, augment=False, seed=args.seed+2)
-    ds_test = NiftiInpaintDataset(test_items, captions_json=args.captions_json, default_caption_by_subtype=default_captions, mask_ratio=args.mask_ratio_test, augment=False, seed=args.seed+3)
+    ds_train = NiftiInpaintDataset(ft_train_items, 
+                                   captions_json=args.captions_json, 
+                                   default_caption_by_subtype=default_captions,
+                                   mask_mode=args.mask_mode,
+                                   mask_ratio=args.mask_ratio, 
+                                   mask_fixed_size=args.mask_fixed_size,
+                                   num_mask_blocks=args.num_mask_blocks,
+                                   augment=True, 
+                                   seed=args.seed+1
+                                   )
+    ds_val = NiftiInpaintDataset(ft_val_items, 
+                                 captions_json=args.captions_json, 
+                                 default_caption_by_subtype=default_captions, 
+                                 mask_mode=args.mask_mode,
+                                 mask_ratio=args.mask_ratio, 
+                                 mask_fixed_size=args.mask_fixed_size,
+                                 num_mask_blocks=args.num_mask_blocks,
+                                 augment=False, 
+                                 seed=args.seed+2)
+    ds_test = NiftiInpaintDataset(test_items, 
+                                  captions_json=args.captions_json, 
+                                  default_caption_by_subtype=default_captions,
+                                  mask_mode=args.mask_mode,
+                                  mask_ratio=args.mask_ratio_test, 
+                                  mask_fixed_size=args.mask_fixed_size_test,
+                                  num_mask_blocks=args.num_mask_blocks,
+                                  augment=False, 
+                                  seed=args.seed+3)
 
     loader_kw = dict(num_workers=min(args.num_workers, os.cpu_count() or args.num_workers),
                      pin_memory=torch.cuda.is_available(),
@@ -371,8 +415,13 @@ def parse_args():
     parser.add_argument('--freeze_encoder_epochs', type=int, default=5, help='Number of initial epochs to freeze encoder during finetuning (Default: 5).')
     parser.add_argument('--l1_weight_masked', type=float, default=1.0, help='L1 loss weight for masked region (Default: 1.0).')
     parser.add_argument('--l1_weight_global', type=float, default=0.1, help='L1 loss weight for global image (Default: 0.1).')
+    parser.add_argument('--mask_mode', type=str, default='ratio', choices=['ratio', 'fixed_size'], help='Mask mode to use: "ratio" for ratio-based masking, "fixed_size" for fixed size blocks (Default: ratio).')
     parser.add_argument('--mask_ratio', type=float, default=0.3, help='Mask ratio for training/validation datasets (Default: 0.3).')
     parser.add_argument('--mask_ratio_test', type=float, default=0.3, help='Mask ratio for test dataset (Default: 0.3).')
+    parser.add_argument('--mask_fixed_size', type=str, default='16', help='Fixed size for mask blocks when using fixed_size mode (Either single integer or comma-separated dimensions e.g. "16" or "16,16,16"). Default: "16".')
+    parser.add_argument('--mask_fixed_size_test', type=str, default='16', help='Fixed size for mask blocks in test set when using fixed_size mode (Either single integer or comma-separated dimensions e.g. "16" or "16,16,16"). Default: "16".')
+    parser.add_argument('--num_mask_blocks', type=int, default=1, help='Number of disjoint mask blocks to create per volume (Default: 1).')
+    parser.add_argument('--num_mask_blocks_test', type=int, default=1, help='Number of disjoint mask blocks to create per volume in test set (Default: 1).')
     parser.add_argument('--weight_decay', type=float, default=1e-5, help='Optimizer weight decay (Default: 1e-5).')
     parser.add_argument('--disable_text_cond', action='store_true', help='Disable text conditioning during finetuning (Default: False).')
     parser.add_argument('--text_dim', type=int, default=512, help='Text dimension for model (Default: 512).')
@@ -401,6 +450,8 @@ def main():
 
     # parse args
     args = parse_args()
+    args.mask_fixed_size = _parse_fixed_size_arg(args.mask_fixed_size)
+    args.mask_fixed_size_test = _parse_fixed_size_arg(args.mask_fixed_size_test)
     _seed_everything(args.seed)
     root = Path(args.data_root)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

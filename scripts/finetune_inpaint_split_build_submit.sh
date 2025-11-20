@@ -1,14 +1,14 @@
 #!/bin/bash
 #SBATCH --job-name=build_submit_inpaint_cv
-#SBATCH --output=/ministorage/adina/selma_inpaint_preds_autumn_sweep_27/logs/build_submit_inpaint_cv_%j.out
-#SBATCH --error=/ministorage/adina/selma_inpaint_preds_autumn_sweep_27/logs/build_submit_inpaint_cv_%j.err
+#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_inpaint_preds_autumn_sweep_27/logs/build_submit_inpaint_cv_%j.out
+#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_inpaint_preds_autumn_sweep_27/logs/build_submit_inpaint_cv_%j.err
 #SBATCH --partition=minilab-cpu
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=4G
 #SBATCH --time=02:00:00
 
 
-# finetune_inpaint_split_build_submit.sh - Build and submit inpainting CV jobs
+# /home/ads4015/ssl_project/scripts/finetune_inpaint_split_build_submit.sh - Build and submit inpainting CV jobs
 
 # Build CV folds and submit inpainting array jobs
 set -euo pipefail
@@ -19,7 +19,7 @@ echo "[INFO] Starting build & submit for inpainting CV jobs..."
 
 # parameters
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches" # location of finetuning data
-OUTDIR="/ministorage/adina/selma_inpaint_preds_autumn_sweep_27/cv_folds" # output dir for folds and tasks
+OUTDIR="/midtier/paetzollab/scratch/ads4015/temp_selma_inpaint_preds_autumn_sweep_27/cv_folds" # output dir for folds and tasks
 REPEATS=3
 SEED=100
 CHANNELS="ALL"
