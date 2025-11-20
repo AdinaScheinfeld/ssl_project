@@ -159,7 +159,7 @@ def _sample_block_in_foreground(fg_mask, ratio, rng, margin=2, max_tries=50, min
     return _make_block_mask((D, H, W), ratio, rng)
 
 # function to sample block in foreground region using specific size (instead of ratio)
-def _sample_block_in_foreground_fixed_size(fg_mask, block_size, rng, margin=2, max_tries=50, min_fg_frac=0.90):
+def _sample_block_in_foreground_fixed_size(fg_mask, block_size, rng, margin=2, max_tries=50, min_fg_frac=0.05):
 
     # get shape of foreground mask
     D, H, W = fg_mask.shape
