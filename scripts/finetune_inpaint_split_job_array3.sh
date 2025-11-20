@@ -1,0 +1,138 @@
+#!/bin/bash
+#SBATCH --job-name=finetune_inpaint
+#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_inpaint_preds_random/logs/finetune_inpaint_%A_%a.out
+#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_inpaint_preds_random/logs/finetune_inpaint_%A_%a.err
+#SBATCH --partition=sablab-gpu
+#SBATCH --gres=gpu:a100:1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=128G
+#SBATCH --time=48:00:00
+#SBATCH --account=sablab
+
+# *** USE THIS FILE ONLY FOR RANDOM INIT ***
+
+# /home/ads4015/ssl_project/scripts/finetune_inpaint_split_job_array3.sh - SLURM array job script for inpainting finetuning
+
+
+# indicate starting
+echo "[INFO] Starting finetune_inpaint job for SLURM_ARRAY_TASK_ID=$SLURM_ARRAY_TASK_ID"
+
+set -euo pipefail
+export TOKENIZERS_PARALLELISM=false  # disable tokenizer parallelism warnings
+
+# one array task = one (SUBTYPE, K, FID, FJSON) inpainting job
+TASKS_FILE="${1:?usage: $0 TASKS_FILE JOB_PREFIX}"
+JOB_PREFIX="${2:?usage: $0 TASKS_FILE JOB_PREFIX}"
+
+# read line for this task
+LINE="$(sed -n "$((SLURM_ARRAY_TASK_ID+1))p" "$TASKS_FILE" || true)"
+if [[ -z "${LINE}" ]]; then
+  echo "[ERROR] No line for SLURM_ARRAY_TASK_ID=$SLURM_ARRAY_TASK_ID in $TASKS_FILE"
+  exit 1
+fi
+read -r SUBTYPE K FID FJSON <<< "$LINE"
+
+echo "[INFO] Task: SUBTYPE=$SUBTYPE  K=$K  FID=$FID"
+echo "[INFO] Folds JSON: $FJSON"
+
+# load environment
+module load anaconda3/2022.10-34zllqw
+source activate monai-env1
+
+# set paths
+ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches" # root dir of finetuning data
+CKPT_DIR="/midtier/paetzollab/scratch/ads4015/temp_selma_inpaint_preds_random/checkpoints" # dir to save finetuning checkpoints
+CKPT_PRETR="" # path to pretrained checkpoint
+PRED_ROOT="/midtier/paetzollab/scratch/ads4015/temp_selma_inpaint_preds_random/preds" # dir to save finetuning predictions
+
+# uses either ratio-based or fixed-size masking depending on subtype
+case "$SUBTYPE" in
+  amyloid_plaque_patches)
+    PRETTY_SUBTYPE="amyloid_plaque"
+    MASK_MODE='fixed_size'
+    MASK_RATIO=0.30
+    MASK_RATIO_TEST=0.30
+    MASK_FIXED_SIZE=(24,24,12)
+    MASK_FIXED_SIZE_TEST=(24,24,12)
+    NUM_MASK_BLOCKS=2
+    NUM_MASK_BLOCKS_TEST=2
+    ;;
+  c_fos_positive_patches)
+  PRETTY_SUBTYPE="c_fos_positive"
+    MASK_MODE='fixed_size'
+    MASK_RATIO=0.40
+    MASK_RATIO_TEST=0.40
+    MASK_FIXED_SIZE=12
+    MASK_FIXED_SIZE_TEST=12
+    NUM_MASK_BLOCKS=4
+    NUM_MASK_BLOCKS_TEST=4
+    ;;
+  cell_nucleus_patches)
+    PRETTY_SUBTYPE="cell_nucleus"
+    MASK_MODE='fixed_size'
+    MASK_RATIO=0.50
+    MASK_RATIO_TEST=0.50
+    MASK_FIXED_SIZE=18
+    MASK_FIXED_SIZE_TEST=18
+    NUM_MASK_BLOCKS=5
+    NUM_MASK_BLOCKS_TEST=5
+    ;;
+  vessels_patches)
+    PRETTY_SUBTYPE="vessels"
+    MASK_MODE='fixed_size'
+    MASK_RATIO=0.60
+    MASK_RATIO_TEST=0.60
+    MASK_FIXED_SIZE=(12,12,48)
+    MASK_FIXED_SIZE_TEST=(12,12,48)
+    NUM_MASK_BLOCKS=2
+    NUM_MASK_BLOCKS_TEST=2
+    ;;
+  *) echo "[ERROR] Unknown subtype: $SUBTYPE"; exit 2 ;;
+ esac
+
+echo "[INFO] Starting inpainting finetune for ${SUBTYPE} (K=${K}, FID=${FID})..."
+
+# use for finetuning with pretraining
+# feature size is 24 for image only, 36 for image+text
+python /home/ads4015/ssl_project/src/finetune_inpaint_split.py \
+  --data_root "$ROOT" \
+  --subtypes "$SUBTYPE" \
+  --ckpt_dir "$CKPT_DIR" \
+  --val_percent 0.2 \
+  --seed 100 \
+  --batch_size 2 \
+  --feature_size 36 \
+  --max_epochs 500 \
+  --freeze_encoder_epochs 5 \
+  --encoder_lr_mult 0.05 \
+  --l1_weight_masked 1.0 \
+  --l1_weight_global 0.1 \
+  --wandb_project selma3d_inpaint \
+  --num_workers 1 \
+  --channel_substr ALL \
+  --preds_root "$PRED_ROOT" \
+  --folds_json "$FJSON" \
+  --fold_id "$FID" \
+  --train_limit "$K" \
+  --text_backend dummy \
+  --clip_ckpt "$CKPT_PRETR" \
+  --mask_mode "$MASK_MODE" \
+  --mask_ratio "$MASK_RATIO" \
+  --mask_ratio_test "$MASK_RATIO_TEST" \
+  --mask_fixed_size "$MASK_FIXED_SIZE" \
+  --mask_fixed_size_test "$MASK_FIXED_SIZE_TEST" \
+  --num_mask_blocks "$NUM_MASK_BLOCKS" \
+  --num_mask_blocks_test "$NUM_MASK_BLOCKS_TEST"
+
+
+# indicate done
+echo "[INFO] Done: ${SUBTYPE} (K=${K}, FID=${FID})"
+
+
+
+
+
+
+
+
+

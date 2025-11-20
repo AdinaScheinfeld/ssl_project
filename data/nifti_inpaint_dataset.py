@@ -117,7 +117,7 @@ def _foreground_mask(vol, low_p=2.0, hi_p=99.5, min_frac=0.02):
     return fg_mask
 
 # function to sample block in foreground region
-def _sample_block_in_foreground(fg_mask, ratio, rng, margin=2, max_tries=50, min_fg_frac=0.90):
+def _sample_block_in_foreground(fg_mask, ratio, rng, margin=2, max_tries=50, min_fg_frac=0.05):
 
     # get shape
     D, H, W = fg_mask.shape
@@ -132,16 +132,19 @@ def _sample_block_in_foreground(fg_mask, ratio, rng, margin=2, max_tries=50, min
     # check if block fits in foreground
     for _ in range(max_tries):
         d, h, w = d0, h0, w0
+
+        # sample random position within valid range
         z0 = rng.randint(margin, max(margin + 1, D - d - margin + 1))
         y0 = rng.randint(margin, max(margin + 1, H - h - margin + 1))
         x0 = rng.randint(margin, max(margin + 1, W - w - margin + 1))
 
         # check if block stays in foreground
         sub = fg_mask[z0:z0 + d, y0:y0 + h, x0:x0 + w]
-        if sub.mean() >= min_fg_frac:
+        fg_frac = float(sub.mean())
+        if fg_frac >= min_fg_frac:
             m = np.zeros((D, H, W), dtype=np.float32)
             m[z0:z0 + d, y0:y0 + h, x0:x0 + w] = 1.0
-            print(f"Block successfully sampled at position: {(z0, y0, x0)} with size: {(d, h, w)}.")
+            print(f"Block successfully sampled at position: {(z0, y0, x0)} with size: {(d, h, w)} and fg_frac={fg_frac:.4f} (min_fg_frac={min_fg_frac:.4f}).", flush=True)
             return m
         
         # if not, slightly reduce size and try again
@@ -189,10 +192,11 @@ def _sample_block_in_foreground_fixed_size(fg_mask, block_size, rng, margin=2, m
 
         # check if block stays in foreground
         sub = fg_mask[z0:z0 + d, y0:y0 + h, x0:x0 + w]
-        if sub.mean() >= min_fg_frac:
+        fg_frac = float(sub.mean())
+        if fg_frac >= min_fg_frac:
             m = np.zeros((D, H, W), dtype=np.float32)
             m[z0:z0 + d, y0:y0 + h, x0:x0 + w] = 1.0
-            print(f"Block successfully sampled at position: {(z0, y0, x0)} with size: {(d, h, w)}.")
+            print(f"Block successfully sampled at position: {(z0, y0, x0)} with size: {(d, h, w)} and fg_frac={fg_frac:.4f} (min_fg_frac={min_fg_frac:.4f}).", flush=True)
             return m
         
         # if not, slightly reduce size and try again
@@ -202,7 +206,6 @@ def _sample_block_in_foreground_fixed_size(fg_mask, block_size, rng, margin=2, m
         print(f"Retrying block sampling with smaller size: {(d0, h0, w0)}")
 
     # if all tries fail, return centered block
-    print('Failed to sample block in foreground after max tries, using centered block mask.')
     m = np.zeros((D, H, W), dtype=np.float32)
     d = min(d0, D - 2*margin)
     h = min(h0, H - 2*margin)
@@ -210,6 +213,10 @@ def _sample_block_in_foreground_fixed_size(fg_mask, block_size, rng, margin=2, m
     z0 = max(margin, (D - d) // 2)
     y0 = max(margin, (H - h) // 2)
     x0 = max(margin, (W - w) // 2)
+
+    sub = fg_mask[z0:z0 + d, y0:y0 + h, x0:x0 + w]
+    fg_frac = float(sub.mean())
+    print(f"Using centered block at position: {(z0, y0, x0)} with size: {(d, h, w)} and fg_frac={fg_frac:.4f} (min_fg_frac={min_fg_frac:.4f}).", flush=True)
     m[z0:z0 + d, y0:y0 + h, x0:x0 + w] = 1.0
     return m
 

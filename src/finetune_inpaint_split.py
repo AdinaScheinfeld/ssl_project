@@ -209,7 +209,7 @@ def run_one_subtype(subdir, args, device):
                                    mask_ratio=args.mask_ratio, 
                                    mask_fixed_size=args.mask_fixed_size,
                                    num_mask_blocks=args.num_mask_blocks,
-                                   augment=True, 
+                                   augment=False, 
                                    seed=args.seed+1
                                    )
     ds_val = NiftiInpaintDataset(ft_val_items, 
