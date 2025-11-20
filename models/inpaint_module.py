@@ -140,6 +140,13 @@ class InpaintModule(pl.LightningModule):
         # build text encoder
         self.text_cond = bool(text_cond)
         self._text_backend = text_backend
+
+        # print whether using text conditioning
+        if self.text_cond:
+            print(f'[INFO] Using text conditioning with backend: {text_backend}')
+        else:
+            print(f'[INFO] Not using text conditioning')
+
         if self.text_cond:
             if text_backend == 'clip':
                 if not clip_ckpt:
