@@ -143,9 +143,9 @@ class InpaintModule(pl.LightningModule):
 
         # print whether using text conditioning
         if self.text_cond:
-            print(f'[INFO] Using text conditioning with backend: {text_backend}')
+            print(f'[INFO] Using text conditioning with backend: {text_backend}', flush=True)
         else:
-            print(f'[INFO] Not using text conditioning')
+            print(f'[INFO] Not using text conditioning', flush=True)
 
         if self.text_cond:
             if text_backend == 'clip':
