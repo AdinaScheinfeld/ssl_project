@@ -343,7 +343,7 @@ def run_one_subtype(subdir, args, device):
 
             # compose prediction into original volume
             # composite = original_unmasked + pred_in_hole
-            composite = (masked_vol + pred * mask).clamp(0, 1)
+            composite = (masked_vol * (1 - mask) + pred * mask).clamp(0, 1)
             output_composite_path = preds_dir / (fname.stem.replace('.nii', '') + '_inpaint_composite.nii.gz')
             _save_nifti(composite[0,0], ref_nifti_path=(subdir / fname), out_path=output_composite_path)
 
