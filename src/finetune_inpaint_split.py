@@ -18,6 +18,7 @@ import sys
 import time
 
 import torch
+import torch.nn.functional as F
 from torch.utils.data import DataLoader, get_worker_info
 
 import pytorch_lightning as pl
@@ -120,6 +121,18 @@ def _calc_psnr(pred, target, eps=1e-8):
     mse = np.mean((pred - target) ** 2) + eps
     psnr = 10.0 * np.log10(1.0 / mse)
     return psnr
+
+# function to feather mask edges for smoother transitions in composites
+def _feather_mask(mask, radius=1):
+
+    m = mask
+
+    # apply avg pooling multiple times to approximate gaussian blur
+    for _ in range(max(1, int(radius))):
+        m = F.avg_pool3d(m, kernel_size=3, stride=1, padding=1)
+
+    # clamp to [0, 1]
+    return m.clamp(0.0, 1.0)
 
 
 # --- Dataclass ---
@@ -341,9 +354,15 @@ def run_one_subtype(subdir, args, device):
             output_path = preds_dir / (fname.stem.replace('.nii', '') + '_inpaint_pred.nii.gz')
             _save_nifti(pred[0,0], ref_nifti_path=(subdir / fname), out_path=output_path)
 
-            # compose prediction into original volume
+            # compose prediction into original volume using feathered (soft) mask
+            if getattr(args, 'feather_radius', 0) and args.feather_radius > 0:
+                soft_mask = _feather_mask(mask, radius=args.feather_radius)
+                print(f'[INFO] Applied feathering with radius {args.feather_radius} to mask for composite.', flush=True)
+            else:
+                print(f'[INFO] No feathering applied to mask for composite.', flush=True)
+                soft_mask = mask
             # composite = original_unmasked + pred_in_hole
-            composite = (masked_vol * (1 - mask) + pred * mask).clamp(0, 1)
+            composite = (masked_vol * (1 - soft_mask) + pred * soft_mask).clamp(0, 1)
             output_composite_path = preds_dir / (fname.stem.replace('.nii', '') + '_inpaint_composite.nii.gz')
             _save_nifti(composite[0,0], ref_nifti_path=(subdir / fname), out_path=output_composite_path)
 
@@ -438,6 +457,7 @@ def parse_args():
     parser.add_argument('--wandb_project', type=str, default='inpaint_finetune', help='Weights & Biases project name for logging (Default: inpaint_finetune).')
     parser.add_argument('--ckpt_dir', type=str, required=True, help='Directory to save finetuned model checkpoints.')
     parser.add_argument('--preds_root', type=str, required=True, help='Root directory for saving model predictions.')
+    parser.add_argument('--feather_radius', type=int, default=0, help='Number of 3x3x3 avg pooling passes to feather mask edges for smoother composites (default = 0 for none).')
 
     args = parser.parse_args()
     return args
