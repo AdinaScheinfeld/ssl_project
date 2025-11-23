@@ -35,6 +35,9 @@ class DeblurModule(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
+        # hold wandb table of val samples for the current epoch
+        self.val_examples_table = None
+
         # model
         self.model = SwinUNETR(
             img_size=(96, 96, 96),
@@ -225,26 +228,36 @@ class DeblurModule(pl.LightningModule):
         mse = torch.mean((output_deblurred_pred - target_sharp) ** 2) + 1e-8
         psnr = 10.0 * torch.log10(1.0 / mse)
 
-        # log up to 5 validation examples to wandb (blurred, deblurred, sharp) as 2d slices
-        if batch_idx < 5  and isinstance(self.logger, WandbLogger) and hasattr(self.logger, 'experiment'):
+        # accumulate up to 5 val samples for wandb logging
+        if batch_idx < 5 and isinstance(self.logger, WandbLogger) and hasattr(self.logger, 'experiment'):
 
-            # get middle slice of first element in batch
+            # create table if not exists
+            if self.val_examples_table is None:
+                self.val_examples_table = wandb.Table(columns=['Filename', 'Blurred (mid-z)', 'Deblurred (mid-z)', 'Sharp (mid-z)'])
+
+            # filename (fallback to simple label if not provided)
+            if isinstance(batch, dict) and 'filename' in batch:
+                filename = batch['filename'][0]
+            else:
+                filename = f'val_sample_{batch_idx}'
+
+            # get mid-z slices for visualization
             blurred_np = input_blurred[0, 0].detach().float().cpu().numpy()
-            pred_np = output_deblurred_pred[0, 0].detach().float().cpu().numpy()
+            deblurred_np = output_deblurred_pred[0, 0].detach().float().cpu().numpy()
             sharp_np = target_sharp[0, 0].detach().float().cpu().numpy()
 
             mid_slice = blurred_np.shape[0] // 2
             blurred_slice = blurred_np[mid_slice, :, :]
-            pred_slice = pred_np[mid_slice, :, :]
+            deblurred_slice = deblurred_np[mid_slice, :, :]
             sharp_slice = sharp_np[mid_slice, :, :]
 
-            # create wandb image
-            images = [
+            # add row to table
+            self.val_examples_table.add_data(
+                filename,
                 wandb.Image(blurred_slice, caption='blurred'),
-                wandb.Image(pred_slice, caption='deblurred'),
+                wandb.Image(deblurred_slice, caption='deblurred'),
                 wandb.Image(sharp_slice, caption='sharp')
-            ]
-            self.logger.experiment.log({f'val_examples_idx_{batch_idx}': images}, commit=False)
+            )
 
         # log losses and metrics
         self.log('val_l1_loss', loss_l1, on_step=False, on_epoch=True, prog_bar=False)
@@ -254,6 +267,16 @@ class DeblurModule(pl.LightningModule):
         self.log('val_psnr', psnr, on_step=True, on_epoch=True, prog_bar=True)
 
         return {'total_val_loss': total_val_loss}
+
+    # on val epoch end
+    def on_validation_epoch_end(self):
+
+        # log wandb table
+        if self.val_examples_table is not None and isinstance(self.logger, WandbLogger) and hasattr(self.logger, 'experiment'):
+            self.logger.experiment.log({f'val_examples_epoch_{self.current_epoch}': self.val_examples_table})
+
+            # reset table for next epoch
+            self.val_examples_table = None
     
     # configure optimizers
     def configure_optimizers(self):
