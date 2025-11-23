@@ -260,8 +260,8 @@ def run_one_subtype(subtype_dir, blurred_root, args, device):
         for batch in dl_test:
 
             # get data
-            blurred_img = batch['blurred_vol'].to(device)
-            sharp_img = batch['sharp_vol'].to(device)
+            blurred_img = batch['input_vol'].to(device)
+            sharp_img = batch['target_vol'].to(device)
             
             # forward pass
             output_deblurred_logits = best_model(blurred_img)
