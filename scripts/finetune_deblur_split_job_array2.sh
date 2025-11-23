@@ -1,14 +1,15 @@
 #!/bin/bash
 #SBATCH --job-name=finetune_deblur
-#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_deblur_preds_autumn_sweep_27/logs/finetune_deblur_%A_%a.out
-#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_deblur_preds_autumn_sweep_27/logs/finetune_deblur_%A_%a.err
-#SBATCH --partition=minilab-gpu
-#SBATCH --gres=gpu:1
+#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_deblur_preds_expert_sweep_31/logs/finetune_deblur_%A_%a.out
+#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_deblur_preds_expert_sweep_31/logs/finetune_deblur_%A_%a.err
+#SBATCH --partition=sablab-gpu
+#SBATCH --gres=gpu:a100:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
 #SBATCH --time=48:00:00
+#SBATCH --account=sablab
 
-# /home/ads4015/ssl_project/scripts/finetune_deblur_split_job_array1.sh - SLURM array script: one task = one (SUBTYPE, K, FID, FJSON) deblurring job.
+# /home/ads4015/ssl_project/scripts/finetune_deblur_split_job_array2.sh - SLURM array script: one task = one (SUBTYPE, K, FID, FJSON) deblurring job.
 
 
 set -euo pipefail
@@ -39,11 +40,11 @@ source activate monai-env1
 # paths
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches" # sharp patches
 BLUR_ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches_blurred" # blurred patches
-CKPT_DIR="/midtier/paetzollab/scratch/ads4015/temp_selma_deblur_preds_autumn_sweep_27/checkpoints" # location to save finetune checkpoints
-PRED_ROOT="/midtier/paetzollab/scratch/ads4015/temp_selma_deblur_preds_autumn_sweep_27/preds" # location to save predictions
+CKPT_DIR="/midtier/paetzollab/scratch/ads4015/temp_selma_deblur_preds_expert_sweep_31/checkpoints" # location to save finetune checkpoints
+PRED_ROOT="/midtier/paetzollab/scratch/ads4015/temp_selma_deblur_preds_expert_sweep_31/preds" # location to save predictions
 
 # existing pretrained checkpoint
-CKPT_PRETR="/midtier/paetzollab/scratch/ads4015/checkpoints/autumn_sweep_27/all_datasets_clip_pretrained-updated-epochepoch=354-val-reportval_loss_report=0.0968-stepstep=20590.ckpt"
+CKPT_PRETR="/midtier/paetzollab/scratch/ads4015/checkpoints/expert_sweep_31/all_datasets_pretrained_no_clip-epochepoch=183-valval_loss=0.0201-stepstep=10672.ckpt"
 
 # customize per-subtype hyperparameters if desired
 case "$SUBTYPE" in
@@ -77,7 +78,7 @@ python /home/ads4015/ssl_project/src/finetune_deblur_split.py \
   --val_fraction 0.2 \
   --seed 100 \
   --batch_size 2 \
-  --feature_size 36 \
+  --feature_size 24 \
   --max_epochs 500 \
   --freeze_encoder_epochs 5 \
   --encoder_lr_mult 0.05 \

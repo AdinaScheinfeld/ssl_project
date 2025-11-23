@@ -1,13 +1,13 @@
 #!/bin/bash
 #SBATCH --job-name=build_submit_deblur_cv
-#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_deblur_preds_autumn_sweep_27/logs/build_submit_deblur_cv_%j.out
-#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_deblur_preds_autumn_sweep_27/logs/build_submit_deblur_cv_%j.err
+#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_deblur_preds_expert_sweep_31/logs/build_submit_deblur_cv_%j.out
+#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_deblur_preds_expert_sweep_31/logs/build_submit_deblur_cv_%j.err
 #SBATCH --partition=minilab-cpu
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=4G
 #SBATCH --time=02:00:00
 
-# /home/ads4015/ssl_project/scripts/finetune_deblur_split_build_submit1.sh - build CV folds and submit deblurring finetune array jobs
+# /home/ads4015/ssl_project/scripts/finetune_deblur_split_build_submit2.sh - build CV folds and submit deblurring finetune array jobs
 
 set -euo pipefail
 export TOKENIZERS_PARALLELISM=false
@@ -19,7 +19,7 @@ echo "[INFO] Starting build & submit for deblur CV jobs..."
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches"
 
 # output directory for folds JSON and task list
-OUTDIR="/midtier/paetzollab/scratch/ads4015/temp_selma_deblur_preds_autumn_sweep_27/cv_folds"
+OUTDIR="/midtier/paetzollab/scratch/ads4015/temp_selma_deblur_preds_expert_sweep_31/cv_folds"
 
 # Number of repeated CV folds per setting (same as inpainting script)
 REPEATS=3
@@ -28,8 +28,8 @@ CHANNELS="ALL"
 TEST_SIZE=2
 
 # job prefix for array job naming / task file
-JOB_PREFIX="deblur27"
-ARRAY_SCRIPT="/home/ads4015/ssl_project/scripts/finetune_deblur_split_job_array1.sh"
+JOB_PREFIX="deblur31"
+ARRAY_SCRIPT="/home/ads4015/ssl_project/scripts/finetune_deblur_split_job_array2.sh"
 MAX_CONCURRENT=""  # e.g. "6" to cap concurrency; empty for no cap
 
 # per-subtype training subset sizes (same pattern as inpainting)
