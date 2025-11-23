@@ -123,7 +123,7 @@ class DeblurModule(pl.LightningModule):
     
     # 3d gradient for edge loss
     @staticmethod
-    def _grad3d(self, x):
+    def _grad3d(x):
 
         # d/dz
         dz_core = x[:, :, 1:, :, :] - x[:, :, :-1, :, :] # (B, C, D-1, H, W)
