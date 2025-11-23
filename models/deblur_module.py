@@ -229,9 +229,9 @@ class DeblurModule(pl.LightningModule):
         if batch_idx < 5  and isinstance(self.logger, WandbLogger) and hasattr(self.logger, 'experiment'):
 
             # get middle slice of first element in batch
-            blurred_np = input_blurred[0, 0].detach().cpu().numpy()
-            pred_np = output_deblurred_pred[0, 0].detach().cpu().numpy()
-            sharp_np = target_sharp[0, 0].detach().cpu().numpy()
+            blurred_np = input_blurred[0, 0].detach().float().cpu().numpy()
+            pred_np = output_deblurred_pred[0, 0].detach().float().cpu().numpy()
+            sharp_np = target_sharp[0, 0].detach().float().cpu().numpy()
 
             mid_slice = blurred_np.shape[0] // 2
             blurred_slice = blurred_np[mid_slice, :, :]
