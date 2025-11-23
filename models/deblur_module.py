@@ -10,6 +10,7 @@ from monai.losses import SSIMLoss
 from monai.networks.nets import SwinUNETR
 
 import pytorch_lightning as pl
+from pytorch_lightning.loggers import WandbLogger
 
 import torch
 import torch.nn as nn
@@ -225,7 +226,7 @@ class DeblurModule(pl.LightningModule):
         psnr = 10.0 * torch.log10(1.0 / mse)
 
         # log up to 5 validation examples to wandb (blurred, deblurred, sharp) as 2d slices
-        if batch_idx < 5  and isinstance(self.logger, pl.logger.WandbLogger) and hasattr(self.logger, 'experiment'):
+        if batch_idx < 5  and isinstance(self.logger, WandbLogger) and hasattr(self.logger, 'experiment'):
 
             # get middle slice of first element in batch
             blurred_np = input_blurred[0, 0].detach().cpu().numpy()
