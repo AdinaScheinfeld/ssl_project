@@ -264,8 +264,8 @@ def run_one_subtype(subtype_dir, blurred_root, args, device):
             sharp_img = batch['target_vol'].to(device)
             
             # forward pass
-            output_deblurred_logits = best_model(blurred_img)
-            output_deblurred_pred = torch.sigmoid(output_deblurred_logits) # [1, 1, D, H, W]
+            residual = best_model(blurred_img)
+            output_deblurred_pred = torch.clamp(blurred_img + residual, 0.0, 1.0) # [1, 1, D, H, W]
 
             # save prediction nifti
             fname = Path(batch['filename'][0])

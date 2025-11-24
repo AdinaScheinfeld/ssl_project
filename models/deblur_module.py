@@ -55,6 +55,7 @@ class DeblurModule(pl.LightningModule):
         self.l1_loss = nn.L1Loss(reduction='mean')
         self.ssim_loss = SSIMLoss(spatial_dims=3, data_range=1.0)
         self.edge_weight = 0.1 # weight for edge loss
+        self.highfreq_weight = 0.1 # weight for high freq loss
         self.lr = float(lr)
         self.encoder_lr_mult = float(encoder_lr_mult)
 
@@ -120,10 +121,10 @@ class DeblurModule(pl.LightningModule):
 
     # forward
     # x: blurred input volume, shape (B, 1, D, H, W) in [0, 1]
-    # predicts deblurred output volume, shape (B, 1, D, H, W) in [0, 1]
+    # returns residual volume (of same shape) that is added to x to obtain the deblurred output
     def forward(self, x):
-        out = self.model(x)
-        return out
+        residual = self.model(x)
+        return residual
     
     # 3d gradient for edge loss
     @staticmethod
@@ -142,6 +143,19 @@ class DeblurModule(pl.LightningModule):
         dx = F.pad(dx_core, (0, 1, 0, 0, 0, 0)) # pad last dimension to match input shape
 
         return dz, dy, dx
+    
+    # 3d high pass filter (subtract local mean from image) to encourage model to match high freq structure (edges, fine details)
+    @staticmethod
+    def _highpass3d(x, kernel_size=3):
+        B, C, D, H, W = x.shape
+
+        # create averaging kernel
+        weight = x.new_ones((C, 1, kernel_size, kernel_size, kernel_size)) / float(kernel_size ** 3) # (C_out=C, C_in=1, kD, kH, kW)
+
+        # convolve and subtract
+        smoothed = F.conv3d(x, weight, bias=None, stride=1, padding=kernel_size//2, groups=C)
+        highfreq = x - smoothed
+        return highfreq
 
     # on train epoch start
     def on_train_epoch_start(self):
@@ -161,8 +175,9 @@ class DeblurModule(pl.LightningModule):
         target_sharp = batch['target_vol'].to(self.device) # (B, 1, D, H, W)
 
         # forward
-        output_deblurred_logits = self.forward(input_blurred) # (B, 1, D, H, W)
-        output_deblurred_pred = torch.sigmoid(output_deblurred_logits) # (B, 1, D, H, W)
+        residual = self.forward(input_blurred) # (B, 1, D, H, W), unconstrained logits
+        # predict sharp output as blurred input + residual (clamped to [0, 1])
+        output_deblurred_pred = torch.clamp(input_blurred + residual, 0.0, 1.0) # (B, 1, D, H, W)
 
         # l1 loss
         loss_l1 = self.l1_loss(output_deblurred_pred, target_sharp)
@@ -179,8 +194,17 @@ class DeblurModule(pl.LightningModule):
             (dx_pred.abs() - dx_target.abs()).abs().mean()
         )
 
+        # high frequency loss
+        highfreq_pred = self._highpass3d(output_deblurred_pred)
+        highfreq_target = self._highpass3d(target_sharp)
+        loss_highfreq = self.l1_loss(highfreq_pred, highfreq_target)
+
         # total loss
-        total_train_loss = loss_l1 + 0.2 * loss_ssim + self.edge_weight * loss_edge
+        total_train_loss = (loss_l1 
+                            + 0.2 * loss_ssim 
+                            + self.edge_weight * loss_edge 
+                            + self.highfreq_weight * loss_highfreq
+                            )
 
         # psnr
         mse = torch.mean((output_deblurred_pred - target_sharp) ** 2) + 1e-8
@@ -190,6 +214,7 @@ class DeblurModule(pl.LightningModule):
         self.log('train_l1_loss', loss_l1, on_step=False, on_epoch=True, prog_bar=False)
         self.log('train_edge_loss', loss_edge, on_step=False, on_epoch=True, prog_bar=False)
         self.log('train_total_loss', total_train_loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log('train_highfreq_loss', loss_highfreq, on_step=False, on_epoch=True, prog_bar=False)
         self.log('train_ssim', 1.0-loss_ssim, on_step=True, on_epoch=True, prog_bar=False)
         self.log('train_psnr', psnr, on_step=True, on_epoch=True, prog_bar=True)
 
@@ -203,8 +228,8 @@ class DeblurModule(pl.LightningModule):
         target_sharp = batch['target_vol'].to(self.device) # (B, 1, D, H, W)
 
         # forward
-        output_deblurred_logits = self.forward(input_blurred) # (B, 1, D, H, W)
-        output_deblurred_pred = torch.sigmoid(output_deblurred_logits) # (B, 1, D, H, W)
+        residual = self.forward(input_blurred) # (B, 1, D, H, W), unconstrained logits
+        output_deblurred_pred = torch.clamp(input_blurred + residual, 0.0, 1.0) # (B, 1, D, H, W)
 
         # l1 loss
         loss_l1 = self.l1_loss(output_deblurred_pred, target_sharp)
@@ -221,8 +246,17 @@ class DeblurModule(pl.LightningModule):
             (dx_pred.abs() - dx_target.abs()).abs().mean()
         )
 
+        # high frequency loss
+        highfreq_pred = self._highpass3d(output_deblurred_pred)
+        highfreq_target = self._highpass3d(target_sharp)
+        loss_highfreq = self.l1_loss(highfreq_pred, highfreq_target)
+
         # total loss
-        total_val_loss = loss_l1 + 0.2 * loss_ssim + self.edge_weight * loss_edge
+        total_val_loss = (loss_l1 
+                          + 0.2 * loss_ssim 
+                          + self.edge_weight * loss_edge 
+                          + self.highfreq_weight * loss_highfreq
+                          )
 
         # psnr
         mse = torch.mean((output_deblurred_pred - target_sharp) ** 2) + 1e-8
@@ -263,6 +297,7 @@ class DeblurModule(pl.LightningModule):
         self.log('val_l1_loss', loss_l1, on_step=False, on_epoch=True, prog_bar=False)
         self.log('val_edge_loss', loss_edge, on_step=False, on_epoch=True, prog_bar=False)
         self.log('val_total_loss', total_val_loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log('val_highfreq_loss', loss_highfreq, on_step=False, on_epoch=True, prog_bar=False)
         self.log('val_ssim', 1.0-loss_ssim, on_step=True, on_epoch=True, prog_bar=True)
         self.log('val_psnr', psnr, on_step=True, on_epoch=True, prog_bar=True)
 
