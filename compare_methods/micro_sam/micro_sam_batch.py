@@ -182,20 +182,31 @@ def main():
 
             # Run microSAM
             log(f"[Task {task_id}]    Calling automatic_instance_segmentation(...)")
-            instances = automatic_instance_segmentation(
-                predictor=predictor,
-                segmenter=segmenter,
-                input_path=img_norm,
-                ndim=3,
-                tile_shape=None,
-                halo=None,
-                verbose=False,
-                return_embeddings=False,
-            )
-            log(f"[Task {task_id}]    microSAM inference done, got instances with shape {instances.shape}")
+            try:
+                instances = automatic_instance_segmentation(
+                    predictor=predictor,
+                    segmenter=segmenter,
+                    input_path=img_norm,
+                    ndim=3,
+                    tile_shape=None,
+                    halo=None,
+                    verbose=True,
+                    return_embeddings=False,
+                )
+                log(f"[Task {task_id}]    microSAM inference done, got instances with shape {instances.shape}")
+            except TypeError as e:
+                # Handle the specific nifty insertEdges issue (empty float64 edge array)
+                if "insertEdges()" in repr(e):
+                    log(
+                        f"[Task {task_id}]    WARNING: microSAM / nifty insertEdges() TypeError "
+                        f"(empty edge list). Treating as 'no instances' and writing zeros."
+                    )
+                    instances = np.zeros_like(img_norm, dtype=np.uint32)
+                else:
+                    raise  # re-raise other TypeErrors
 
-            instances = instances.astype(np.uint32)
-
+            # Ensure uint32 and save
+            instances = instances.astype(np.uint32, copy=False)
             inst_nii = nib.Nifti1Image(instances, affine=img_nii.affine, header=img_nii.header)
             nib.save(inst_nii, str(out_path))
 
@@ -205,6 +216,7 @@ def main():
         except Exception as e:
             log(f"[Task {task_id}]    ERROR while processing {ip}: {repr(e)}")
             failed += 1
+
 
     log(f"[Task {task_id}] === Task summary ===")
     log(f"[Task {task_id}]   processed:        {processed}")
