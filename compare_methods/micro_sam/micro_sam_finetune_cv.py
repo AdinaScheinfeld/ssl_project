@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+
+# /home/ads4015/ssl_project/compare_methods/micro_sam/micro_sam_finetune_cv.py
+
 """
 microsam_finetune_cv.py
 
@@ -418,7 +421,7 @@ def run_experiment(
     # -------------------------
     # microSAM training
     # -------------------------
-    model_type = "vit_b_lm"  # microSAM LM model
+    model_type = "vit_l_lm"  # microSAM LM model
     exp_name = f"{class_name}_pool{pool_size}_fold{fold_index}"
 
     # microSAM saves to save_root/checkpoints/<name>/...
@@ -482,16 +485,30 @@ def run_experiment(
     # -------------------------
     # Evaluate on held-out test set & save predictions
     # Directory layout:
-    #   preds/<class_name>/fold_cv{fold}_pool{pool}_ntrX_nvalY_ntestZ/patches/*.nii.gz
+    #   preds/<class_name>/cvfold{fold}_ntr{pool}_nev{n_test}_fttr{n_train}_ftval{n_val}_fold{fold}_trlim{pool}_seed{base_seed}/patches/*.nii.gz
+    # Example:
+    #   cvfold0_ntr2_nev2_fttr1_ftval1_fold0_trlim2_seed100
     # -------------------------
+    fold_tag = (
+        f"cvfold{fold_index}"
+        f"_ntr{pool_size}"
+        f"_nev{n_test}"
+        f"_fttr{n_train}"
+        f"_ftval{n_val}"
+        f"_fold{fold_index}"
+        f"_trlim{pool_size}"
+        f"_seed{base_seed}"
+    )
+
     fold_dir = (
         output_root
         / "preds"
         / class_name
-        / f"fold_cv{fold_index}_pool{pool_size}_ntr{n_train}_nval{n_val}_ntest{n_test}"
+        / fold_tag
         / "patches"
     )
     fold_dir.mkdir(parents=True, exist_ok=True)
+
 
     results = []  # per-volume metrics
 
@@ -517,19 +534,15 @@ def run_experiment(
         )
 
         # Save prediction with detailed name
-        raw_stem = raw_path.stem  # e.g. "patch_007_vol005_ch0"
-        pred_fname = (
-            f"{raw_stem}"
-            f"_pred"
-            f"_cvfold{fold_index}"
-            f"_pool{pool_size}"
-            f"_ntr{n_train}"
-            f"_nval{n_val}"
-            f"_ntest{n_test}"
-            f"_seed{base_seed}"
-            ".nii.gz"
-        )
+        raw_stem = raw_path.name  # e.g. "patch_007_vol005_ch0.nii.gz"
+        if raw_stem.endswith(".nii.gz"):
+            raw_stem = raw_stem[:-7]  # -> "patch_007_vol005_ch0"
+
+        # Filename:
+        #   patch_007_vol005_ch0_pred_cvfold0_ntr2_nev2_fttr1_ftval1_fold0_trlim2_seed100.nii.gz
+        pred_fname = f"{raw_stem}_pred_{fold_tag}.nii.gz"
         pred_path = fold_dir / pred_fname
+
 
         pred_nii = nib.Nifti1Image(
             instances.astype(np.int32),
@@ -584,7 +597,7 @@ def run_experiment(
 
     # Save metrics next to the prediction patches
     df = pd.DataFrame(results)
-    metrics_path = fold_dir / f"metrics_{class_name}_pool{pool_size}_fold{fold_index}.csv"
+    metrics_path = fold_dir / f"metrics_{class_name}_{fold_tag}.csv"
     df.to_csv(metrics_path, index=False)
     print("[INFO] Saved metrics to:", metrics_path)
 

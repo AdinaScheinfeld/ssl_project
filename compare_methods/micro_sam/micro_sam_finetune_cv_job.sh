@@ -6,11 +6,11 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
 #SBATCH --time=72:00:00
-
-#SBATCH --output=/midtier/paetzollab/scratch/ads4015/compare_methods/micro_sam/finetuned_cross_val/logs/microsam_cv_%A_%a.out
-#SBATCH --error=/midtier/paetzollab/scratch/ads4015/compare_methods/micro_sam/finetuned_cross_val/logs/microsam_cv_%A_%a.err
-
+#SBATCH --output=/midtier/paetzollab/scratch/ads4015/compare_methods/micro_sam/finetuned_cross_val_l/logs/microsam_cv_%A_%a.out
+#SBATCH --error=/midtier/paetzollab/scratch/ads4015/compare_methods/micro_sam/finetuned_cross_val_l/logs/microsam_cv_%A_%a.err
 #SBATCH --array=0-227
+
+# /home/ads4015/ssl_project/compare_methods/micro_sam/micro_sam_finetune_cv_job.sh
 
 echo "SLURM ARRAY TASK ID: $SLURM_ARRAY_TASK_ID"
 
@@ -53,7 +53,7 @@ python /home/ads4015/ssl_project/compare_methods/micro_sam/micro_sam_finetune_cv
     --pool-size "$POOL_SIZE" \
     --fold-index "$FOLD_INDEX" \
     --data-root "/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches" \
-    --output-root "/midtier/paetzollab/scratch/ads4015/compare_methods/micro_sam/finetuned_cross_val" \
+    --output-root "/midtier/paetzollab/scratch/ads4015/compare_methods/micro_sam/finetuned_cross_val_l" \
     --epochs 500 \
     --early-stopping 50
 
