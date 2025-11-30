@@ -262,6 +262,56 @@ def infer_volume(vol, ckpt_path):
 
     return sem.astype(np.uint8), inst.astype(np.uint16), src
 
+# ============================================================
+# SANITY CHECK: Confirm checkpoint, loaded model, and random model differ
+# ============================================================
+def run_sanity_check(ckpt_path):
+    from napari_cellseg3d.code_models.models.wnet.model import WNet
+
+    print("\n========== SANITY CHECK ==========")
+    print(f"Checking checkpoint: {ckpt_path}")
+
+    raw = torch.load(ckpt_path, map_location="cpu")
+
+    # Handle raw and wrapped formats
+    if isinstance(raw, dict) and "model_state_dict" in raw:
+        state_dict = raw["model_state_dict"]
+    elif isinstance(raw, dict):
+        state_dict = raw
+    else:
+        raise ValueError("Invalid checkpoint format")
+
+    param_name = "encoder.conv1.module.0.weight"
+
+    ckpt_val = state_dict[param_name][0,0,0,0,0].item()
+    print(f"Checkpoint value:     {ckpt_val}")
+
+    model_finetuned = WNet(
+        in_channels=1,
+        out_channels=1,
+        num_classes=2,
+        dropout=0.65,
+    )
+    model_finetuned.load_state_dict(state_dict, strict=True)
+    finetuned_val = model_finetuned.encoder.conv1.module[0].weight[0,0,0,0,0].item()
+
+    print(f"Loaded model value:   {finetuned_val}")
+    print(f"Match finetuned?:     {ckpt_val == finetuned_val}")
+
+    model_random = WNet(
+        in_channels=1,
+        out_channels=1,
+        num_classes=2,
+        dropout=0.65,
+    )
+    random_val = model_random.encoder.conv1.module[0].weight[0,0,0,0,0].item()
+
+    print(f"Random model value:   {random_val}")
+    print(f"Random == finetuned?: {random_val == finetuned_val}")
+    print("==================================\n")
+
+
+
 
 # ============================================================
 # MAIN EXPERIMENT
@@ -346,6 +396,9 @@ def run_experiment(pool_size, fold_index):
 
     ckpt_inf = ckpt_dir / "wnet_best_metric_for_inference.pth"
     wrap_checkpoint(ckpt_best, ckpt_inf)
+
+    # run sanity check
+    run_sanity_check(ckpt_best)
 
     # INFERENCE
     fold_tag = (
