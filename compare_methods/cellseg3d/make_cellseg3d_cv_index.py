@@ -1,74 +1,74 @@
 #!/usr/bin/env python3
-
 # /home/ads4015/ssl_project/compare_methods/cellseg3d/make_cellseg3d_cv_index.py
 
 """
 Generate CV index for CellSeg3D finetuning experiments.
 
-Output: JSON list of entries, each entry specifying:
-    {
-        "pool_size": int,
-        "fold_index": int
-    }
+For a dataset of N volumes:
+    - always hold out 2 for testing
+    - remaining (N-2) volumes are used for train/val pools
+    - pool sizes range from 2 → (N-2)
+    - for each pool size, generate 3 randomized folds
+      (each fold has independent train/val/test splits)
 
-You will use these entries with the Slurm array job to run
-cellseg3d_finetune_cv.py.
+Output saved to:
+    /midtier/paetzollab/scratch/ads4015/compare_methods/cellseg3d/cv_index.json
 """
 
 import json
 from pathlib import Path
-import numpy as np
 
-# ----------------------------------------
+# ---------------------------------------------------------------------
 # Paths
-# ----------------------------------------
+# ---------------------------------------------------------------------
 DATA_ROOT = Path("/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches")
 CLASS_NAME = "cell_nucleus_patches"
-OUTFILE = Path("/midtier/paetzollab/scratch/ads4015/compare_methods/cellseg3d/cv_index.json")
 
-# ----------------------------------------
-# Scan images for this class
-# ----------------------------------------
+OUTFILE = Path("/midtier/paetzollab/scratch/ads4015/compare_methods/cellseg3d/cv_index.json")
+OUTFILE.parent.mkdir(parents=True, exist_ok=True)
+
+# ---------------------------------------------------------------------
+# Load available volumes
+# ---------------------------------------------------------------------
 class_dir = DATA_ROOT / CLASS_NAME
 if not class_dir.is_dir():
     raise RuntimeError(f"Class directory not found: {class_dir}")
 
-all_imgs = []
-for f in sorted(class_dir.glob("*.nii.gz")):
-    if f.name.endswith("_ch0.nii.gz") and "_label" not in f.name:
-        all_imgs.append(f)
+all_imgs = sorted(
+    f for f in class_dir.glob("*.nii.gz")
+    if f.name.endswith("_ch0.nii.gz") and "_label" not in f.name
+)
 
 n_items = len(all_imgs)
+print(f"[INFO] Found {n_items} usable volumes in {CLASS_NAME}")
+
 if n_items < 4:
     raise RuntimeError(
-        f"Need at least 4 labeled volumes for 2 test + pool. Found {n_items}."
+        f"[ERROR] Need at least 4 volumes (2 test + pool >= 2). Found: {n_items}"
     )
 
-print(f"Found {n_items} usable volumes in {CLASS_NAME}")
-
-# ----------------------------------------
-# Build list of CV tasks
-# ----------------------------------------
+# ---------------------------------------------------------------------
+# Build CV index list
+# ---------------------------------------------------------------------
 cv_entries = []
+max_pool = n_items - 2  # always hold out 2 for testing
 
-# Always 2 test → remaining for train+val pools
-max_pool = n_items - 2  # maximum possible train+val pool size
+print(f"[INFO] Pool sizes: 2 → {max_pool}")
+print(f"[INFO] Folds per pool size: 3")
 
 for pool_size in range(2, max_pool + 1):
-    for fold_idx in range(3):  # 3-fold CV
+    for fold_idx in range(3):
         cv_entries.append({
             "pool_size": pool_size,
             "fold_index": fold_idx
         })
 
-print(f"Total tasks generated: {len(cv_entries)}")
-print(f"Pool sizes: 2 → {max_pool}")
+print(f"[INFO] Total CV tasks generated: {len(cv_entries)}")
 
-# ----------------------------------------
-# Save JSON
-# ----------------------------------------
-OUTFILE.parent.mkdir(parents=True, exist_ok=True)
+# ---------------------------------------------------------------------
+# Save JSON index
+# ---------------------------------------------------------------------
 with OUTFILE.open("w") as f:
     json.dump(cv_entries, f, indent=2)
 
-print(f"Saved CV index to: {OUTFILE}")
+print(f"[INFO] Saved CV index JSON → {OUTFILE}")

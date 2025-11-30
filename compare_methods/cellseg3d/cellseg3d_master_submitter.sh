@@ -2,20 +2,17 @@
 #
 # /home/ads4015/ssl_project/compare_methods/cellseg3d/cellseg3d_master_submitter.sh
 #
-# This script:
-#   1. Generates cv_index.json (pool_size × fold_index entries)
-#   2. Counts the number of tasks
-#   3. Submits the correct Slurm array job
-#
-# Usage:
-#   bash master_submit_cellseg3d_cv.sh
+# Master launcher for CellSeg3D CV finetuning experiments.
+# 1. Generates cv_index.json
+# 2. Counts number of experiments
+# 3. Submits Slurm array job
 #
 
 set -euo pipefail
 
-# ---------------------------------------------
-# Configuration
-# ---------------------------------------------
+# -------------------------------------------------------------------
+# CONFIG
+# -------------------------------------------------------------------
 DATA_ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches"
 CLASS_NAME="cell_nucleus_patches"
 
@@ -24,10 +21,10 @@ OUT_INDEX="/midtier/paetzollab/scratch/ads4015/compare_methods/cellseg3d/cv_inde
 PYTHON_GENERATOR="/home/ads4015/ssl_project/compare_methods/cellseg3d/make_cellseg3d_cv_index.py"
 SLURM_SCRIPT="/home/ads4015/ssl_project/compare_methods/cellseg3d/cellseg3d_finetune_eval_cv_job.sh"
 
-# ---------------------------------------------
-# Step 1: Activate micromamba environment
-# ---------------------------------------------
-echo "[INFO] Activating micromamba..."
+# -------------------------------------------------------------------
+# Activate micromamba
+# -------------------------------------------------------------------
+echo "[INFO] Activating micromamba…"
 set +u
 export MKL_INTERFACE_LAYER=GNU
 export MKL_THREADING_LAYER=GNU
@@ -38,38 +35,38 @@ set -u
 echo "[INFO] Python: $(which python)"
 python --version
 
-# ---------------------------------------------
-# Step 2: Generate CV index JSON
-# ---------------------------------------------
-echo "[INFO] Generating cv_index.json ..."
+# -------------------------------------------------------------------
+# Step 1: Generate cv_index.json
+# -------------------------------------------------------------------
+echo "[INFO] Generating CV index JSON…"
 python "$PYTHON_GENERATOR"
 
-if [ ! -f "$OUT_INDEX" ]; then
-    echo "[ERROR] cv_index.json was not created: $OUT_INDEX"
+if [[ ! -f "$OUT_INDEX" ]]; then
+    echo "[ERROR] cv_index.json was not created."
     exit 1
 fi
 
 echo "[INFO] cv_index.json created at: $OUT_INDEX"
 
-# ---------------------------------------------
-# Step 3: Count how many tasks we need
-# ---------------------------------------------
+# -------------------------------------------------------------------
+# Step 2: Count tasks
+# -------------------------------------------------------------------
 NUM_TASKS=$(jq length "$OUT_INDEX")
 LAST_INDEX=$((NUM_TASKS - 1))
 
-echo "[INFO] Number of CV tasks: $NUM_TASKS (array 0..$LAST_INDEX)"
-
-if [ "$NUM_TASKS" -lt 1 ]; then
+if [[ "$NUM_TASKS" -lt 1 ]]; then
     echo "[ERROR] cv_index.json is empty."
     exit 1
 fi
 
-# ---------------------------------------------
-# Step 4: Submit Slurm array job
-# ---------------------------------------------
-echo "[INFO] Submitting Slurm array job..."
+echo "[INFO] Number of tasks: $NUM_TASKS (array indices 0 … $LAST_INDEX)"
+
+# -------------------------------------------------------------------
+# Step 3: Submit Slurm array job
+# -------------------------------------------------------------------
+echo "[INFO] Submitting Slurm array job:"
 echo "       sbatch --array=0-$LAST_INDEX $SLURM_SCRIPT"
 
-sbatch --array=0-$LAST_INDEX "$SLURM_SCRIPT"
+sbatch --array=0-"$LAST_INDEX" "$SLURM_SCRIPT"
 
-echo "[INFO] Done. Slurm array submitted."
+echo "[INFO] Done. Slurm jobs submitted."
