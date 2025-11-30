@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
-# /home/ads4015/ssl_project/compare_methods/cellseg3d/cellseg3d_finetune_eval_cv.py
-
 """
-Fully fixed + stable cross-validation finetuning script for CellSeg3D WNet.
-
-FEATURES:
-    - Restored old working split behavior (automatic directory creation)
-    - Notebook-style inference (remote_inference)
-    - Correct checkpoint rewriting (model_state_dict only, no module.*)
-    - Stable NIfTI loading (ZYX), TIFF conversion, normalization
-    - Uses pretrained WNet weights for training by default
+FINAL CellSeg3D Finetune + Eval Script (Option A)
+- Original splitting behavior
+- NIfTI → TIFF conversion
+- Finetune WNet
+- Wrap checkpoint correctly
+- Inference EXACTLY like working notebook
+- AUTO mode for weights:
+      custom → pretrained → random
 """
 
 import os
@@ -17,14 +15,15 @@ import csv
 import random
 from pathlib import Path
 from copy import deepcopy
-from collections import OrderedDict
 
 import numpy as np
 import nibabel as nib
 import tifffile as tiff
 import pandas as pd
 import torch
+from collections import OrderedDict
 
+# --- CellSeg3D imports ---
 from napari_cellseg3d.dev_scripts import colab_training as c
 from napari_cellseg3d.dev_scripts import remote_inference as cs3d
 from napari_cellseg3d.config import (
@@ -32,26 +31,31 @@ from napari_cellseg3d.config import (
     WandBConfig,
     WeightsInfo,
     ModelInfo,
+    InferenceWorkerConfig,
 )
 from napari_cellseg3d.utils import LOGGER as logger
 
 logger.setLevel("INFO")
 
 # ============================================================
-# CONSTANT PATHS
+# USER PATHS
 # ============================================================
 DATA_ROOT = Path("/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches")
-
-# *** SINGLE CLASS ONLY ***
 CLASS_NAME = "cell_nucleus_patches"
 
 OUTPUT_ROOT = Path("/midtier/paetzollab/scratch/ads4015/compare_methods/cellseg3d/finetuned_cross_val")
 OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
 
+# Pretrained WNet shipped with your installation
+PRETRAINED_WNET = (
+    "/home/ads4015/micromamba/envs/cellseg3d-env1/lib/python3.10/"
+    "site-packages/napari_cellseg3d/code_models/models/pretrained/wnet_latest.pth"
+)
+
 # ============================================================
-# TRAINING SETTINGS
+# TRAINING PARAMS
 # ============================================================
-NUM_EPOCHS = 250
+NUM_EPOCHS = 10
 VAL_EVERY = 2
 LR = 2e-5
 BATCH_SIZE = 4
@@ -81,10 +85,10 @@ def is_valid_nii_gz(path: Path):
 
 
 def load_nifti_as_zyx(path: Path):
-    vol = nib.load(str(path)).get_fdata()
-    vol = np.squeeze(vol).astype(np.float32)
+    vol = nib.load(str(path)).get_fdata().astype(np.float32)
+    vol = np.squeeze(vol)
     if vol.ndim != 3:
-        raise ValueError(f"Expected 3D vol, got {vol.shape} at {path}")
+        raise ValueError(f"Expected 3D, got {vol.shape}")
     return np.transpose(vol, (2, 1, 0))  # XYZ → ZYX
 
 
@@ -93,24 +97,25 @@ def label_path(img_path: Path):
 
 
 # ============================================================
-# SPLITTING (RESTORED OLD WORKING BEHAVIOR)
+# ORIGINAL SPLIT LOGIC
 # ============================================================
 def make_splits(all_imgs, pool_size, fold_index):
     rng = random.Random(BASE_SEED + fold_index)
     shuffled = all_imgs.copy()
     rng.shuffle(shuffled)
 
-    test_imgs = shuffled[:2]     # exactly 2 test volumes
+    # Exactly 2 test images
+    test_imgs = shuffled[:2]
     remaining = shuffled[2:]
 
     pool = remaining[:pool_size]
 
-    # 80/20 split with guarantees
+    # Train/val (80/20, at least 1 each)
     n_train = max(1, int(round(0.8 * pool_size)))
     if n_train >= pool_size:
         n_train = pool_size - 1
-
     n_val = pool_size - n_train
+
     train_imgs = pool[:n_train]
     val_imgs = pool[n_train:]
 
@@ -118,13 +123,9 @@ def make_splits(all_imgs, pool_size, fold_index):
 
 
 # ============================================================
-# NIFTI → TIFF CONVERSION (FULLY RESTORED)
+# NIFTI → TIFF CONVERSION
 # ============================================================
 def convert_split(name, imgs, out_vol, out_lab):
-    """
-    Converts NIfTI imgs and labels into TIFFs under vol/ and lab/.
-    ALWAYS creates directories first (old behavior).
-    """
     rows = []
     out_vol.mkdir(parents=True, exist_ok=True)
     out_lab.mkdir(parents=True, exist_ok=True)
@@ -137,7 +138,6 @@ def convert_split(name, imgs, out_vol, out_lab):
         arr = load_nifti_as_zyx(img)
         lab = load_nifti_as_zyx(lbl).astype(np.uint8)
 
-        # Normalize volume
         vmin, vmax = arr.min(), arr.max()
         if vmax > vmin:
             arr = (arr - vmin) / (vmax - vmin)
@@ -163,78 +163,104 @@ def convert_split(name, imgs, out_vol, out_lab):
 
 
 # ============================================================
-# CHECKPOINT WRAPPER
+# WRAP CHECKPOINT INTO INFERENCE FORMAT
 # ============================================================
 def wrap_checkpoint(src_ckpt, dst_ckpt):
-    """
-    Wrap ANY CellSeg3D or PyTorch checkpoint into a standard:
-        {"model_state_dict": cleaned_state_dict}
-    This supports:
-        - {"state_dict": {...}}
-        - {"model_state_dict": {...}}
-        - raw OrderedDict (CellSeg3D best-metric format)
-    """
     raw = torch.load(src_ckpt, map_location="cpu")
 
-    # Case A: CellSeg3D training wrapper format
-    if isinstance(raw, dict) and "state_dict" in raw:
-        sd = raw["state_dict"]
-
-    # Case B: Inference wrapper format
-    elif isinstance(raw, dict) and "model_state_dict" in raw:
+    # raw state_dict OR wrapped dict
+    if isinstance(raw, dict) and "model_state_dict" in raw:
         sd = raw["model_state_dict"]
-
-    # Case C: Raw OrderedDict directly containing weights
-    elif isinstance(raw, OrderedDict) or isinstance(raw, dict):
+    elif isinstance(raw, OrderedDict):
         sd = raw
-
     else:
-        raise ValueError(
-            f"Unrecognized checkpoint format (type={type(raw)}): {src_ckpt}"
-        )
+        raise ValueError(f"Invalid checkpoint: {src_ckpt}")
 
-    # Clean prefixes added by DataParallel or Worker
-    new_sd = {}
-    for k, v in sd.items():
-        nk = k.replace("module.", "").replace("model.", "")
-        new_sd[nk] = v
+    # Remove module. prefix if present
+    clean_sd = {k.replace("module.", ""): v for k, v in sd.items()}
 
-    # Save in standard inference-ready format
-    torch.save({"model_state_dict": new_sd}, dst_ckpt)
-
-    print(f"[INFO] Wrapped checkpoint saved to {dst_ckpt}", flush=True)
-
+    torch.save({"model_state_dict": clean_sd}, dst_ckpt)
+    print(f"[INFO] Wrapped checkpoint → {dst_ckpt}")
 
 
 # ============================================================
-# NOTEBOOK-STYLE INFERENCE
+# INFERENCE (Notebook-style)
 # ============================================================
-def infer_volume(vol, ckpt):
-    cfg = deepcopy(cs3d.CONFIG)
+def infer_volume(vol, ckpt_path):
+    """
+    Uses CellSeg3D inference API.
+    AUTO mode:
+        1. Finetuned (if exists)
+        2. Pretrained WNet
+        3. Random
+    Returns (sem, inst, src)
+    """
 
+    cfg = InferenceWorkerConfig()
     cfg.model_info = ModelInfo(
         name="WNet3D",
         model_input_size=[64, 64, 64],
         num_classes=2,
     )
 
-    cfg.weights_config = WeightsInfo(
-        path=str(ckpt),
-        use_custom=True,
-        use_pretrained=False,
-    )
+    # Choose weights
+    if ckpt_path and ckpt_path.exists():
+        print(f"[AUTO] Using FINETUNED checkpoint: {ckpt_path}")
+        cfg.weights_config = WeightsInfo(
+            use_custom=True,
+            use_pretrained=False,
+            path=str(ckpt_path),
+        )
+        src = "custom"
 
-    print(f"[CellSeg3D] Using FINETUNED custom weights: {ckpt}", flush=True)
+    elif Path(PRETRAINED_WNET).exists():
+        print(f"[AUTO] Finetuned missing → Using PRETRAINED: {PRETRAINED_WNET}")
+        cfg.weights_config = WeightsInfo(
+            use_custom=False,
+            use_pretrained=True,
+            path=str(PRETRAINED_WNET),
+        )
+        src = "pretrained"
 
-    out = cs3d.inference_on_images(vol, config=cfg)[0]
+    else:
+        print("[AUTO] WARNING: No weights found → RANDOM initialization")
+        cfg.weights_config = WeightsInfo(
+            use_custom=False,
+            use_pretrained=False,
+            path=None,
+        )
+        src = "random"
+
+    v = vol.astype(float)
+    vmin, vmax = v.min(), v.max()
+    v = (v - vmin) / (vmax - vmin) if vmax > vmin else v
+
+    out = cs3d.inference_on_images(v, config=cfg)[0]
     sem = out.semantic_segmentation
 
-    # For WNet: [C,Z,Y,X] → take nucleus class if needed
-    if sem.ndim == 4:
-        sem = sem[1]
+    # ---- FIX: REDUCE TO [Z,Y,X] ----
+    # Case 1: [1, C, Z, Y, X]
+    if sem.ndim == 5:
+        sem = sem[0]
 
-    inst, _ = cs3d.post_processing(sem, config=cs3d.PostProcessConfig())
-    return sem.astype(np.uint8), inst.astype(np.uint16)
+    # Case 2: [C, Z, Y, X] → argmax
+    if sem.ndim == 4:
+        if sem.shape[0] == 1:
+            sem = sem[0]                      # [Z,Y,X]
+        else:
+            sem = sem.argmax(0)               # multi-class → 3D
+
+    # Now sem MUST be [Z,Y,X]
+    if sem.ndim != 3:
+        raise RuntimeError(f"Semantic segmentation has invalid shape: {sem.shape}")
+
+    sem = (sem > 0).astype(np.uint8)
+
+    # ---- Instance segmentation ----
+    inst, _ = cs3d.post_processing(sem)
+
+
+    return sem.astype(np.uint8), inst.astype(np.uint16), src
 
 
 # ============================================================
@@ -242,17 +268,13 @@ def infer_volume(vol, ckpt):
 # ============================================================
 def run_experiment(pool_size, fold_index):
 
-    # ----------------------------- LOAD DATA -----------------------------
     class_dir = DATA_ROOT / CLASS_NAME
     all_imgs = sorted([f for f in class_dir.iterdir() if is_valid_nii_gz(f)])
 
-    # ----------------------------- SPLIT -----------------------------
-    train_imgs, val_imgs, test_imgs, n_train, n_val, n_test = \
-        make_splits(all_imgs, pool_size, fold_index)
+    train_imgs, val_imgs, test_imgs, n_train, n_val, n_test = make_splits(all_imgs, pool_size, fold_index)
 
-    # ----------------------------- TEMP DIR -----------------------------
+    # Working directory
     tmp_root = OUTPUT_ROOT / "tmp" / f"pool{pool_size}" / f"fold{fold_index}"
-
     train_vol = tmp_root / "train/vol"
     train_lab = tmp_root / "train/lab"
     val_vol   = tmp_root / "val/vol"
@@ -260,7 +282,6 @@ def run_experiment(pool_size, fold_index):
     test_vol  = tmp_root / "test/vol"
     test_lab  = tmp_root / "test/lab"
 
-    # ----------------------------- CONVERT TO TIFF -----------------------------
     rows = []
     rows += convert_split("train", train_imgs, train_vol, train_lab)
     rows += convert_split("val",   val_imgs,   val_vol,   val_lab)
@@ -272,15 +293,11 @@ def run_experiment(pool_size, fold_index):
         w.writeheader()
         w.writerows(rows)
 
-    print("[DEBUG] Train TIFFs:", sorted(p.name for p in train_vol.glob("*.tif")), flush=True)
-    print("[DEBUG] Val TIFFs:", sorted(p.name for p in val_vol.glob("*.tif")), flush=True)
-
-    # ----------------------------- TRAIN -----------------------------
+    # TRAINING CONFIG
     ckpt_dir = tmp_root / "checkpoints"
     ckpt_dir.mkdir(parents=True, exist_ok=True)
 
     pretrained = WeightsInfo(use_pretrained=True, use_custom=False)
-    print("[INFO] Using PRETRAINED WNet weights for training.", flush=True)
 
     train_cfg = WNetTrainingWorkerConfig(
         device="cuda:0",
@@ -305,36 +322,35 @@ def run_experiment(pool_size, fold_index):
 
     worker = c.get_colab_worker(train_cfg, WandBConfig(mode="disabled"))
 
-    print("[INFO] Training starts…", flush=True)
-
+    print("[INFO] Training starts…")
     last_logged = 0
+
     for _ in worker.train():
         epoch = len(worker.total_losses)
-        if epoch <= last_logged:
-            continue
-        last_logged = epoch
+        if epoch > last_logged:
+            last_logged = epoch
+            train_loss = worker.total_losses[-1]
+            rec_loss = worker.rec_losses[-1]
+            ncut_loss = worker.ncuts_losses[-1]
+            msg = f"[EPOCH {epoch}] train={train_loss:.4f} rec={rec_loss:.4f} ncuts={ncut_loss:.4f}"
+            if worker.dice_values:
+                msg += f" val_dice={worker.dice_values[-1]:.4f}"
+            print(msg)
 
-        train_loss = worker.total_losses[-1]
-        rec_loss   = worker.rec_losses[-1]
-        ncut_loss  = worker.ncuts_losses[-1]
+    print("[INFO] Training done.")
 
-        msg = f"[EPOCH {epoch}] train={train_loss:.4f} rec={rec_loss:.4f} ncuts={ncut_loss:.4f}"
-        if worker.dice_values:
-            msg += f" val_dice={worker.dice_values[-1]:.4f}"
-        print(msg, flush=True)
-
-    print("[INFO] Training completed.", flush=True)
-
-    # ----------------------------- CHECKPOINT WRAP -----------------------------
+    # WRAP CHECKPOINT
     ckpt_best = ckpt_dir / "wnet_best_metric.pth"
-    ckpt_inf  = ckpt_dir / "wnet_best_metric_for_inference.pth"    
+    if not ckpt_best.exists():
+        raise FileNotFoundError("No checkpoint saved!")
+
+    ckpt_inf = ckpt_dir / "wnet_best_metric_for_inference.pth"
     wrap_checkpoint(ckpt_best, ckpt_inf)
 
-    # ----------------------------- INFERENCE -----------------------------
+    # INFERENCE
     fold_tag = (
         f"cvfold{fold_index}_ntr{pool_size}_nev{n_test}_"
-        f"fttr{n_train}_ftval{n_val}_"
-        f"trlim{pool_size}_seed{BASE_SEED}"
+        f"fttr{n_train}_ftval{n_val}_trlim{pool_size}_seed{BASE_SEED}"
     )
 
     pred_dir = OUTPUT_ROOT / "preds" / CLASS_NAME / fold_tag
@@ -343,20 +359,18 @@ def run_experiment(pool_size, fold_index):
     metrics = []
 
     for tif_path in sorted(test_vol.glob("*.tif")):
+        print(f"[INFO] Inference on {tif_path.name}")
         vol = tiff.imread(str(tif_path)).astype(np.float32)
 
-        vmin, vmax = vol.min(), vol.max()
-        if vmax > vmin:
-            vol = (vol - vmin) / (vmax - vmin)
-
-        sem, inst = infer_volume(vol, ckpt_inf)
+        sem, inst, src = infer_volume(vol, ckpt_inf)
 
         base = tif_path.stem
-        tiff.imwrite(pred_dir / f"{base}_semantic.tif",  sem)
+        tiff.imwrite(pred_dir / f"{base}_semantic.tif", sem)
         tiff.imwrite(pred_dir / f"{base}_instances.tif", inst)
 
         metrics.append({
             "volume": base,
+            "used_weights": src,
             "n_train": n_train,
             "n_val": n_val,
             "n_test": n_test,
@@ -369,16 +383,16 @@ def run_experiment(pool_size, fold_index):
         index=False,
     )
 
-    print("[INFO] Experiment complete.", flush=True)
-
+    print("[INFO] Experiment complete.")
 
 # ============================================================
 # CLI
 # ============================================================
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--pool-size", type=int, required=True)
-    parser.add_argument("--fold-index", type=int, required=True)
-    args = parser.parse_args()
+    p = argparse.ArgumentParser()
+    p.add_argument("--pool-size", type=int, required=True)
+    p.add_argument("--fold-index", type=int, required=True)
+    args = p.parse_args()
+
     run_experiment(args.pool_size, args.fold_index)
