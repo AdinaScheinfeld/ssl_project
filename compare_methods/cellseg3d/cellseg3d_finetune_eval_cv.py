@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+
+# /home/ads4015/ssl_project/compare_methods/cellseg3d/cellseg3d_finetune_eval_cv.py
+
 """
 FINAL CellSeg3D Finetune + Eval Script (Option A)
 - Original splitting behavior
@@ -55,7 +58,7 @@ PRETRAINED_WNET = (
 # ============================================================
 # TRAINING PARAMS
 # ============================================================
-NUM_EPOCHS = 10
+NUM_EPOCHS = 250
 VAL_EVERY = 2
 LR = 2e-5
 BATCH_SIZE = 4
@@ -196,12 +199,21 @@ def infer_volume(vol, ckpt_path):
     Returns (sem, inst, src)
     """
 
-    cfg = InferenceWorkerConfig()
+    # Use the full default config (same as notebook)
+    cfg = deepcopy(cs3d.CONFIG)
+
+    # Override model_info but KEEP window inference enabled
     cfg.model_info = ModelInfo(
         name="WNet3D",
-        model_input_size=[64, 64, 64],
+        model_input_size=[96,96,96],
         num_classes=2,
     )
+
+    # Ensure sliding window is on
+    cfg.sliding_inference = True
+    cfg.window_size = [64,64,64]
+    cfg.window_overlap = 0.25
+
 
     # Choose weights
     if ckpt_path and ckpt_path.exists():
