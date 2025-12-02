@@ -13,6 +13,7 @@ FINAL CellSeg3D Finetune + Eval Script (Option A)
       custom → pretrained → random
 """
 
+import argparse
 import os
 import csv
 import random
@@ -37,6 +38,7 @@ from napari_cellseg3d.config import (
     InferenceWorkerConfig,
 )
 from napari_cellseg3d.utils import LOGGER as logger
+from napari_cellseg3d.code_models.models.wnet.model import WNet
 
 logger.setLevel("INFO")
 
@@ -59,7 +61,7 @@ PRETRAINED_WNET = (
 # TRAINING PARAMS
 # ============================================================
 NUM_EPOCHS = 250
-VAL_EVERY = 2
+VAL_EVERY = 1
 LR = 2e-5
 BATCH_SIZE = 4
 NUM_CLASSES = 2
@@ -103,7 +105,13 @@ def label_path(img_path: Path):
 # ORIGINAL SPLIT LOGIC
 # ============================================================
 def make_splits(all_imgs, pool_size, fold_index):
-    rng = random.Random(BASE_SEED + fold_index)
+    
+    # Use SEED that depends on pool_size AND fold_index.
+    # This guarantees every (pool_size, fold_index) pair is unique.
+    seed = BASE_SEED + (pool_size * 1000) + fold_index
+    rng = random.Random(seed)
+
+    # Shuffle copies
     shuffled = all_imgs.copy()
     rng.shuffle(shuffled)
 
@@ -171,19 +179,15 @@ def convert_split(name, imgs, out_vol, out_lab):
 def wrap_checkpoint(src_ckpt, dst_ckpt):
     raw = torch.load(src_ckpt, map_location="cpu")
 
-    # raw state_dict OR wrapped dict
-    if isinstance(raw, dict) and "model_state_dict" in raw:
+    if "model_state_dict" in raw:
         sd = raw["model_state_dict"]
-    elif isinstance(raw, OrderedDict):
-        sd = raw
     else:
-        raise ValueError(f"Invalid checkpoint: {src_ckpt}")
+        sd = raw
 
-    # Remove module. prefix if present
-    clean_sd = {k.replace("module.", ""): v for k, v in sd.items()}
+    torch.save(sd, dst_ckpt)   # <-- SAVE ONLY THE RAW DICT, NO WRAPPER
 
-    torch.save({"model_state_dict": clean_sd}, dst_ckpt)
     print(f"[INFO] Wrapped checkpoint → {dst_ckpt}")
+
 
 
 # ============================================================
@@ -224,6 +228,51 @@ def infer_volume(vol, ckpt_path):
             path=str(ckpt_path),
         )
         src = "custom"
+
+        # EXTRA SAFETY: completely disable pretrained fallback
+        cfg.weights_config.use_pretrained = False
+        cfg.weights_config.use_custom = True
+        cfg.weights_config.path = str(ckpt_path)
+        print(f"[DEBUG] FORCING FINETUNED CHECKPOINT: {ckpt_path}")
+
+
+        # ============================================================
+        # DEBUG: Verify checkpoint matches WNet model architecture
+        # ============================================================
+        print("\n[DEBUG] --- Verifying checkpoint → WNet compatibility (inference) ---")
+
+        debug_model = WNet(
+            in_channels=1,
+            out_channels=1,
+            num_classes=2,
+            dropout=0.65,
+        )
+
+        # Load checkpoint raw dict
+        raw_ckpt = torch.load(ckpt_path, map_location="cpu")
+        if "model_state_dict" in raw_ckpt:
+            raw_sd = raw_ckpt["model_state_dict"]
+        else:
+            raw_sd = raw_ckpt
+
+        # Try loading with strict=False to inspect mismatches
+        load_result = debug_model.load_state_dict(raw_sd, strict=False)
+
+        print("[DEBUG] Missing keys (model expected but NOT in checkpoint):")
+        for k in load_result.missing_keys:
+            print("   -", k)
+
+        print("\n[DEBUG] Unexpected keys (checkpoint has but model does NOT):")
+        for k in load_result.unexpected_keys:
+            print("   -", k)
+
+        print("\n[DEBUG] Total checkpoint params:", len(raw_sd))
+        print("[DEBUG] Total model params:", len(debug_model.state_dict()))
+        print("[DEBUG] Number of matched keys:",
+            len(raw_sd) - len(load_result.unexpected_keys))
+
+        print("[DEBUG] --- END inference weight-load debug ---\n")
+  
 
     elif Path(PRETRAINED_WNET).exists():
         print(f"[AUTO] Finetuned missing → Using PRETRAINED: {PRETRAINED_WNET}")
@@ -278,14 +327,16 @@ def infer_volume(vol, ckpt_path):
 # SANITY CHECK: Confirm checkpoint, loaded model, and random model differ
 # ============================================================
 def run_sanity_check(ckpt_path):
-    from napari_cellseg3d.code_models.models.wnet.model import WNet
+    
 
     print("\n========== SANITY CHECK ==========")
     print(f"Checking checkpoint: {ckpt_path}")
 
+    # -----------------------------------------------------------
+    # Load FINETUNED checkpoint (raw or wrapped formats)
+    # -----------------------------------------------------------
     raw = torch.load(ckpt_path, map_location="cpu")
 
-    # Handle raw and wrapped formats
     if isinstance(raw, dict) and "model_state_dict" in raw:
         state_dict = raw["model_state_dict"]
     elif isinstance(raw, dict):
@@ -295,9 +346,13 @@ def run_sanity_check(ckpt_path):
 
     param_name = "encoder.conv1.module.0.weight"
 
+    # Value inside the checkpoint
     ckpt_val = state_dict[param_name][0,0,0,0,0].item()
-    print(f"Checkpoint value:     {ckpt_val}")
+    print(f"Checkpoint value:         {ckpt_val}")
 
+    # -----------------------------------------------------------
+    # FINETUNED model value
+    # -----------------------------------------------------------
     model_finetuned = WNet(
         in_channels=1,
         out_channels=1,
@@ -307,9 +362,38 @@ def run_sanity_check(ckpt_path):
     model_finetuned.load_state_dict(state_dict, strict=True)
     finetuned_val = model_finetuned.encoder.conv1.module[0].weight[0,0,0,0,0].item()
 
-    print(f"Loaded model value:   {finetuned_val}")
-    print(f"Match finetuned?:     {ckpt_val == finetuned_val}")
+    print(f"Finetuned model value:    {finetuned_val}")
+    print(f"Match ckpt <-> loaded?:   {ckpt_val == finetuned_val}")
 
+    # -----------------------------------------------------------
+    # PRETRAINED WNet comparison
+    # -----------------------------------------------------------
+    try:
+        pretrained_raw = torch.load(PRETRAINED_WNET, map_location="cpu")
+
+        if "model_state_dict" in pretrained_raw:
+            pretrained_sd = pretrained_raw["model_state_dict"]
+        else:
+            pretrained_sd = pretrained_raw
+
+        model_pretrained = WNet(
+            in_channels=1,
+            out_channels=1,
+            num_classes=2,
+            dropout=0.65,
+        )
+        model_pretrained.load_state_dict(pretrained_sd, strict=True)
+
+        pretrained_val = model_pretrained.encoder.conv1.module[0].weight[0,0,0,0,0].item()
+        print(f"Pretrained model value:   {pretrained_val}")
+        print(f"Pretrained == finetuned?: {pretrained_val == finetuned_val}")
+    except Exception as e:
+        print(f"[WARNING] Could not load pretrained weights: {e}")
+        pretrained_val = None
+
+    # -----------------------------------------------------------
+    # RANDOM initialization comparison
+    # -----------------------------------------------------------
     model_random = WNet(
         in_channels=1,
         out_channels=1,
@@ -318,11 +402,26 @@ def run_sanity_check(ckpt_path):
     )
     random_val = model_random.encoder.conv1.module[0].weight[0,0,0,0,0].item()
 
-    print(f"Random model value:   {random_val}")
-    print(f"Random == finetuned?: {random_val == finetuned_val}")
-    print("==================================\n")
+    print(f"Random-init value:        {random_val}")
+    print(f"Random == finetuned?:     {random_val == finetuned_val}")
 
+    # -----------------------------------------------------------
+    # Diagnostics / warnings
+    # -----------------------------------------------------------
+    print("\n----- SANITY DIAGNOSTIC -----")
 
+    if random_val == finetuned_val:
+        print("[ERROR] Finetuned checkpoint matches RANDOM initialization!")
+        print("        → Training did NOT update weights.")
+
+    if pretrained_val is not None and pretrained_val == finetuned_val:
+        print("[ERROR] Finetuned checkpoint equals PRETRAINED weights!")
+        print("        → Finetuning produced NO change.")
+    if pretrained_val is not None and ckpt_val == pretrained_val:
+        print("[ERROR] Raw checkpoint equals PRETRAINED!")
+        print("        → Checkpoint was NOT updated by training.")
+
+    print("==========================================\n")    
 
 
 # ============================================================
@@ -334,6 +433,14 @@ def run_experiment(pool_size, fold_index):
     all_imgs = sorted([f for f in class_dir.iterdir() if is_valid_nii_gz(f)])
 
     train_imgs, val_imgs, test_imgs, n_train, n_val, n_test = make_splits(all_imgs, pool_size, fold_index)
+
+    print("----------------------------------------------------------")
+    print(f"[DEBUG] pool_size={pool_size} fold_index={fold_index}")
+    print(f"Train ({len(train_imgs)}): {[p.name for p in train_imgs]}")
+    print(f"Val   ({len(val_imgs)}):  {[p.name for p in val_imgs]}")
+    print(f"Test  ({len(test_imgs)}): {[p.name for p in test_imgs]}")
+    print("----------------------------------------------------------")
+
 
     # Working directory
     tmp_root = OUTPUT_ROOT / "tmp" / f"pool{pool_size}" / f"fold{fold_index}"
@@ -355,11 +462,58 @@ def run_experiment(pool_size, fold_index):
         w.writeheader()
         w.writerows(rows)
 
+    # ============================================================
+    # DEBUG: WHAT FILES ARE ACTUALLY BEING LOADED?
+    # ============================================================
+    print("\n[DEBUG] Actual training files loaded:")
+    train_data_list_debug = c.create_dataset_dict_no_labs(train_vol)
+    for item in train_data_list_debug:
+        print("  ", item)
+    print("----------------------------------------------------------\n")
+
     # TRAINING CONFIG
     ckpt_dir = tmp_root / "checkpoints"
     ckpt_dir.mkdir(parents=True, exist_ok=True)
 
     pretrained = WeightsInfo(use_pretrained=True, use_custom=False)
+
+    # ============================================================
+    # DEBUG: CHECK PRETRAINED WEIGHT LOADING BEFORE TRAINING
+    # ============================================================
+    print("\n[DEBUG] --- Checking pretrained weight loading into WNet ---")
+
+    # Build a WNet with the SAME config CellSeg3D will use
+    debug_model = WNet(
+        in_channels=1,
+        out_channels=1,
+        num_classes=2,
+        dropout=0.65,
+    )
+
+    pretrained_raw = torch.load(PRETRAINED_WNET, map_location="cpu")
+    if "model_state_dict" in pretrained_raw:
+        pretrained_sd = pretrained_raw["model_state_dict"]
+    else:
+        pretrained_sd = pretrained_raw
+
+    # Try loading with strict=False to get missing/unexpected keys
+    load_result = debug_model.load_state_dict(pretrained_sd, strict=False)
+
+    print("\n[DEBUG] Missing keys (not found in checkpoint):")
+    for k in load_result.missing_keys:
+        print("   -", k)
+
+    print("\n[DEBUG] Unexpected keys (checkpoint has these but model does not):")
+    for k in load_result.unexpected_keys:
+        print("   -", k)
+
+    print("\n[DEBUG] Total checkpoint params:", len(pretrained_sd))
+    print("[DEBUG] Total model params:", len(debug_model.state_dict()))
+    print("[DEBUG] Number of matched keys:",
+        len(pretrained_sd) - len(load_result.unexpected_keys))
+
+    print("\n[DEBUG] --- END pretrained weight debug ---\n")
+
 
     train_cfg = WNetTrainingWorkerConfig(
         device="cuda:0",
@@ -409,13 +563,46 @@ def run_experiment(pool_size, fold_index):
     ckpt_inf = ckpt_dir / "wnet_best_metric_for_inference.pth"
     wrap_checkpoint(ckpt_best, ckpt_inf)
 
+    # ============================================================
+    # DEBUG: Compare pretrained vs finetuned weights (layer diffs)
+    # ============================================================
+    print("\n[DEBUG] --- Analyzing diffs between pretrained and finetuned ---")
+
+    finetuned_raw = torch.load(ckpt_best, map_location="cpu")
+    if "model_state_dict" in finetuned_raw:
+        finetuned_sd = finetuned_raw["model_state_dict"]
+    else:
+        finetuned_sd = finetuned_raw
+
+    changed_layers = []
+    unchanged_layers = []
+
+    for k, v in finetuned_sd.items():
+        if k in pretrained_sd:
+            if not torch.allclose(v.cpu(), pretrained_sd[k].cpu()):
+                changed_layers.append(k)
+            else:
+                unchanged_layers.append(k)
+
+    print("[DEBUG] Layers changed during training:", len(changed_layers))
+    for k in changed_layers[:20]:
+        print("   CHANGED:", k)
+
+    print("[DEBUG] Layers unchanged:", len(unchanged_layers))
+    for k in unchanged_layers[:20]:
+        print("   SAME:", k)
+
+    print("[DEBUG] --- END finetuned/pretrained diff analysis ---\n")
+
+
     # run sanity check
     run_sanity_check(ckpt_best)
 
     # INFERENCE
+    actual_seed = BASE_SEED + (pool_size * 1000) + fold_index
     fold_tag = (
         f"cvfold{fold_index}_ntr{pool_size}_nev{n_test}_"
-        f"fttr{n_train}_ftval{n_val}_trlim{pool_size}_seed{BASE_SEED}"
+        f"fttr{n_train}_ftval{n_val}_trlim{pool_size}_seed{actual_seed}"
     )
 
     pred_dir = OUTPUT_ROOT / "preds" / CLASS_NAME / fold_tag
@@ -454,7 +641,7 @@ def run_experiment(pool_size, fold_index):
 # CLI
 # ============================================================
 if __name__ == "__main__":
-    import argparse
+    
     p = argparse.ArgumentParser()
     p.add_argument("--pool-size", type=int, required=True)
     p.add_argument("--fold-index", type=int, required=True)
