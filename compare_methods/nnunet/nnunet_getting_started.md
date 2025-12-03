@@ -15,4 +15,6 @@ export nnUNet_results="/midtier/paetzollab/scratch/ads4015/compare_methods/nnune
 
 5. Start training on server by submitting: `sbatch /home/ads4015/ssl_project/compare_methods/nnunet/nnunet_train_folds.sh`
 
+6. Run inference by submitting: `sbatch /home/ads4015/ssl_project/compare_methods/nnunet/nnunet_inference.sh`
+
 
