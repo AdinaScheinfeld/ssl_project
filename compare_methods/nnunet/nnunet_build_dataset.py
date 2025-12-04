@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+
+# /home/ads4015/ssl_project/compare_methods/nnunet/nnunet_build_dataset.py
+
 import os
 from pathlib import Path
 import shutil

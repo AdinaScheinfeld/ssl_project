@@ -8,6 +8,8 @@
 #SBATCH --mem=16G
 #SBATCH --time=7-00:00:00
 
+# /home/ads4015/ssl_project/compare_methods/nnunet/nnunet_inference.sh
+
 
 # indicate starting
 echo "Starting nnUNet inference at $(date)"

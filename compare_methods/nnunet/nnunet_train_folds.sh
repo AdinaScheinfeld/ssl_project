@@ -9,6 +9,8 @@
 #SBATCH --time=7-00:00:00
 #SBATCH --array=0-4
 
+# /home/ads4015/ssl_project/compare_methods/nnunet/nnunet_train_folds.sh
+
 # indicate starting
 echo "Starting nnUNet training for fold ${SLURM_ARRAY_TASK_ID} at $(date)"
 
@@ -26,7 +28,7 @@ module load anaconda3/2022.10-34zllqw
 source activate nnunet2-env1
 
 # run training
-nnUNetv2_train 1 3d_fullres $FOLD --npz
+compare_methods/nnunet/nnunet_train_folds.sh
 
 
 # indicate ending
