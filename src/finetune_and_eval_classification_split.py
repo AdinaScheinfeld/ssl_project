@@ -8,6 +8,7 @@ import csv
 from dataclasses import dataclass
 from datetime import datetime
 import gc
+import glob
 import json
 import numpy as np
 import os
@@ -63,7 +64,7 @@ def list_class_dirs(root_dir):
     return sorted([d for d in root_dir.iterdir() if d.is_dir()])
 
 # function to gather samples from class directories
-def discover_samples(root_dir, class_filter=None, exclude=None, channel_substr='ALL'):
+def discover_samples(root_dir, class_filter=None, exclude=None, channel_substr='ALL', extra_class_globs=None):
 
     # get class dirs
     class_dirs = list_class_dirs(root_dir)
@@ -79,6 +80,17 @@ def discover_samples(root_dir, class_filter=None, exclude=None, channel_substr='
     if exclude:
         names = [n for n in names if n not in set(exclude)]
 
+    # add extra classes from globs
+    extra_class_globs = extra_class_globs or []
+    for spec in extra_class_globs:
+        if ':' not in spec:
+            print(f'[WARN] Ignoring invalid extra_class_glob spec "{spec}"', flush=True)
+            continue
+        cname, _ = spec.split(':', 1)
+        cname = cname.strip()
+        if cname and cname not in names:
+            names.append(cname)
+
     # sort and map to indices
     names = sorted(names)
     name_to_idx = {name: idx for idx, name in enumerate(names)}
@@ -92,15 +104,57 @@ def discover_samples(root_dir, class_filter=None, exclude=None, channel_substr='
     if s and s.upper() != 'ALL':
         subs = [t.strip().lower() for t in s.split(',') if t.strip()]
 
+    # first: samples from subdirectories under root_dir
     for n in names:
         dd = root_dir / n
-        for p in sorted(dd.glob('*.nii*')):
-            low = p.name.lower()
-            if low.endswith('_label.nii') or low.endswith('_label.nii.gz'):
-                continue # skip segmentation label files
+        if dd.is_dir():
+            for p in sorted(dd.glob('*.nii*')):
+                low = p.name.lower()
+                if low.endswith('_label.nii') or low.endswith('_label.nii.gz'):
+                    continue # skip segmentation label files
+                if subs is not None and not any(tok in low for tok in subs):
+                    continue # skip if channel substrings not found
+                samples.append({'path': p, 'label_idx': name_to_idx[n], 'label_name': n})
+
+    # track seen absolute paths to avoid duplicates
+    seen = {str(rec['path'].resolve()) for rec in samples}
+
+    # second: samples from extra class globs
+    for spec in extra_class_globs:
+        if ':' not in spec:
+            continue
+
+        # parse spec
+        cname, pattern = spec.split(':', 1)
+        cname = cname.strip()
+        pattern = pattern.strip()
+        if not cname or not pattern:
+            continue
+
+        # glob for files
+        if cname not in name_to_idx:
+            print(f'[WARN] Extra class glob specifies unknown class name "{cname}", skipping', flush=True)
+            continue
+
+        cidx = name_to_idx[cname]
+        matches = sorted(glob.glob(pattern))
+        if not matches:
+            print(f'[WARN] extra_class_glob pattern matched no files for class "{cname}": {pattern}', flush=True)
+            continue
+
+        for p in matches:
+            p_path = Path(p)
+            low = p_path.name.lower()
             if subs is not None and not any(tok in low for tok in subs):
                 continue # skip if channel substrings not found
-            samples.append({'path': p, 'label_idx': name_to_idx[n], 'label_name': n})
+
+            resolved_path = str(p_path.resolve())
+            if resolved_path in seen:
+                continue # skip duplicates
+
+            # add sample
+            samples.append({'path': p_path, 'label_idx': cidx, 'label_name': cname})
+            seen.add(resolved_path)
 
     return samples, names
     
@@ -252,7 +306,8 @@ def run_once(root_dir, args, device):
     all_samples, class_names = discover_samples(root_dir, 
                                                 class_filter=args.subtypes, 
                                                 exclude=args.exclude_subtypes,
-                                                channel_substr=args.channel_substr)
+                                                channel_substr=args.channel_substr,
+                                                extra_class_globs=args.extra_class_globs)
     K = len(class_names)
     if K == 0:
         print(f'[ERROR] No classes found in {root_dir} after filtering', flush=True)
@@ -475,6 +530,7 @@ def parse_args():
     parser.add_argument('--subtypes', type=str, nargs='*', default=['ALL'], help='List of class subtypes to include (default: ALL)')
     parser.add_argument('--exclude_subtypes', type=str, nargs='*', default=None, help='List of class subtypes to exclude when using ALL')
     parser.add_argument('--channel_substr', type=str, default='ALL', help='Channel filter: "ALL" or tokens like "ch0,ch1" (default: ALL)')
+    parser.add_argument('--extra_class_globs', type=str, action='append', default=[], help='Extra class glob specifications in the format ClassName:glob_pattern (ex: VIP_ASLM_off:"/midtier/.../all_mesospim_patches/*VIP_ASLM_off*.nii*")')
 
     # train + val and test split
     parser.add_argument('--split_mode', type=str, choices=['percent', 'count'], default='percent', help='Mode for splitting train+val and test sets (default: percent)')
