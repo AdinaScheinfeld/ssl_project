@@ -5,8 +5,7 @@
 #SBATCH --time=12:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
-#SBATCH --partition=sablab-cpu
-#SBATCH --account=sablab
+#SBATCH --partition=minilab-cpu
 
 set -euo pipefail
 
@@ -20,14 +19,14 @@ source activate monai-env1
 
 # set paths
 INPUT_ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches"
-OUTPUT_ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches_blurred"
+OUTPUT_ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches_blurred2"
 
 # run script
 python /home/ads4015/ssl_project/src/make_blurred_patches.py \
     --input_root "$INPUT_ROOT" \
     --output_root "$OUTPUT_ROOT" \
-    --sigma 1.5 \
-    --noise_std 1.5 \
+    --sigma 2.5 \
+    --noise_std 2.5 \
     --overwrite
 
 # indicate completion
