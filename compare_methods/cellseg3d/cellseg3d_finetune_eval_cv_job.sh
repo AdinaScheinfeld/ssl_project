@@ -1,7 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=cellseg3d_cv
-#SBATCH --partition=minilab-gpu
-#SBATCH --gres=gpu:h100:1
+#SBATCH --partition=sablab-gpu
+#SBATCH --account=sablab
+#SBATCH --gres=gpu:a100:1
 #SBATCH --cpus-per-task=6
 #SBATCH --mem=24G
 #SBATCH --time=48:00:00
