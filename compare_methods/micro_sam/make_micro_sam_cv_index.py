@@ -1,3 +1,5 @@
+# /home/ads4015/ssl_project/compare_methods/micro_sam/make_micro_sam_cv_index.py
+
 import json
 from pathlib import Path
 from collections import defaultdict
