@@ -3,9 +3,10 @@
 training:
   seed: 100
   project_name: ibot-clip-pretrain-lsm-all
-  max_epochs: 1000
-  patience: 45
+  max_epochs: 25000
+  patience: 25000 # use early stopping with patience (set to a high value to effectively disable)
   log_every_n_steps: 5
+  checkpoint_every_n_epochs: 500 # save checkpoint every n epochs
 
 # config for distributed training
 dist:
@@ -15,10 +16,10 @@ dist:
   # (one process per gpu where each process has its own copy of the model and optimiser; 
   # training data is split across processes and sees a unique mini-batch each step; 
   # after each forward/backward pass, gradients are averaged acrosss all gpus so models stay in sync)
-  devices: 4 # number of gpus per node (set to 1 for single gpu training)
+  devices: 2 # number of gpus per node (set to 1 for single gpu training)
   num_nodes: 1 # set >1 for multi-node training
   precision: bf16-mixed # bf16-mixed good for h100 gpus (some parts of computation use bfloat16 for speed and memory efficiency, while others use float32 for stability)
-  accumulate_grad_batches: 2 # gradient accumulation (controls how many batches to accumulate gradients over before performing an optimizer step; set to >1 for larger effective batch size)
+  accumulate_grad_batches: 8 # gradient accumulation (controls how many batches to accumulate gradients over before performing an optimizer step; set to >1 for larger effective batch size)
   sync_batchnorm: True # synchronize batch norm across gpus (good for multi-gpu training)
   deterministic: False # set to True for reproducibility (may slow down training)
   
@@ -47,7 +48,7 @@ data:
     - /home/ads4015/ssl_project/data/text_prompts_wu.json
 
   # batching
-  global_batch_size: 32 # total batch size across all gpus (ex: use 32 for 4 gpus with batch_size=8)
+  global_batch_size: 16 # total batch size across all gpus (ex: use 32 for 4 gpus with batch_size=8)
   batch_size: 16 #32 # number of patches per batch (use max 8 for 96x96x96 patches on 96GB GPU h100 GPUs) ***
 
   # split and sampling
@@ -62,7 +63,7 @@ data:
   sub_patch_size: 64 # size of each sub_patch in voxels (use: 64x64x64) if use_sub_patches is True
 
   # loader
-  num_workers: 2 # number of workers for data loading
+  num_workers: 1 # number of workers for data loading
 
   # downsampling
   downsample:
@@ -71,27 +72,27 @@ data:
 
 
 model:
-  mask_ratio_warmup: 0.1 # fraction of masked patches per volume for first few epochs
-  warmup_epochs: 20
+  mask_ratio_warmup: 0.05 # fraction of masked patches per volume for first few epochs
+  warmup_epochs: 30
   mask_ratio: 0.3 # fraction of masked patches per volume
   lr: 0.0001
-  ema_decay: 0.996
+  ema_decay: 0.994
   mask_patch_size: 8 # base patch size for masking (use: 16x16x16 for 96x96x96 base patches, or 8x8x8 for 64x64x64 sub_patches) ***
-  temp_student: 0.1 # temperature for student logits
-  temp_teacher: 0.04 # temperature for teacher softmax (0.04 is default in most iBOT implementations)
+  temp_student: 0.025 # temperature for student logits
+  temp_teacher: 0.1 # temperature for teacher softmax (0.04 is default in most iBOT implementations)
   text_model_name: bert-base-uncased # text model to use (bert-base-uncased from HuggingFace)
-  embed_dim: 256 # 256 is balance of GPU memory and representational power (larger values may have better performance but also higher compute/memory cost)
-  clip_temperature: 0.07 # (0.07 is default in OpenAI paper and used by most applications)
-  save_filename: all_datasets_clip_pretrained
-  save_dirpath: /home/ads4015/ssl_project/checkpoints
-  feature_size: 24 # 48
+  embed_dim: 512 # 256 is balance of GPU memory and representational power (larger values may have better performance but also higher compute/memory cost)
+  clip_temperature: 0.1 # (0.07 is default in OpenAI paper and used by most applications)
+  save_filename: all_datasets_clip_pretrained_long
+  save_dirpath: /midtier/paetzollab/scratch/ads4015/model_checkpoints/ibot_clip_pretrain_lsm_all_long
+  feature_size: 36 # 48
   max_log_images: 5
 
 loss_weights:
-  distill_weight: 0.6 # masked voxel KL divergence
+  distill_weight: 0.5 # masked voxel KL divergence
   reconstruction_weight: 0.3 # masked voxel L1 reconstructions
-  align_weight: 0.1 # image-text cosine similarity per pair
-  clip_weight: 1.0 # global contrastive loss between all image and text embeddings in batch
+  align_weight: 0.05 # image-text cosine similarity per pair
+  clip_weight: 0.3 # global contrastive loss between all image and text embeddings in batch
 
 
 
