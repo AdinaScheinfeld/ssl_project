@@ -2,9 +2,10 @@
 #SBATCH --job-name=2clip_pretrain
 #SBATCH --output=logs/all_clip_pretrain_2_%j.out
 #SBATCH --error=logs/all_clip_pretrain_2_%j.err
-#SBATCH --time=12:00:00
-#SBATCH --partition=minilab-gpu
-#SBATCH --gres=gpu:h100:2 # select number of gpus ***
+#SBATCH --time=7-00:00:00
+#SBATCH --partition=sablab-gpu
+#SBATCH --account=sablab
+#SBATCH --gres=gpu:a100:2 # select number of gpus ***
 #SBATCH --mem=180G
 #SBATCH --cpus-per-task=16
 #SBATCH --nodes=1
