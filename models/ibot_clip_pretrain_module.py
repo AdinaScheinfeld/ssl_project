@@ -54,6 +54,9 @@ class LightDecoder(nn.Module):
 
 class IBOTCLIPPretrainModule(pl.LightningModule):
 
+    # enable/disable umap logging
+    ENABLE_UMAP_LOGGING = False
+
     # init
     def __init__(self, config):
         super().__init__()
@@ -566,7 +569,7 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
             self.train_log_count = 0
 
         # log umap to wandb
-        if hasattr(self, 'train_embeddings') and self.train_embeddings:
+        if self.ENABLE_UMAP_LOGGING and hasattr(self, 'train_embeddings') and self.train_embeddings:
 
             # only run every 5 epochs and epoch 0
             if self.current_epoch % 5 == 0 or self.current_epoch == 0:
@@ -604,7 +607,7 @@ class IBOTCLIPPretrainModule(pl.LightningModule):
             self.val_log_count = 0
 
         # log umap to wandb
-        if hasattr(self, 'val_embeddings'):
+        if self.ENABLE_UMAP_LOGGING and hasattr(self, 'val_embeddings'):
 
             # only run every 5 epochs and epoch 0
             if self.current_epoch % 5 == 0 or self.current_epoch == 0:
