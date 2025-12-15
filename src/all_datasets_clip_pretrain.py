@@ -152,7 +152,7 @@ if __name__ == '__main__':
         base_patch_size=datacfg.get('base_patch_size', 96),
         sub_patch_size=datacfg.get('sub_patch_size', 64),
         downsample_to=downsample_to,
-        num_workers=datacfg.get('num_workers', 4),
+        num_workers=datacfg.get('num_workers', 1)
     )
     datamodule.setup()
 
@@ -174,14 +174,22 @@ if __name__ == '__main__':
         # early stopping is triggered when loss does not decrease for `patience` consecutive epochs
         EarlyStopping(monitor='val_loss', patience=config['training']['patience'], mode='min'),
 
-        # callback for checkpointing
+        # callback for checkpointing to save best model
         ModelCheckpoint(
             monitor='val_loss',
             mode='min',
             save_top_k=1,
-            filename=config['model']['save_filename'],
+            filename=f"{config['model']['save_filename']}_best",
             dirpath=config['model']['save_dirpath'],
             verbose=True
+        ),
+
+        # callback to save last checkpoint
+        ModelCheckpoint(
+            dirpath=config['model']['save_dirpath'],
+            filename=f"{config['model']['save_filename']}_last",
+            save_top_k=0, 
+            save_last=True
         )
     ]
 
@@ -191,7 +199,7 @@ if __name__ == '__main__':
         callbacks.append(
             ModelCheckpoint(
                 dirpath=periodic_ckpt_dir,
-                filename='epoch{epoch:04d}-val_loss{val_loss:.4f}',
+                filename='epoch-{epoch:04d}-valloss-{val_loss:.4f}',
                 save_top_k=-1, # save all checkpoints
                 every_n_epochs=every_n, # save every n epochs
                 save_on_train_epoch_end=True # save at the end of the epoch
