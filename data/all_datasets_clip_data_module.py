@@ -222,6 +222,7 @@ class AllDatasetsClipDataModule(LightningDataModule):
                           batch_size=self.batch_size, 
                           shuffle=True, 
                           num_workers=self.num_workers,
+                          persistent_workers=False,
                           pin_memory=True)
     
     # val dataloader
@@ -230,6 +231,7 @@ class AllDatasetsClipDataModule(LightningDataModule):
                           batch_size=self.batch_size, 
                           shuffle=False, 
                           num_workers=self.num_workers,
+                          persistent_workers=False,
                           pin_memory=True)
 
 
