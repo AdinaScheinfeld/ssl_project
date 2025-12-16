@@ -6,8 +6,8 @@
 #SBATCH --mem=32G
 #SBATCH --time=08:00:00
 #SBATCH --array=0-87
-#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_zeroshot/zeroshot_%A_%a.out
-#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_zeroshot/zeroshot_%A_%a.err
+#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_zeroshot/logs/zeroshot_%A_%a.out
+#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_zeroshot/logs/zeroshot_%A_%a.err
 
 # -----------------------------
 # Environment
