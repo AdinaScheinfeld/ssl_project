@@ -129,6 +129,7 @@ def extract_features(model, x, layer="decoder1"):
     return feats["f"]
 
 
+# zero shot segmentation using model features + kmeans
 def zero_shot_segment(model, img_np):
     img_np = (img_np - img_np.min()) / (img_np.max() - img_np.min() + 1e-8)
     x = torch.from_numpy(img_np[None, None]).to(DEVICE)
@@ -179,10 +180,38 @@ def zero_shot_segment(model, img_np):
     return prob.astype(np.float32), pred
 
 
+# simple thresholding baseline
+def threshold_segment(img_np, q=99.0):
+    """
+    Simple intensity-based thresholding baseline.
+    Uses quantile thresholding on nonzero voxels.
+    """
+    img_norm = (img_np - img_np.min()) / (img_np.max() - img_np.min() + 1e-8)
+
+    valid_mask = img_norm > 0
+    vals = img_norm[valid_mask]
+
+    if vals.size == 0:
+        thr = 1.0
+    else:
+        thr = np.percentile(vals, q)
+
+    prob = img_norm.copy()
+    prob[~valid_mask] = 0.0
+
+    pred = (img_norm >= thr).astype(np.float32)
+
+    log(f"[THRESH] Quantile={q}, threshold={thr:.4f}, "
+        f"foreground voxels={pred.sum()}")
+
+    return prob.astype(np.float32), pred
+
+
+
 # -----------------------------
 # Main
 # -----------------------------
-def main(task_id: int):
+def main(task_id: int, threshold_only: bool = False):
 
     # build flat patch list
     patch_list = []
@@ -221,31 +250,54 @@ def main(task_id: int):
 
     # load all models once
     models = {}
-    for name, cfg in MODELS.items():
-        models[name] = build_model(
-            ckpt_path=cfg["ckpt"],
-            feature_size=cfg["feature_size"],
-            name=name,
-        )
+
+    if not threshold_only:
+        for name, cfg in MODELS.items():
+            models[name] = build_model(
+                ckpt_path=cfg["ckpt"],
+                feature_size=cfg["feature_size"],
+                name=name,
+            )
+    else:
+        log("Using thresholding baseline only - skipping model loading")
 
 
 
     print(f"[Task {task_id}] Processing {dataset}/{base}", flush=True)
 
-    for model_name, model in models.items():
-        prob, pred = zero_shot_segment(model, img_np)
+    # ---- model-based zero-shot segmentation ----
+    if not threshold_only:
+        log("Starting zero-shot segmentation inference...")
+        for model_name, model in models.items():
+            prob, pred = zero_shot_segment(model, img_np)
 
-        nib.save(
-            nib.Nifti1Image(pred, affine),
-            os.path.join(results_dir, f"{base}_pred_{model_name}.nii.gz")
-        )
-        nib.save(
-            nib.Nifti1Image(prob, affine),
-            os.path.join(results_dir, f"{base}_prob_{model_name}.nii.gz")
-        )
+            nib.save(
+                nib.Nifti1Image(pred, affine),
+                os.path.join(results_dir, f"{base}_pred_{model_name}.nii.gz")
+            )
+            nib.save(
+                nib.Nifti1Image(prob, affine),
+                os.path.join(results_dir, f"{base}_prob_{model_name}.nii.gz")
+            )
 
-        log(f"Saved outputs for model '{model_name}' "
-        f"→ {results_dir}/{base}_*_{model_name}.nii.gz")
+            log(f"Saved outputs for model '{model_name}' "
+            f"→ {results_dir}/{base}_*_{model_name}.nii.gz")
+
+    # ---- thresholding baseline ----
+    log("Starting thresholding baseline inference...")
+    prob_thr, pred_thr = threshold_segment(img_np)
+
+    nib.save(
+        nib.Nifti1Image(pred_thr, affine),
+        os.path.join(results_dir, f"{base}_pred_threshold.nii.gz")
+    )
+    nib.save(
+        nib.Nifti1Image(prob_thr, affine),
+        os.path.join(results_dir, f"{base}_prob_threshold.nii.gz")
+    )
+    log(f"Saved outputs for thresholding baseline "
+        f"→ {results_dir}/{base}_*_threshold.nii.gz")
+    
     log(f"Task {task_id} completed successfully")
 
 
@@ -254,6 +306,18 @@ def main(task_id: int):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--task-id", type=int, required=True)
+    parser.add_argument('--threshold-only', action='store_true', help='Use thresholding baseline instead of model-based segmentation')
     args = parser.parse_args()
 
-    main(args.task_id)
+    main(args.task_id, threshold_only=args.threshold_only)
+
+
+
+
+
+
+
+
+
+
+
