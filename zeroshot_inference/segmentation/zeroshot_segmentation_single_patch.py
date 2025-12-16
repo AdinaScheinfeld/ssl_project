@@ -139,27 +139,40 @@ def zero_shot_segment(model, img_np):
     log(f"Extracted features shape={f.shape} "
     f"(C={f.shape[1]}, HWD={f.shape[2:]})")
 
-    f_flat = f[0].permute(1,2,3,0).reshape(-1, C).cpu().numpy()
+    # mask zero values (padding)
+    valid_mask = img_np > 0 + 1e-5 # add epsilon for numerical stability
+
+    # log percentage of voxels masked out
+    num_total = valid_mask.size
+    num_valid = valid_mask.sum()
+    num_masked = num_total - num_valid
+    pct_masked = (num_masked / num_total) * 100.0
+    log(f'Masked voxels (padding): {num_masked}/{num_total} ({pct_masked:.2f}%)')
+
+    f_flat = f[0].permute(1,2,3,0).reshape(-1, C)
+    valid_idx = valid_mask.reshape(-1)
+    f_valid = f_flat[valid_idx].cpu().numpy()
 
     # kmeans clustering with k=2 (foreground vs background)
-    kmeans = KMeans(n_clusters=2, random_state=0, n_init=10).fit(f_flat)
+    kmeans = KMeans(n_clusters=2, random_state=0, n_init=10).fit(f_valid)
     centers = kmeans.cluster_centers_
 
-    d0 = np.linalg.norm(f_flat - centers[0], axis=1)
-    d1 = np.linalg.norm(f_flat - centers[1], axis=1)
+    d0 = np.linalg.norm(f_valid - centers[0], axis=1)
+    d1 = np.linalg.norm(f_valid - centers[1], axis=1)
 
     n0 = (d0 < d1).sum()
     n1 = (d1 < d0).sum()
     fg = 0 if n0 < n1 else 1
 
-    log(f"Cluster voxel counts: n0={n0}, n1={n1}, "
-    f"fg_cluster={fg}")
-
+    log(f"Cluster voxel counts: n0={n0}, n1={n1}, fg_cluster={fg}")
 
     dist_fg = d0 if fg == 0 else d1
     dist_bg = d1 if fg == 0 else d0
 
-    score = (dist_bg - dist_fg).reshape(H, W, D)
+    score_full = np.full((H*W*D), -np.inf, dtype=np.float32)
+    score_full[valid_idx] = (dist_bg - dist_fg)
+
+    score = score_full.reshape(H, W, D)
     prob  = 1 / (1 + np.exp(-score))
     pred  = (score > 0).astype(np.float32)
 
@@ -170,7 +183,7 @@ def zero_shot_segment(model, img_np):
 # Main
 # -----------------------------
 def main(task_id: int):
-    
+
     # build flat patch list
     patch_list = []
     for dataset in DATASETS:
@@ -192,8 +205,12 @@ def main(task_id: int):
 
     base = os.path.basename(img_path).replace(".nii.gz", "")
 
-    out_dir = os.path.join(OUT_ROOT, dataset)
-    os.makedirs(out_dir, exist_ok=True)
+    # create results directory for this dataset
+    results_root = os.path.join(OUT_ROOT, "results")
+    os.makedirs(results_root, exist_ok=True)
+
+    results_dir = os.path.join(results_root, dataset)
+    os.makedirs(results_dir, exist_ok=True)
 
     img_np, affine = load_nifti(img_path)
 
@@ -220,16 +237,15 @@ def main(task_id: int):
 
         nib.save(
             nib.Nifti1Image(pred, affine),
-            os.path.join(out_dir, f"{base}_pred_{model_name}.nii.gz")
+            os.path.join(results_dir, f"{base}_pred_{model_name}.nii.gz")
         )
         nib.save(
             nib.Nifti1Image(prob, affine),
-            os.path.join(out_dir, f"{base}_prob_{model_name}.nii.gz")
+            os.path.join(results_dir, f"{base}_prob_{model_name}.nii.gz")
         )
 
         log(f"Saved outputs for model '{model_name}' "
-        f"→ {out_dir}/{base}_*_{model_name}.nii.gz")
-
+        f"→ {results_dir}/{base}_*_{model_name}.nii.gz")
     log(f"Task {task_id} completed successfully")
 
 
