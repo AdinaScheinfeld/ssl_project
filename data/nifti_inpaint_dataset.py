@@ -4,6 +4,7 @@
 
 # imports
 from dataclasses import dataclass
+import hashlib
 import json
 import nibabel as nib
 import numpy as np
@@ -14,6 +15,11 @@ from torch.utils.data import Dataset
 
 
 # --- Helper Functions ---
+
+# function to get stable int hashing
+def _stable_int_hash(s, mod=2**31):
+    h = hashlib.sha1(s.encode('utf-8')).hexdigest()
+    return int(h[:8], 16) % mod
 
 # function to load NIfTI image and return as numpy array
 def _load_nifti(path):
@@ -260,7 +266,7 @@ class NiftiInpaintDataset(Dataset):
             self.mask_fixed_size = int(mask_fixed_size)
             
         self.num_mask_blocks = max(1, int(num_mask_blocks)) # at least 1 block
-        self.rng = np.random.RandomState(seed)
+        self.base_seed = int(seed)
 
         # caption sources (1. captions_json, 2. default_caption_by_subtype, 3. subtype name)
         self.captions_map = {}
@@ -313,6 +319,11 @@ class NiftiInpaintDataset(Dataset):
         # get item
         item = self.items[idx]
 
+        # deterministic per-item rng
+        uid = f'{item.image.resolve()}'
+        item_seed = _stable_int_hash(uid) + self.base_seed
+        rng = np.random.RandomState(item_seed)
+
         # load image and convert to channel first 3d array
         img_arr, affine, header = _load_nifti(item.image)
         vol = _ensure_channel_first_3d(img_arr) # (1,D,H,W)
@@ -334,14 +345,14 @@ class NiftiInpaintDataset(Dataset):
                 if self.augment:
                     ratio = float(
                         np.clip(
-                            self.rng.normal(loc=self.mask_ratio, scale=0.10),
+                            rng.normal(loc=self.mask_ratio, scale=0.10),
                             0.10,
                             0.60
                         )
                     )
                 
                 # sample block in foreground
-                block_mask = _sample_block_in_foreground(fg_mask, ratio, self.rng, margin=2) # (D,H,W)
+                block_mask = _sample_block_in_foreground(fg_mask, ratio, rng, margin=2) # (D,H,W)
 
             # fixed size mode
             elif self.mask_mode == 'fixed_size':
@@ -352,7 +363,7 @@ class NiftiInpaintDataset(Dataset):
                     if self.augment:
                         scale = float(
                             np.clip(
-                                self.rng.normal(loc=1.0, scale=0.2), 0.5, 1.5
+                                rng.normal(loc=1.0, scale=0.2), 0.5, 1.5
                             )
                         )
                         d0 = max(1, int(d0 * scale))
@@ -366,13 +377,13 @@ class NiftiInpaintDataset(Dataset):
                     if self.augment:
                         side = int(
                             np.clip(
-                                self.rng.normal(loc=side, scale=0.2*side), 4,  min(D, H, W)
+                                rng.normal(loc=side, scale=0.2*side), 4,  min(D, H, W)
                             )
                         )
                     block_size = side
 
                 # sample block in foreground
-                block_mask = _sample_block_in_foreground_fixed_size(fg_mask, block_size, self.rng, margin=2) # (D,H,W)
+                block_mask = _sample_block_in_foreground_fixed_size(fg_mask, block_size, rng, margin=2) # (D,H,W)
 
 
             # raise error if unknown mode
@@ -386,7 +397,7 @@ class NiftiInpaintDataset(Dataset):
         mask = mask3d[None, ...] # (1,D,H,W)
 
         # fill masked region with noise instead of zeros
-        masked_vol = _fill_masked_region_with_noise(vol, mask, self.rng)
+        masked_vol = _fill_masked_region_with_noise(vol, mask, rng)
 
         # return everything needed by model
         return {
