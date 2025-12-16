@@ -349,8 +349,17 @@ def run_one_subtype(subdir, args, device):
             pred = best_model(masked_vol, mask, t_emb)    # (1, 1, D, H, W)
             pred = torch.sigmoid(pred) # (1, 1, D, H, W), clamp to [0, 1]
 
-            # save prediction as nifti
+            # save files
             fname = Path(batch['filename'][0])
+
+            # save mask
+            mask_path = preds_dir / (fname.stem.replace('.nii', '') + '_mask.nii.gz')
+            _save_nifti(mask[0,0], ref_nifti_path=(subdir / fname), out_path=mask_path)
+
+            # save masked input
+            masked_input_path = preds_dir / (fname.stem.replace('.nii', '') + '_masked_input.nii.gz')
+            _save_nifti(masked_vol[0,0], ref_nifti_path=(subdir / fname), out_path=masked_input_path)
+
             output_path = preds_dir / (fname.stem.replace('.nii', '') + '_inpaint_pred.nii.gz')
             _save_nifti(pred[0,0], ref_nifti_path=(subdir / fname), out_path=output_path)
 
@@ -373,6 +382,8 @@ def run_one_subtype(subdir, args, device):
             rows.append({'subtype': subtype, 
                          'filename': fname.name, 
                          'psnr_masked': f'{psnr:.4f}', 
+                         'mask_path': str(mask_path),
+                         'masked_input_path': str(masked_input_path),
                          'pred_path': str(output_path),
                          'composite_path': str(output_composite_path)}
                          )
@@ -380,7 +391,13 @@ def run_one_subtype(subdir, args, device):
     # write metrics to csv
     metrics_csv = preds_dir / 'metrics_test.csv'
     with open(metrics_csv, 'w', newline='') as f:
-        w = csv.DictWriter(f, fieldnames=['subtype', 'filename', 'psnr_masked', 'pred_path', 'composite_path'])
+        w = csv.DictWriter(f, fieldnames=['subtype', 
+                                          'filename', 
+                                          'psnr_masked',  
+                                          'mask_path', 
+                                          'masked_input_path', 
+                                          'pred_path', 
+                                          'composite_path'])
         w.writeheader()
         w.writerows(rows)
 
