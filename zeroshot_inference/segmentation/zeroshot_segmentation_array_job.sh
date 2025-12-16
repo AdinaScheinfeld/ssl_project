@@ -9,6 +9,8 @@
 #SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_zeroshot/logs/zeroshot_%A_%a.out
 #SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_zeroshot/logs/zeroshot_%A_%a.err
 
+# /home/ads4015/ssl_project/zeroshot_inference/segmentation/zeroshot_segmentation_array_job.sh - SLURM script to run zeroshot segmentation inference in array mode
+
 # -----------------------------
 # Environment
 # -----------------------------
