@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=build_submit_inpaint_cv
-#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_inpaint_preds_expert_sweep_31/logs/build_submit_inpaint_cv_%j.out
-#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_inpaint_preds_expert_sweep_31/logs/build_submit_inpaint_cv_%j.err
+#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_inpaint_preds_expert_sweep_31_ntc/logs/build_submit_inpaint_cv_%j.out
+#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_inpaint_preds_expert_sweep_31_ntc/logs/build_submit_inpaint_cv_%j.err
 #SBATCH --partition=minilab-cpu
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=4G
@@ -21,7 +21,7 @@ echo "[INFO] Starting build & submit for inpainting CV jobs..."
 
 # parameters
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches" # location of finetuning data
-OUTDIR="/midtier/paetzollab/scratch/ads4015/temp_selma_inpaint_preds_expert_sweep_31/cv_folds" # output dir for folds and tasks
+OUTDIR="/midtier/paetzollab/scratch/ads4015/temp_selma_inpaint_preds_expert_sweep_31_ntc/cv_folds" # output dir for folds and tasks
 REPEATS=3
 SEED=100
 CHANNELS="ALL"

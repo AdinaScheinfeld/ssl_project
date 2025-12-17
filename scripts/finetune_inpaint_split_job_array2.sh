@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=finetune_inpaint
-#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_inpaint_preds_expert_sweep_31/logs/finetune_inpaint_%A_%a.out
-#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_inpaint_preds_expert_sweep_31/logs/finetune_inpaint_%A_%a.err
-#SBATCH --partition=scu-gpu
+#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_inpaint_preds_expert_sweep_31_ntc/logs/finetune_inpaint_%A_%a.out
+#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_inpaint_preds_expert_sweep_31_ntc/logs/finetune_inpaint_%A_%a.err
+#SBATCH --partition=minilab-gpu
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
@@ -40,9 +40,9 @@ source activate monai-env1
 
 # set paths
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches" # root dir of finetuning data
-CKPT_DIR="/midtier/paetzollab/scratch/ads4015/temp_selma_inpaint_preds_expert_sweep_31/checkpoints" # dir to save finetuning checkpoints
+CKPT_DIR="/midtier/paetzollab/scratch/ads4015/temp_selma_inpaint_preds_expert_sweep_31_ntc/checkpoints" # dir to save finetuning checkpoints
 CKPT_PRETR="/midtier/paetzollab/scratch/ads4015/checkpoints/expert_sweep_31/all_datasets_pretrained_no_clip-epochepoch=183-valval_loss=0.0201-stepstep=10672.ckpt" # path to pretrained checkpoint
-PRED_ROOT="/midtier/paetzollab/scratch/ads4015/temp_selma_inpaint_preds_expert_sweep_31/preds" # dir to save finetuning predictions
+PRED_ROOT="/midtier/paetzollab/scratch/ads4015/temp_selma_inpaint_preds_expert_sweep_31_ntc/preds" # dir to save finetuning predictions
 
 # uses either ratio-based or fixed-size masking depending on subtype
 case "$SUBTYPE" in
@@ -93,6 +93,41 @@ echo "[INFO] Starting inpainting finetune for ${SUBTYPE} (K=${K}, FID=${FID})...
 
 # use for finetuning with pretraining
 # feature size is 24 for image only, 36 for image+text
+
+# # use when text conditioning is enabled
+# python /home/ads4015/ssl_project/src/finetune_inpaint_split.py \
+#   --data_root "$ROOT" \
+#   --subtypes "$SUBTYPE" \
+#   --ckpt_dir "$CKPT_DIR" \
+#   --pretrained_ckpt_path "$CKPT_PRETR" \
+#   --val_percent 0.2 \
+#   --seed 100 \
+#   --batch_size 2 \
+#   --feature_size 24 \
+#   --max_epochs 500 \
+#   --freeze_encoder_epochs 5 \
+#   --encoder_lr_mult 0.05 \
+#   --l1_weight_masked 1.0 \
+#   --l1_weight_global 0.1 \
+#   --wandb_project selma3d_inpaint \
+#   --num_workers 1 \
+#   --channel_substr ALL \
+#   --preds_root "$PRED_ROOT" \
+#   --folds_json "$FJSON" \
+#   --fold_id "$FID" \
+#   --train_limit "$K" \
+#   --text_backend clip \
+#   --clip_ckpt "$CKPT_PRETR" \
+#   --mask_mode "$MASK_MODE" \
+#   --mask_ratio "$MASK_RATIO" \
+#   --mask_ratio_test "$MASK_RATIO_TEST" \
+#   --mask_fixed_size "$MASK_FIXED_SIZE" \
+#   --mask_fixed_size_test "$MASK_FIXED_SIZE_TEST" \
+#   --num_mask_blocks "$NUM_MASK_BLOCKS" \
+#   --num_mask_blocks_test "$NUM_MASK_BLOCKS_TEST"
+
+
+# use when text conditioning is disabled
 python /home/ads4015/ssl_project/src/finetune_inpaint_split.py \
   --data_root "$ROOT" \
   --subtypes "$SUBTYPE" \
@@ -114,7 +149,6 @@ python /home/ads4015/ssl_project/src/finetune_inpaint_split.py \
   --folds_json "$FJSON" \
   --fold_id "$FID" \
   --train_limit "$K" \
-  --text_backend clip \
   --clip_ckpt "$CKPT_PRETR" \
   --mask_mode "$MASK_MODE" \
   --mask_ratio "$MASK_RATIO" \
@@ -122,7 +156,8 @@ python /home/ads4015/ssl_project/src/finetune_inpaint_split.py \
   --mask_fixed_size "$MASK_FIXED_SIZE" \
   --mask_fixed_size_test "$MASK_FIXED_SIZE_TEST" \
   --num_mask_blocks "$NUM_MASK_BLOCKS" \
-  --num_mask_blocks_test "$NUM_MASK_BLOCKS_TEST"
+  --num_mask_blocks_test "$NUM_MASK_BLOCKS_TEST" \
+  --disable_text_cond
 
 
 # indicate done
