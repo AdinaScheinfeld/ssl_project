@@ -13,6 +13,13 @@ PCA + Logistic Regression baseline on the SAME folds as your SwinUNETR classifie
         preds_*.csv
         confusion_matrix_*.csv
         per_class_metrics_*.csv
+
+
+Notes:
+PCA implemented here uses image embeddings. 
+PCA is trained on training set only, then applied to test set. Val set is not used (since PCA has no tunable hyperparams).
+
+
 """
 
 import argparse
