@@ -8,6 +8,10 @@
 #SBATCH --time=04:00:00
 #SBATCH --array=0-62 # adjust based on total number of folds across all JSONs
 
+
+# /home/ads4015/ssl_project/baselines/classification/pca_lr_baseline_submit_all_arrays.sh
+
+
 # Usage:
 #   sbatch pca_lr_baseline_submit_all_arrays.sh /path/to/json_dir
 
@@ -74,3 +78,15 @@ python /home/ads4015/ssl_project/baselines/classification/pca_lr_baseline.py \
     --seed 100
 
 echo "[INFO] Done GLOBAL_ID=$GLOBAL_ID"
+
+
+
+
+
+
+
+
+
+
+
+

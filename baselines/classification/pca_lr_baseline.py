@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-pca_lr_baseline_fixed_labels.py
+/home/ads4015/ssl_project/baselines/classification/pca_lr_baseline.py
 
 PCA + Logistic Regression baseline on the SAME folds as your SwinUNETR classifier.
 
@@ -356,3 +356,16 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
+
+
+
+
+
+
+
