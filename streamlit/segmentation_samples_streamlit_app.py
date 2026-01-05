@@ -4,6 +4,7 @@
 
 # imports
 import argparse
+from datetime import datetime
 import hashlib
 import json
 import matplotlib.pyplot as plt
@@ -78,10 +79,19 @@ def main():
 
     if st.session_state.idx >= len(df):
         st.success("Done — thank you!")
-        args.out_json.parent.mkdir(parents=True, exist_ok=True)
-        with open(args.out_json, "w") as f:
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # If user provided "something.json", convert to "something_<user>_<stamp>.json"
+        out_path = args.out_json
+        if out_path.suffix.lower() == ".json":
+            out_path = out_path.with_name(f"{out_path.stem}_{args.user_id}_{stamp}.json")
+        else:
+            # If they pass a directory or no suffix, create a file inside it
+            out_path = out_path / f"segmentation_eval_results_{args.user_id}_{stamp}.json"
+
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(out_path, "w") as f:
             json.dump(st.session_state.results, f, indent=2)
-        st.write("Saved results to:", str(args.out_json))
+        st.write("Saved results to:", str(out_path))
         st.stop()
 
     # get current row
@@ -117,37 +127,54 @@ def main():
     with c0:
         show_slice(ref, "Image")
 
+        if st.checkbox("Show ground truth", key=f"show_gt_{st.session_state.idx}"):
+            gt = load_slice(row["gt_path"], int(row.z))
+            show_slice(gt, "Ground truth")
+
     for col, label in zip([c1, c2, c3], LABELS):
         model = mapping[label]
         pred = load_slice(row[f"{model}_path"], int(row.z))
         with col:
             show_slice(pred, f"Prediction {label}")
 
-    if st.checkbox("Show ground truth"):
-        gt = load_slice(row["gt_path"], int(row.z))
-        show_slice(gt, "Ground truth")
+
 
 
     # radio buttons for ranking preds
-    st.markdown("### Rank the predictions")
-    best = st.radio("Best", LABELS, key=f"best_{st.session_state.idx}")
-    mid  = st.radio("Middle", LABELS, key=f"mid_{st.session_state.idx}")
-    worst = st.radio("Worst", LABELS, key=f"worst_{st.session_state.idx}")
+    st.markdown("### Rank each prediction (ties allowed)")
+
+    rank_options = ["Best", "Middle", "Worst"]
+
+    rankA = st.radio("Prediction A", rank_options, key=f"rankA_{st.session_state.idx}", horizontal=True)
+    rankB = st.radio("Prediction B", rank_options, key=f"rankB_{st.session_state.idx}", horizontal=True)
+    rankC = st.radio("Prediction C", rank_options, key=f"rankC_{st.session_state.idx}", horizontal=True)
+
+    label_to_rank = {"A": rankA, "B": rankB, "C": rankC}
+
 
     if st.button("Next"):
-        if len({best, mid, worst}) != 3:
-            st.error("Each rank must be unique (A/B/C each used exactly once).")
-        else:
-            st.session_state.results.append({
-                "user_id": args.user_id,
-                "sample_id": row.sample_id,
-                "datatype": row.datatype,
-                "z": int(row.z),
-                "ranking": {best: 1, mid: 2, worst: 3},
-                "model_map": mapping,  # hidden mapping for analysis
-            })
-            st.session_state.idx += 1
-            st.rerun()
+
+        if rankA == rankB == rankC:
+            st.warning("You rated all predictions the same. Saving anyway.")
+
+        # No uniqueness constraint — ties allowed
+        st.session_state.results.append({
+            "user_id": args.user_id,
+            "sample_id": row.sample_id,
+            "datatype": row.datatype,
+            "z": int(row.z),
+
+            # per-pred label rank (ties allowed)
+            "ranking_labels": label_to_rank,
+
+            # also store numeric form for convenience
+            "ranking_numeric": {k: {"Best": 1, "Middle": 2, "Worst": 3}[v] for k, v in label_to_rank.items()},
+
+            "model_map": mapping,  # A/B/C -> actual model name
+        })
+        st.session_state.idx += 1
+        st.rerun()
+
 
 
 # main app entry point

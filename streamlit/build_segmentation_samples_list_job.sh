@@ -7,6 +7,9 @@
 #SBATCH --output=/midtier/paetzollab/scratch/ads4015/ssl_streamlit/logs/build_seg_samples_%j.out
 #SBATCH --error=/midtier/paetzollab/scratch/ads4015/ssl_streamlit/logs/build_seg_samples_%j.err
 
+
+# /home/ads4015/ssl_project/streamlit/build_segmentation_samples_list_job.sh - script to build segmentation samples list CSV
+
 set -euo pipefail
 mkdir -p /midtier/paetzollab/scratch/ads4015/ssl_streamlit/logs/
 
@@ -28,6 +31,8 @@ python -u /home/ads4015/ssl_project/streamlit/build_segmentation_samples_list.py
   --folds 0 1 2 \
   --preds_per_fold 2 \
   --z_planes 32 64 \
+  --slices_per_pred 2 \
+  --z_border 2 \
   --out_csv /midtier/paetzollab/scratch/ads4015/ssl_streamlit/segmentation_samples_list.csv
 
 
