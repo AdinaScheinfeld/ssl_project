@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=build_submit_ft_cv
-#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_autumn_sweep_27_v2/logs/build_submit_ft_cv_%j.out
-#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_autumn_sweep_27_v2/logs/build_submit_ft_cv_%j.err
+#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_autumn_sweep_27_long/logs/build_submit_ft_cv_%j.out
+#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_autumn_sweep_27_long/logs/build_submit_ft_cv_%j.err
 #SBATCH --partition=minilab-cpu
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=4G
@@ -16,9 +16,17 @@ echo "[INFO] Starting build and submit finetune+inference CV jobs..."
 
 set -euo pipefail
 
+# ---- temp dir (safe for python/multiprocessing) ----
+export SCRATCH_ROOT=/midtier/paetzollab/scratch/ads4015
+export TMPDIR="${SCRATCH_ROOT}/.tmp/build_${SLURM_JOB_ID}"
+export TMP="$TMPDIR"
+export TEMP="$TMPDIR"
+mkdir -p "$TMPDIR"
+
+
 # config
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches"
-OUTDIR="/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_autumn_sweep_27_v2/cv_folds" # output dir for folds jsons and tasks file
+OUTDIR="/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_autumn_sweep_27_long/cv_folds" # output dir for folds jsons and tasks file
 REPEATS=3
 SEED=100
 CHANNELS="ALL"
