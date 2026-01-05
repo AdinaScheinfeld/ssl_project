@@ -18,10 +18,12 @@ echo "Starting build_segmentation_samples_list_job.sh at $(date)"
 module load anaconda3/2022.10-34zllqw
 source activate monai-env1
 
+# run the script to build the segmentation samples list
 python -u /home/ads4015/ssl_project/streamlit/build_segmentation_samples_list.py \
   --image_clip_root /midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_autumn_sweep_27_v2 \
   --image_only_root /midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_expert_sweep_31_v2 \
-  --random_root     /midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_rand_v2 \
+  --random_root /midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_rand_v2 \
+  --finetune_patches_root /midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches \
   --datatypes amyloid_plaque c_fos_positive cell_nucleus vessels \
   --folds 0 1 2 \
   --preds_per_fold 2 \
