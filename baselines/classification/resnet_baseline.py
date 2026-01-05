@@ -358,15 +358,15 @@ def main():
 
     train_loader = DataLoader(
         train_ds, batch_size=args.batch_size, shuffle=True,
-        num_workers=args.num_workers, pin_memory=True, persistent_workers=(args.num_workers > 0)
+        num_workers=args.num_workers, pin_memory=True, persistent_workers=False
     )
     val_loader = DataLoader(
         val_ds, batch_size=args.batch_size, shuffle=False,
-        num_workers=args.num_workers, pin_memory=True, persistent_workers=(args.num_workers > 0)
+        num_workers=args.num_workers, pin_memory=True, persistent_workers=False
     )
     test_loader = DataLoader(
         test_ds, batch_size=args.batch_size, shuffle=False,
-        num_workers=args.num_workers, pin_memory=True, persistent_workers=(args.num_workers > 0)
+        num_workers=args.num_workers, pin_memory=True, persistent_workers=False
     )
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -476,7 +476,26 @@ def main():
         best_ckpt_path = last_ckpt_path
 
     best_ckpt = torch.load(best_ckpt_path, map_location=device)
-    model.load_state_dict(best_ckpt["model_state_dict"])
+
+    # debug print checkpoint keys
+    print("[DEBUG] Checkpoint keys example:", list(best_ckpt.keys())[:5], flush=True)
+
+    load_result = model.load_state_dict(best_ckpt["model_state_dict"])
+
+    # ensure that weights loaded correctly
+    print(
+        f"[DEBUG] Loaded weights: "
+        f"{len(model.state_dict()) - len(load_result.missing_keys)} / {len(model.state_dict())}, "
+        f"missing={len(load_result.missing_keys)}, "
+        f"unexpected={len(load_result.unexpected_keys)}",
+        flush=True,
+    )
+
+    if len(load_result.missing_keys) > 0:
+        print("[DEBUG] Missing keys (first 10):", load_result.missing_keys[:10], flush=True)
+
+    if len(load_result.unexpected_keys) > 0:
+        print("[DEBUG] Unexpected keys (first 10):", load_result.unexpected_keys[:10], flush=True)
 
     te_loss, te_acc, te_f1, y_true, y_pred, probs, paths = run_epoch(
         model, test_loader, optimizer=None, device=device, return_probs=True

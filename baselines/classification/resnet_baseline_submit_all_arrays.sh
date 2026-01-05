@@ -27,12 +27,29 @@ JSON_DIR="${1:?Provide directory with cls_folds_*.json}"
 OUT_ROOT="/midtier/paetzollab/scratch/ads4015/temp_selma_classification_preds_resnet"
 mkdir -p "$OUT_ROOT/logs"
 
-# ---- temp dir (safe for python/multiprocessing) ----
-export SCRATCH_ROOT=/midtier/paetzollab/scratch/ads4015
-export TMPDIR="${SCRATCH_ROOT}/.tmp/build_${SLURM_JOB_ID}"
+# ---- temp dir (node-local; avoid NFS .nfs* issues) ----
+if [[ -n "${SLURM_TMPDIR:-}" ]]; then
+  export TMPDIR="$SLURM_TMPDIR"
+else
+  export TMPDIR="/tmp/${USER}/slurm_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
+  mkdir -p "$TMPDIR"
+fi
 export TMP="$TMPDIR"
 export TEMP="$TMPDIR"
-mkdir -p "$TMPDIR"
+
+echo "[INFO] TMPDIR=$TMPDIR"
+echo "[INFO] WANDB_DIR=$WANDB_DIR"
+
+# cleanup temp dir on exit if we created it
+if [[ -z "${SLURM_TMPDIR:-}" ]]; then
+  trap 'rm -rf "$TMPDIR"' EXIT
+fi
+
+
+# Make PyTorch use it for dataloader shared memory / temp files too
+export TORCH_HOME="$TMPDIR/torch"
+export XDG_CACHE_HOME="$TMPDIR/.cache"
+
 
 export WANDB_DIR="$OUT_ROOT/wandb"
 mkdir -p "$WANDB_DIR"
