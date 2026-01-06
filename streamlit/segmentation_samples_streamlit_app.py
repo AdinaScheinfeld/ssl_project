@@ -111,9 +111,6 @@ def show_image_url(url: str, title: str):
         st.caption(url)
 
 
-
-
-
 # function to get deterministic mapping of labels to models per sample
 def deterministic_mapping(sample_id: str, seed: int):
     h = hashlib.md5(f"{seed}:{sample_id}".encode("utf-8")).hexdigest()
@@ -121,6 +118,16 @@ def deterministic_mapping(sample_id: str, seed: int):
     models = MODELS.copy()
     rng.shuffle(models)
     return dict(zip(LABELS, models))
+
+
+@st.cache_resource(show_spinner=False)
+def get_gsheet_client(service_account_json_path: str):
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
+    ]
+    creds = Credentials.from_service_account_file(service_account_json_path, scopes=scopes)
+    return gspread.authorize(creds)
 
 
 # --- Main App ---
@@ -145,32 +152,33 @@ def main():
     df = pd.read_csv(args.data_csv, dtype=str, keep_default_na=False)
 
     # --------------------
-    # CONNECT TO GOOGLE SHEETS
+    # CONNECT TO GOOGLE SHEETS (cached)
     # --------------------
-    scope = ["https://www.googleapis.com/auth/spreadsheets"]
-    creds = Credentials.from_service_account_file(str(args.service_account_json), scopes=scope)
-    gc = gspread.authorize(creds)
-    sh = gc.open_by_key(args.gsheet_id)
-    ws = sh.sheet1  # first tab
-
-    # Optional: ensure header exists (runs once per session)
-    if "gsheet_ready" not in st.session_state:
-        st.session_state.gsheet_ready = True
-        # If sheet is empty, write a header row
-        if ws.row_values(1) == []:
-            ws.append_row([
-                "timestamp",
-                "user_id",
-                "sample_id",
-                "datatype",
-                "z",
-                "rankA",
-                "rankB",
-                "rankC",
-                "map_A",
-                "map_B",
-                "map_C",
-            ])
+    gc = get_gsheet_client(str(args.service_account_json))
+    ws = gc.open_by_key(args.gsheet_id).sheet1  # first tab
+    # Ensure header exists (safe against reruns)
+    expected_header = [
+        "timestamp",
+        "user_id",
+        "sample_id",
+        "datatype",
+        "z",
+        "rankA",
+        "rankB",
+        "rankC",
+        "map_A",
+        "map_B",
+        "map_C",
+    ]
+    try:
+        first_row = ws.row_values(1)
+        if first_row == []:
+            ws.append_row(expected_header)
+        elif first_row != expected_header:
+            st.warning("Google Sheet header row is not what this app expects. Logging may be misaligned.")
+    except Exception as e:
+        st.error(f"Failed to initialize Google Sheet: {e}")
+        st.stop()
 
     # app title
     st.title("Segmentation Prediction Ranking")
@@ -278,20 +286,24 @@ def main():
 
         # Append to Google Sheet (one row per sample rating)
         stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        ws.append_row([
-            stamp,
-            args.user_id,
-            str(row.sample_id),
-            str(row.datatype),
-            str(int(row.z)),
-            rankA,
-            rankB,
-            rankC,
-            mapping["A"],
-            mapping["B"],
-            mapping["C"],
-        ])
-        
+        try:
+            ws.append_row([
+                stamp,
+                args.user_id,
+                str(row.sample_id),
+                str(row.datatype),
+                str(int(row.z)),
+                rankA,
+                rankB,
+                rankC,
+                mapping["A"],
+                mapping["B"],
+                mapping["C"],
+            ])
+        except Exception as e:
+            st.error(f"Failed to log to Google Sheets: {e}")
+            st.stop()
+
         # store result
         st.session_state.results.append({
             "user_id": args.user_id,
