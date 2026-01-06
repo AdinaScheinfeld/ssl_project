@@ -60,6 +60,10 @@ wandb/
 # old
 old/
 
+# secrets
+gdrive_creds.json
+client_secrets.json
+
 
 
 
