@@ -7,6 +7,9 @@
 #SBATCH --output=/midtier/paetzollab/scratch/ads4015/ssl_streamlit/logs/streamlit_%j.out
 #SBATCH --error=/midtier/paetzollab/scratch/ads4015/ssl_streamlit/logs/streamlit_%j.err
 
+
+# /home/ads4015/ssl_project/streamlit/segmentation_samples_streamlit_app_job.sh - script to run Streamlit app for segmentation sample ranking
+
 set -euo pipefail
 mkdir -p /midtier/paetzollab/scratch/ads4015/ssl_streamlit/logs
 
@@ -14,12 +17,14 @@ mkdir -p /midtier/paetzollab/scratch/ads4015/ssl_streamlit/logs
 module load anaconda3/2022.10-34zllqw
 source activate monai-env1
 
+# set Streamlit port
 PORT=8501
 
 echo "Running Streamlit on host: $(hostname)"
 echo "Port: ${PORT}"
 echo "If port is busy, change PORT to something else like 8502."
 
+# run the Streamlit app
 # IMPORTANT: streamlit flags must come BEFORE the `--` that separates app args
 python -m streamlit run /home/ads4015/ssl_project/streamlit/segmentation_samples_streamlit_app.py \
   --server.address 0.0.0.0 \
