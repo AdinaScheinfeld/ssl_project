@@ -6,6 +6,8 @@
 import argparse
 from collections import Counter
 from datetime import datetime
+import gspread
+from google.oauth2.service_account import Credentials
 import hashlib
 from io import BytesIO
 import json
@@ -132,6 +134,8 @@ def main():
     ap.add_argument("--out_json", type=Path, default=Path("segmentation_results.json"))
     ap.add_argument("--seed", type=int, default=100)
     ap.add_argument("--user_id", type=str, default="anon")
+    ap.add_argument("--gsheet_id", type=str, required=True, help="Google Sheet ID (the long /d/<ID>/ part)")
+    ap.add_argument("--service_account_json", type=Path, required=True, help="Path to service account JSON key")
     args = ap.parse_args()
 
     # set random seed
@@ -139,6 +143,34 @@ def main():
 
     # Important: keep URL columns as strings (avoid NaN -> float -> 0/0.0 issues)
     df = pd.read_csv(args.data_csv, dtype=str, keep_default_na=False)
+
+    # --------------------
+    # CONNECT TO GOOGLE SHEETS
+    # --------------------
+    scope = ["https://www.googleapis.com/auth/spreadsheets"]
+    creds = Credentials.from_service_account_file(str(args.service_account_json), scopes=scope)
+    gc = gspread.authorize(creds)
+    sh = gc.open_by_key(args.gsheet_id)
+    ws = sh.sheet1  # first tab
+
+    # Optional: ensure header exists (runs once per session)
+    if "gsheet_ready" not in st.session_state:
+        st.session_state.gsheet_ready = True
+        # If sheet is empty, write a header row
+        if ws.row_values(1) == []:
+            ws.append_row([
+                "timestamp",
+                "user_id",
+                "sample_id",
+                "datatype",
+                "z",
+                "rankA",
+                "rankB",
+                "rankC",
+                "map_A",
+                "map_B",
+                "map_C",
+            ])
 
     # app title
     st.title("Segmentation Prediction Ranking")
@@ -244,6 +276,22 @@ def main():
             st.error("No ties allowed: assign exactly one Best, one Middle, and one Worst across A/B/C.")
             st.stop()
 
+        # Append to Google Sheet (one row per sample rating)
+        stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ws.append_row([
+            stamp,
+            args.user_id,
+            str(row.sample_id),
+            str(row.datatype),
+            str(int(row.z)),
+            rankA,
+            rankB,
+            rankC,
+            mapping["A"],
+            mapping["B"],
+            mapping["C"],
+        ])
+        
         # store result
         st.session_state.results.append({
             "user_id": args.user_id,

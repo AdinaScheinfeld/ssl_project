@@ -15,7 +15,7 @@ mkdir -p /midtier/paetzollab/scratch/ads4015/ssl_streamlit/logs
 
 # activate conda environment
 module load anaconda3/2022.10-34zllqw
-source activate monai-env1
+source activate gdrive-env
 
 # set Streamlit port
 PORT=8501
@@ -34,7 +34,9 @@ python -m streamlit run /home/ads4015/ssl_project/streamlit/segmentation_samples
   --data_csv /home/ads4015/ssl_project/streamlit/segmentation_samples_urls.csv \
   --out_json /midtier/paetzollab/scratch/ads4015/ssl_streamlit/segmentation_samples_results.json \
   --seed 100 \
-  --user_id anon
+  --user_id anon \
+  --gsheet_id 1dJ-yyEQMjL92HB86iDEs0vIESuzKQp9wBXUnuILSnPw \
+  --service_account_json /home/ads4015/ssl_project/streamlit/gservice_account.json
 
 
 
