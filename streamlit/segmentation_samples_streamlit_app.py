@@ -7,12 +7,15 @@ import argparse
 from collections import Counter
 from datetime import datetime
 import hashlib
+from io import BytesIO
 import json
-import matplotlib.pyplot as plt
-import nibabel as nib
+# import matplotlib.pyplot as plt
+# import nibabel as nib
 import pandas as pd
 from pathlib import Path
 import random
+import re
+import requests
 import streamlit as st
 
 
@@ -21,22 +24,93 @@ import streamlit as st
 MODELS = ["image_clip", "image_only", "random"]
 LABELS = ["A", "B", "C"]
 
+# map model name -> URL column name in the CSV
+MODEL_TO_URLCOL = {
+    "image_clip": "pred_image_clip_url",
+    "image_only": "pred_image_only_url",
+    "random": "pred_random_url",
+}
+
 
 # --- Helper Functions ---
 
-# function to load a 2D slice from a 3D volume
-@st.cache_data(show_spinner=False)
-def load_slice(path_str: str, z: int):
-    vol = nib.load(path_str).get_fdata()
-    return vol[:, :, z]
+# # function to load a 2D slice from a 3D volume
+# @st.cache_data(show_spinner=False)
+# def load_slice(path_str: str, z: int):
+#     vol = nib.load(path_str).get_fdata()
+#     return vol[:, :, z]
 
-# function to show a 2D slice in streamlit
-def show_slice(img2d, title: str):
-    fig, ax = plt.subplots()
-    ax.imshow(img2d.T, cmap="gray", origin="lower")
-    ax.set_title(title)
-    ax.axis("off")
-    st.pyplot(fig, clear_figure=True)
+# # function to show a 2D slice in streamlit
+# def show_slice(img2d, title: str):
+#     fig, ax = plt.subplots()
+#     ax.imshow(img2d.T, cmap="gray", origin="lower")
+#     ax.set_title(title)
+#     ax.axis("off")
+#     st.pyplot(fig, clear_figure=True)
+
+
+
+
+def _normalize_drive_url(url: str) -> str:
+    """
+    Accepts any of these:
+      - https://drive.google.com/file/d/<ID>/view?...
+      - https://drive.google.com/open?id=<ID>
+      - https://drive.google.com/uc?id=<ID>...
+    Returns a direct download URL that serves image bytes:
+      - https://drive.google.com/uc?export=download&id=<ID>
+    """
+    url = (url or "").strip()
+    if not url:
+        return ""
+    # Already a direct "uc" style
+    m = re.search(r"[?&]id=([^&]+)", url)
+    if m:
+        file_id = m.group(1)
+        return f"https://drive.google.com/uc?export=download&id={file_id}"
+
+    # /file/d/<ID>/...
+    m = re.search(r"/file/d/([^/]+)/", url)
+    if m:
+        file_id = m.group(1)
+        return f"https://drive.google.com/uc?export=download&id={file_id}"
+
+    # If it's already some other public URL, return as-is
+    return url
+
+@st.cache_data(show_spinner=False)
+def _fetch_image_bytes(url: str) -> bytes:
+    """
+    Fetch image bytes server-side. Works around Drive redirects and "view pages".
+    """
+    if not url:
+        return b""
+    direct = _normalize_drive_url(url)
+    r = requests.get(direct, allow_redirects=True, timeout=30)
+    r.raise_for_status()
+    return r.content
+
+
+def show_image_url(url: str, title: str):
+    # Always coerce to string (prevents '0' / NaN weirdness)
+    url = "" if url is None else str(url).strip()
+    if not url or url.lower() in {"nan", "none", "0", "0.0"}:
+        st.error(f"Missing URL for: {title}")
+        return
+    try:
+        img_bytes = _fetch_image_bytes(url)
+        if not img_bytes:
+            st.error(f"Empty image bytes for: {title}")
+            st.caption(url)
+            return
+        st.image(BytesIO(img_bytes), caption=title, use_container_width=True)
+    except Exception as e:
+        st.error(f"Failed to load {title}: {e}")
+        st.caption(url)
+
+
+
+
 
 # function to get deterministic mapping of labels to models per sample
 def deterministic_mapping(sample_id: str, seed: int):
@@ -54,7 +128,7 @@ def main():
 
     # parse args
     ap = argparse.ArgumentParser()
-    ap.add_argument("--data_csv", type=Path, default=Path("segmentation_samples.csv"))
+    ap.add_argument("--data_csv", type=Path, default=Path("segmentation_samples_urls.csv"))
     ap.add_argument("--out_json", type=Path, default=Path("segmentation_results.json"))
     ap.add_argument("--seed", type=int, default=100)
     ap.add_argument("--user_id", type=str, default="anon")
@@ -63,8 +137,8 @@ def main():
     # set random seed
     random.seed(args.seed)
 
-    # load data CSV
-    df = pd.read_csv(args.data_csv)
+    # Important: keep URL columns as strings (avoid NaN -> float -> 0/0.0 issues)
+    df = pd.read_csv(args.data_csv, dtype=str, keep_default_na=False)
 
     # app title
     st.title("Segmentation Prediction Ranking")
@@ -121,22 +195,28 @@ def main():
     # --------------------
     st.markdown("### Reference image + predictions")
 
-    ref = load_slice(row["image_path"], int(row.z))
+    # ref = load_slice(row["image_path"], int(row.z))
 
     c0, c1, c2, c3 = st.columns(4)
 
     with c0:
-        show_slice(ref, "Image")
+        # show_slice(ref, "Image")
+        show_image_url(row["image_url"], "Image")
 
         if st.checkbox("Show ground truth", key=f"show_gt_{st.session_state.idx}"):
-            gt = load_slice(row["gt_path"], int(row.z))
-            show_slice(gt, "Ground truth")
+            # gt = load_slice(row["gt_path"], int(row.z))
+            # show_slice(gt, "Ground truth")
+            show_image_url(row["gt_url"], "Ground truth")
 
     for col, label in zip([c1, c2, c3], LABELS):
         model = mapping[label]
-        pred = load_slice(row[f"{model}_path"], int(row.z))
+        # pred = load_slice(row[f"{model}_path"], int(row.z))
+        url_col = MODEL_TO_URLCOL[model]
+        pred_url = row[url_col]
+
         with col:
-            show_slice(pred, f"Prediction {label}")
+            # show_slice(pred, f"Prediction {label}")
+            show_image_url(pred_url, f"Prediction {label}")
 
 
 

@@ -31,7 +31,7 @@ python -m streamlit run /home/ads4015/ssl_project/streamlit/segmentation_samples
   --server.port ${PORT} \
   --server.headless true \
   -- \
-  --data_csv /midtier/paetzollab/scratch/ads4015/ssl_streamlit/segmentation_samples_list.csv \
+  --data_csv /home/ads4015/ssl_project/streamlit/segmentation_samples_urls.csv \
   --out_json /midtier/paetzollab/scratch/ads4015/ssl_streamlit/segmentation_samples_results.json \
   --seed 100 \
   --user_id anon
