@@ -150,12 +150,12 @@ def deterministic_mapping(sample_id: str, seed: int):
 
 
 @st.cache_resource(show_spinner=False)
-def get_gsheet_client(service_account_json_path: str):
+def get_gsheet_client(service_account_info: dict):
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive",
     ]
-    creds = Credentials.from_service_account_file(service_account_json_path, scopes=scopes)
+    creds = Credentials.from_service_account_info(service_account_info, scopes=scopes)
     return gspread.authorize(creds)
 
 
@@ -170,27 +170,33 @@ def main():
     ap.add_argument("--out_json", type=Path, default=Path("segmentation_results.json"))
     ap.add_argument("--seed", type=int, default=100)
     ap.add_argument("--user_id", type=str, default="anon")
-    ap.add_argument("--gsheet_id", type=str, required=True, help="Google Sheet ID (the long /d/<ID>/ part)")
-    ap.add_argument("--service_account_json", type=Path, required=True, help="Path to service account JSON key")
     args = ap.parse_args()
 
     # set random seed
     random.seed(args.seed)
 
     # Important: keep URL columns as strings (avoid NaN -> float -> 0/0.0 issues)
-    df = pd.read_csv(args.data_csv, dtype=str, keep_default_na=False)
+    data_csv = args.data_csv
+    if not data_csv.exists():
+        # On Streamlit Cloud, relative paths are from repo root; also handle "streamlit/" subfolder layouts.
+        data_csv = Path(__file__).resolve().parent / args.data_csv.name
+    df = pd.read_csv(data_csv, dtype=str, keep_default_na=False)
+
 
     # --------------------
-    # CONNECT TO GOOGLE SHEETS (cached)
+    # CONNECT TO GOOGLE SHEETS (via Streamlit secrets)
     # --------------------
-
     try:
-        gc = get_gsheet_client(str(args.service_account_json))
-        sh = gc.open_by_key(args.gsheet_id)
+        gsheet_id = st.secrets["GSHEET_ID"]
+        service_account_info = st.secrets["GCP_SERVICE_ACCOUNT"]
+
+        gc = get_gsheet_client(service_account_info)
+        sh = gc.open_by_key(gsheet_id)
         ws = get_or_create_worksheet(sh, RESPONSES_TAB)
         ensure_header(ws, EXPECTED_HEADER)
     except Exception as e:
-        st.error(f"Failed to connect to Google Sheets: {e}")
+        st.error("Failed to connect to Google Sheets. Check Streamlit secrets + sheet sharing.")
+        st.exception(e)
         st.stop()
 
     # app title
