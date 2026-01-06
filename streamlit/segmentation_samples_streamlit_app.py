@@ -150,12 +150,12 @@ def deterministic_mapping(sample_id: str, seed: int):
 
 
 @st.cache_resource(show_spinner=False)
-def get_gsheet_client(service_account_info: dict):
+def get_gsheet_client(_service_account_info: dict):
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive",
     ]
-    creds = Credentials.from_service_account_info(service_account_info, scopes=scopes)
+    creds = Credentials.from_service_account_info(_service_account_info, scopes=scopes)
     return gspread.authorize(creds)
 
 
