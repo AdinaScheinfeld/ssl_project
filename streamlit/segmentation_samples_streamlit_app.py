@@ -33,24 +33,53 @@ MODEL_TO_URLCOL = {
     "random": "pred_random_url",
 }
 
+RESPONSES_TAB = "Responses"
+
+EXPECTED_HEADER = [
+    "response_id",
+    "timestamp",
+    "user_id",
+    "sample_id",
+    "datatype",
+    "z",
+    "rankA",
+    "rankB",
+    "rankC",
+    "map_A",
+    "map_B",
+    "map_C",
+]
+
 
 # --- Helper Functions ---
 
-# # function to load a 2D slice from a 3D volume
-# @st.cache_data(show_spinner=False)
-# def load_slice(path_str: str, z: int):
-#     vol = nib.load(path_str).get_fdata()
-#     return vol[:, :, z]
-
-# # function to show a 2D slice in streamlit
-# def show_slice(img2d, title: str):
-#     fig, ax = plt.subplots()
-#     ax.imshow(img2d.T, cmap="gray", origin="lower")
-#     ax.set_title(title)
-#     ax.axis("off")
-#     st.pyplot(fig, clear_figure=True)
+def get_or_create_worksheet(sh, title: str, n_rows: int = 2000, n_cols: int = 20):
+    """
+    Return worksheet `title`. If it doesn't exist, create it.
+    """
+    try:
+        return sh.worksheet(title)
+    except gspread.WorksheetNotFound:
+        return sh.add_worksheet(title=title, rows=n_rows, cols=n_cols)
 
 
+def ensure_header(ws, header):
+    """
+    Ensure row 1 is the expected header. If sheet empty, write it.
+    If header mismatch, warn (don't overwrite).
+    """
+    try:
+        first = ws.row_values(1)
+        if first == []:
+            ws.append_row(header)
+        elif first != header:
+            st.warning(
+                f"'{ws.title}' header row does not match expected schema. "
+                "Logging may be misaligned."
+            )
+    except Exception as e:
+        st.error(f"Failed to initialize Google Sheet tab '{ws.title}': {e}")
+        st.stop()
 
 
 def _normalize_drive_url(url: str) -> str:
@@ -154,30 +183,14 @@ def main():
     # --------------------
     # CONNECT TO GOOGLE SHEETS (cached)
     # --------------------
-    gc = get_gsheet_client(str(args.service_account_json))
-    ws = gc.open_by_key(args.gsheet_id).sheet1  # first tab
-    # Ensure header exists (safe against reruns)
-    expected_header = [
-        "timestamp",
-        "user_id",
-        "sample_id",
-        "datatype",
-        "z",
-        "rankA",
-        "rankB",
-        "rankC",
-        "map_A",
-        "map_B",
-        "map_C",
-    ]
+
     try:
-        first_row = ws.row_values(1)
-        if first_row == []:
-            ws.append_row(expected_header)
-        elif first_row != expected_header:
-            st.warning("Google Sheet header row is not what this app expects. Logging may be misaligned.")
+        gc = get_gsheet_client(str(args.service_account_json))
+        sh = gc.open_by_key(args.gsheet_id)
+        ws = get_or_create_worksheet(sh, RESPONSES_TAB)
+        ensure_header(ws, EXPECTED_HEADER)
     except Exception as e:
-        st.error(f"Failed to initialize Google Sheet: {e}")
+        st.error(f"Failed to connect to Google Sheets: {e}")
         st.stop()
 
     # app title
@@ -185,6 +198,20 @@ def main():
 
     # instructions to display in app
     st.caption("Rank A/B/C best → worst. Model identities are hidden.")
+
+    # --------------------
+    # USER ID (multi-rater)
+    # --------------------
+    if "user_id" not in st.session_state:
+        st.session_state.user_id = args.user_id
+    st.session_state.user_id = st.text_input(
+        "Rater ID (e.g., initials or first name)",
+        value=st.session_state.user_id,
+    ).strip()
+
+    if not st.session_state.user_id:
+        st.warning("Please enter a rater ID to begin.")
+        st.stop()
 
     # session state init
     if "idx" not in st.session_state:
@@ -198,10 +225,10 @@ def main():
         # If user provided "something.json", convert to "something_<user>_<stamp>.json"
         out_path = args.out_json
         if out_path.suffix.lower() == ".json":
-            out_path = out_path.with_name(f"{out_path.stem}_{args.user_id}_{stamp}.json")
+            out_path = out_path.with_name(f"{out_path.stem}_{st.session_state.user_id}_{stamp}.json")
         else:
             # If they pass a directory or no suffix, create a file inside it
-            out_path = out_path / f"segmentation_eval_results_{args.user_id}_{stamp}.json"
+            out_path = out_path / f"segmentation_eval_results_{st.session_state.user_id}_{stamp}.json"
 
         out_path.parent.mkdir(parents=True, exist_ok=True)
         with open(out_path, "w") as f:
@@ -286,10 +313,12 @@ def main():
 
         # Append to Google Sheet (one row per sample rating)
         stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        response_id = f"{st.session_state.user_id}::{row.sample_id}"
         try:
             ws.append_row([
+                response_id,
                 stamp,
-                args.user_id,
+                st.session_state.user_id,
                 str(row.sample_id),
                 str(row.datatype),
                 str(int(row.z)),
@@ -306,7 +335,7 @@ def main():
 
         # store result
         st.session_state.results.append({
-            "user_id": args.user_id,
+            "user_id": st.session_state.user_id,
             "sample_id": row.sample_id,
             "datatype": row.datatype,
             "z": int(row.z),
