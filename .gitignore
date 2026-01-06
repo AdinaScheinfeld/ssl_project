@@ -63,6 +63,7 @@ old/
 # secrets
 gdrive_creds.json
 client_secrets.json
+segmentation-eval-1-f3dc4445c669.json
 
 
 
