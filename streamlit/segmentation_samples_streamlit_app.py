@@ -4,6 +4,7 @@
 
 # imports
 import argparse
+from collections import Counter
 from datetime import datetime
 import hashlib
 import json
@@ -141,7 +142,7 @@ def main():
 
 
     # radio buttons for ranking preds
-    st.markdown("### Rank each prediction (ties allowed)")
+    st.markdown("### Rank each prediction (no ties allowed)")
 
     rank_options = ["Best", "Middle", "Worst"]
 
@@ -154,17 +155,23 @@ def main():
 
     if st.button("Next"):
 
-        if rankA == rankB == rankC:
-            st.warning("You rated all predictions the same. Saving anyway.")
+        # Enforce: exactly one Best, one Middle, one Worst (no ties)
+        counts = Counter(label_to_rank.values())
+        ok = (counts.get("Best", 0) == 1 and
+              counts.get("Middle", 0) == 1 and
+              counts.get("Worst", 0) == 1)
+        if not ok:
+            st.error("No ties allowed: assign exactly one Best, one Middle, and one Worst across A/B/C.")
+            st.stop()
 
-        # No uniqueness constraint — ties allowed
+        # store result
         st.session_state.results.append({
             "user_id": args.user_id,
             "sample_id": row.sample_id,
             "datatype": row.datatype,
             "z": int(row.z),
 
-            # per-pred label rank (ties allowed)
+            # per-pred label rank (no ties allowed)
             "ranking_labels": label_to_rank,
 
             # also store numeric form for convenience
