@@ -11,8 +11,6 @@ from google.oauth2.service_account import Credentials
 import hashlib
 from io import BytesIO
 import json
-# import matplotlib.pyplot as plt
-# import nibabel as nib
 import pandas as pd
 from pathlib import Path
 import random
@@ -52,6 +50,13 @@ EXPECTED_HEADER = [
 
 
 # --- Helper Functions ---
+
+# cached HTTP session for requests
+@st.cache_resource(show_spinner=False)
+def _http_session():
+    s = requests.Session()
+    return s
+
 
 def get_or_create_worksheet(sh, title: str, n_rows: int = 2000, n_cols: int = 20):
     """
@@ -117,7 +122,8 @@ def _fetch_image_bytes(url: str) -> bytes:
     if not url:
         return b""
     direct = _normalize_drive_url(url)
-    r = requests.get(direct, allow_redirects=True, timeout=30)
+    s = _http_session()
+    r = s.get(direct, allow_redirects=True, timeout=30)
     r.raise_for_status()
     return r.content
 
@@ -138,6 +144,32 @@ def show_image_url(url: str, title: str):
     except Exception as e:
         st.error(f"Failed to load {title}: {e}")
         st.caption(url)
+
+
+def show_image_url_cached(sample_key: str, url: str, title: str):
+    """
+    Cache image bytes in session_state so UI interactions (e.g., checkbox) don't
+    cause re-downloads for the same sample.
+    """
+    url = "" if url is None else str(url).strip()
+    if not url or url.lower() in {"nan", "none", "0", "0.0"}:
+        st.error(f"Missing URL for: {title}")
+        return
+
+    if "img_bytes_cache" not in st.session_state:
+        st.session_state.img_bytes_cache = {}
+
+    cache_key = f"{sample_key}::{title}"
+    if cache_key not in st.session_state.img_bytes_cache:
+        # This uses the global disk/memo cache too, but also keeps it in RAM for this user session.
+        st.session_state.img_bytes_cache[cache_key] = _fetch_image_bytes(url)
+
+    img_bytes = st.session_state.img_bytes_cache.get(cache_key, b"")
+    if not img_bytes:
+        st.error(f"Empty image bytes for: {title}")
+        st.caption(url)
+        return
+    st.image(BytesIO(img_bytes), caption=title, use_container_width=True)
 
 
 # function to get deterministic mapping of labels to models per sample
@@ -244,6 +276,7 @@ def main():
 
     # get current row
     row = df.iloc[st.session_state.idx]
+    sample_key = str(row.sample_id)  # stable key for this sample
 
     # info display
     st.markdown(f"### Slice {st.session_state.idx + 1} / {len(df)}")
@@ -274,12 +307,11 @@ def main():
 
     with c0:
         # show_slice(ref, "Image")
-        show_image_url(row["image_url"], "Image")
+        show_image_url_cached(sample_key, row["image_url"], "Image")
 
         if st.checkbox("Show ground truth", key=f"show_gt_{st.session_state.idx}"):
-            # gt = load_slice(row["gt_path"], int(row.z))
             # show_slice(gt, "Ground truth")
-            show_image_url(row["gt_url"], "Ground truth")
+            show_image_url_cached(sample_key, row["gt_url"], "Ground truth")
 
     for col, label in zip([c1, c2, c3], LABELS):
         model = mapping[label]
@@ -289,9 +321,21 @@ def main():
 
         with col:
             # show_slice(pred, f"Prediction {label}")
-            show_image_url(pred_url, f"Prediction {label}")
+            show_image_url_cached(sample_key, pred_url, f"Prediction {label}")
 
-
+    # ---- Prefetch next sample (warm caches) ----
+    next_idx = st.session_state.idx + 1
+    if next_idx < len(df):
+        next_row = df.iloc[next_idx]
+        next_key = str(next_row.sample_id)
+        try:
+            # image + preds; don't prefetch GT unless you want (optional)
+            _ = _fetch_image_bytes(next_row["image_url"])
+            _ = _fetch_image_bytes(next_row["pred_image_clip_url"])
+            _ = _fetch_image_bytes(next_row["pred_image_only_url"])
+            _ = _fetch_image_bytes(next_row["pred_random_url"])
+        except Exception:
+            pass
 
 
     # radio buttons for ranking preds
