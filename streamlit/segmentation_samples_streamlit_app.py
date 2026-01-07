@@ -308,11 +308,7 @@ def main():
     with c0:
         show_image_url_cached(sample_key, row["image_url"], "Image")
 
-        with st.form(key=f"gt_form_{st.session_state.idx}", clear_on_submit=False):
-            show_gt = st.checkbox("Show ground truth", key=f"show_gt_{st.session_state.idx}")
-            gt_submit = st.form_submit_button("Update view")
-    
-        if show_gt:
+        if st.checkbox("Show ground truth", key=f"show_gt_{st.session_state.idx}"):
             show_image_url_cached(sample_key, row["gt_url"], "Ground truth")
 
     for col, label in zip([c1, c2, c3], LABELS):
