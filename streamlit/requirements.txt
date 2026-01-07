@@ -1,5 +1,0 @@
-gspread
-google-auth
-pandas
-requests
-streamlit
