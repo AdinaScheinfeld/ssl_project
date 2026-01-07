@@ -254,6 +254,10 @@ def main():
             value=st.session_state.user_id,
         ).strip()
 
+        cA, cB = st.columns([1, 3])
+        with cA:
+            start_clicked = st.button("Start")
+
         if start_clicked:
             if not st.session_state.user_id:
                 st.error("Please enter a rater ID.")
