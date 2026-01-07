@@ -159,7 +159,7 @@ def show_image_url_cached(sample_key: str, url: str, title: str):
     if "img_bytes_cache" not in st.session_state:
         st.session_state.img_bytes_cache = {}
 
-    cache_key = f"{sample_key}::{title}"
+    cache_key = f"{sample_key}::{title}::{url}"
     if cache_key not in st.session_state.img_bytes_cache:
         # This uses the global disk/memo cache too, but also keeps it in RAM for this user session.
         st.session_state.img_bytes_cache[cache_key] = _fetch_image_bytes(url)
@@ -306,11 +306,13 @@ def main():
     c0, c1, c2, c3 = st.columns(4)
 
     with c0:
-        # show_slice(ref, "Image")
         show_image_url_cached(sample_key, row["image_url"], "Image")
 
-        if st.checkbox("Show ground truth", key=f"show_gt_{st.session_state.idx}"):
-            # show_slice(gt, "Ground truth")
+        with st.form(key=f"gt_form_{st.session_state.idx}", clear_on_submit=False):
+            show_gt = st.checkbox("Show ground truth", key=f"show_gt_{st.session_state.idx}")
+            gt_submit = st.form_submit_button("Update view")
+    
+        if show_gt:
             show_image_url_cached(sample_key, row["gt_url"], "Ground truth")
 
     for col, label in zip([c1, c2, c3], LABELS):
@@ -324,33 +326,36 @@ def main():
             show_image_url_cached(sample_key, pred_url, f"Prediction {label}")
 
     # ---- Prefetch next sample (warm caches) ----
-    next_idx = st.session_state.idx + 1
-    if next_idx < len(df):
-        next_row = df.iloc[next_idx]
-        next_key = str(next_row.sample_id)
-        try:
-            # image + preds; don't prefetch GT unless you want (optional)
-            _ = _fetch_image_bytes(next_row["image_url"])
-            _ = _fetch_image_bytes(next_row["pred_image_clip_url"])
-            _ = _fetch_image_bytes(next_row["pred_image_only_url"])
-            _ = _fetch_image_bytes(next_row["pred_random_url"])
-        except Exception:
-            pass
+    if "prefetched_idx" not in st.session_state:
+        st.session_state.prefetched_idx = -1
+
+    if st.session_state.prefetched_idx != st.session_state.idx:
+        st.session_state.prefetched_idx = st.session_state.idx
+        next_idx = st.session_state.idx + 1
+        if next_idx < len(df):
+            next_row = df.iloc[next_idx]
+            try:
+                _ = _fetch_image_bytes(next_row["image_url"])
+                _ = _fetch_image_bytes(next_row["pred_image_clip_url"])
+                _ = _fetch_image_bytes(next_row["pred_image_only_url"])
+                _ = _fetch_image_bytes(next_row["pred_random_url"])
+            except Exception:
+                pass
 
 
-    # radio buttons for ranking preds
     st.markdown("### Rank each prediction (no ties allowed)")
-
     rank_options = ["Best", "Middle", "Worst"]
 
-    rankA = st.radio("Prediction A", rank_options, key=f"rankA_{st.session_state.idx}", horizontal=True)
-    rankB = st.radio("Prediction B", rank_options, key=f"rankB_{st.session_state.idx}", horizontal=True)
-    rankC = st.radio("Prediction C", rank_options, key=f"rankC_{st.session_state.idx}", horizontal=True)
+    with st.form(key=f"rank_form_{st.session_state.idx}", clear_on_submit=False):
+        rankA = st.radio("Prediction A", rank_options, key=f"rankA_{st.session_state.idx}", horizontal=True)
+        rankB = st.radio("Prediction B", rank_options, key=f"rankB_{st.session_state.idx}", horizontal=True)
+        rankC = st.radio("Prediction C", rank_options, key=f"rankC_{st.session_state.idx}", horizontal=True)
+
+        submitted = st.form_submit_button("Next")
 
     label_to_rank = {"A": rankA, "B": rankB, "C": rankC}
 
-
-    if st.button("Next"):
+    if submitted:
 
         # Enforce: exactly one Best, one Middle, one Worst (no ties)
         counts = Counter(label_to_rank.values())
