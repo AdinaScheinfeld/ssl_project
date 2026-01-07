@@ -238,17 +238,28 @@ def main():
     st.caption("Rank A/B/C best → worst. Model identities are hidden.")
 
     # --------------------
-    # USER ID (multi-rater)
+    # SCREEN 0: ENTER RATER ID (before showing any samples)
     # --------------------
     if "user_id" not in st.session_state:
         st.session_state.user_id = args.user_id
-    st.session_state.user_id = st.text_input(
-        "Rater ID (e.g., initials or first name)",
-        value=st.session_state.user_id,
-    ).strip()
+    if "started" not in st.session_state:
+        st.session_state.started = False
 
-    if not st.session_state.user_id:
-        st.warning("Please enter a rater ID to begin.")
+    if not st.session_state.started:
+        st.markdown("## Welcome")
+        st.write("Enter your rater ID to begin. (This can be initials or a short name.)")
+
+        st.session_state.user_id = st.text_input(
+            "Rater ID",
+            value=st.session_state.user_id,
+        ).strip()
+
+        if start_clicked:
+            if not st.session_state.user_id:
+                st.error("Please enter a rater ID.")
+                st.stop()
+            st.session_state.started = True
+            st.rerun()
         st.stop()
 
     # session state init
