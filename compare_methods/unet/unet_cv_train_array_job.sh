@@ -64,13 +64,13 @@ export WANDB_CACHE_DIR="${OUT_ROOT}/logs/.wandb_cache"
 export WANDB_CONFIG_DIR="${OUT_ROOT}/logs/.wandb_config"
 
 # Training hyperparams you want for the sweep
-EPOCHS=10
+EPOCHS=1000
 BATCH_SIZE=2
 NUM_WORKERS=4
 LR=1e-3
 WEIGHT_DECAY=1e-4
 ROI_SIZE="96,96,96"
-EARLY_STOP_PATIENCE=3
+EARLY_STOP_PATIENCE=45
 
 # Seed comes from build script via --export (defaults to 100 if not passed)
 SEED="${SEED:-100}"
