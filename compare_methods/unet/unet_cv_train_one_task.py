@@ -62,7 +62,17 @@ import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 
-from monai.transforms import Compose, NormalizeIntensityd, EnsureTyped
+from monai.transforms import (
+    Compose,
+    ScaleIntensityRangePercentilesd,
+    RandFlipd,
+    RandRotate90d,
+    RandAffined,
+    RandGaussianNoised,
+    ToTensord,
+    MapTransform,
+)
+
 from monai.networks.nets import UNet
 from monai.losses import DiceCELoss
 from monai.metrics import DiceMetric
@@ -126,15 +136,57 @@ def save_pred_nifti(pred: np.ndarray, ref_path: str, out_path: str) -> None:
 # MONAI transforms
 # -------------------------
 
-def make_transforms():
-    """Basic transforms (same as your baseline): type + intensity normalize."""
-    return Compose(
-        [
-            EnsureTyped(keys=["image", "label"], dtype=torch.float32),
-            # normalize only nonzero voxels, channel-wise (still OK for 1 channel)
-            NormalizeIntensityd(keys=["image"], nonzero=True, channel_wise=True),
-        ]
-    )
+# transform to clamp image intensity between 0-1
+class ClampIntensityd(MapTransform):
+    def __init__(self, keys, minv=0.0, maxv=1.0):
+        super().__init__(keys)
+        self.minv = minv
+        self.maxv = maxv
+
+    def __call__(self, data):
+        d = dict(data)
+        for key in self.keys:
+            d[key] = np.clip(d[key], self.minv, self.maxv)
+        return d
+    
+
+def get_finetune_train_transforms():
+    """
+    Train-time transforms (matches your other code):
+    - percentile scaling to [0,1]
+    - spatial augments
+    - intensity noise + clamp
+    - ToTensord to convert numpy -> torch tensors
+    """
+    return Compose([
+        ScaleIntensityRangePercentilesd(
+            keys=["image"], lower=1.0, upper=99.0,
+            b_min=0.0, b_max=1.0, clip=True, channel_wise=True
+        ),
+        RandFlipd(keys=["image", "label"], spatial_axis=[0, 1, 2], prob=0.2),
+        RandRotate90d(keys=["image", "label"], prob=0.2, max_k=3),
+        RandAffined(
+            keys=["image", "label"],
+            rotate_range=(0.1, 0.1, 0.1),
+            scale_range=(0.1, 0.1, 0.1),
+            prob=0.2,
+            mode=("bilinear", "nearest"),
+            padding_mode="border",
+        ),
+        RandGaussianNoised(keys=["image"], prob=0.2, mean=0.0, std=0.02),
+        ClampIntensityd(keys=["image"], minv=0.0, maxv=1.0),
+        ToTensord(keys=["image", "label"]),
+    ])
+
+def get_finetune_val_transforms():
+    """Val/test transforms (matches your other code)."""
+    return Compose([
+        ScaleIntensityRangePercentilesd(
+            keys=["image"], lower=1.0, upper=99.0,
+            b_min=0.0, b_max=1.0, clip=True, channel_wise=True
+        ),
+        ToTensord(keys=["image", "label"]),
+    ])
 
 
 # -------------------------
@@ -210,6 +262,30 @@ def _sys_metrics(step_time_sec: float, batch_size_for_throughput: int) -> Dict[s
         out["system/throughput_samples_per_sec"] = float(batch_size_for_throughput) / float(step_time_sec)
 
     return out
+
+
+def print_load_state_dict_stats(model: torch.nn.Module, load_result, prefix: str = "[CKPT]") -> None:
+    """
+    Summarize what load_state_dict() did.
+    load_result is the object returned by model.load_state_dict(...).
+    """
+    model_sd = model.state_dict()
+    missing = list(getattr(load_result, "missing_keys", []))
+    unexpected = list(getattr(load_result, "unexpected_keys", []))
+
+    loaded_keys = set(model_sd.keys()) - set(missing)
+    n_loaded_params = sum(model_sd[k].numel() for k in loaded_keys)
+    total_params = sum(p.numel() for p in model.parameters())
+
+    print(
+        f"{prefix} total_params={total_params:,} | loaded_params={n_loaded_params:,} | "
+        f"missing_keys={len(missing)} | unexpected_keys={len(unexpected)}",
+        flush=True,
+    )
+    if missing:
+        print(f"{prefix} missing (first 20): {missing[:20]}", flush=True)
+    if unexpected:
+        print(f"{prefix} unexpected (first 20): {unexpected[:20]}", flush=True)
 
 
 # -------------------------
@@ -350,8 +426,8 @@ def run_one_task(args) -> None:
 
     # Naming like your example
     datatype = args.datatype
-    ntr = 2
-    nev = 2
+    ntr = int(pool_n)
+    nev = int(len(test_items))
     fttr = len(train_items)
     ftval = len(val_items)
 
@@ -384,11 +460,10 @@ def run_one_task(args) -> None:
     with open(out_splits / "split.json", "w") as f:
         json.dump(split_obj, f, indent=2)
 
-    # Data loaders
-    xform = make_transforms()
-    train_ds = NiftiSingleChannelDataset(train_items, xform=xform)
-    val_ds = NiftiSingleChannelDataset(val_items, xform=xform)
-    test_ds = NiftiSingleChannelDataset(test_items, xform=xform)
+    # datasets (train gets augments, val/test do not)
+    train_ds = NiftiSingleChannelDataset(train_items, xform=get_finetune_train_transforms())
+    val_ds   = NiftiSingleChannelDataset(val_items,   xform=get_finetune_val_transforms())
+    test_ds  = NiftiSingleChannelDataset(test_items,  xform=get_finetune_val_transforms())
 
     train_loader = DataLoader(
         train_ds,
@@ -620,8 +695,12 @@ def run_one_task(args) -> None:
     # -------------------------
     if best_path.exists():
         ckpt = torch.load(best_path, map_location=device)
-        model.load_state_dict(ckpt["model_state"], strict=False)
-
+        load_result = model.load_state_dict(ckpt["model_state"], strict=False)
+        print(
+            f"[INFO][INFERENCE] Loaded checkpoint: {best_path} (best_val_dice={ckpt.get('best_val_dice', float('nan'))})",
+            flush=True,
+        )
+        print_load_state_dict_stats(model, load_result, prefix="[INFO][INFERENCE]")
     model.eval()
 
     rows = []
