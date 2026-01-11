@@ -1,13 +1,12 @@
 #!/bin/bash
 #SBATCH --job-name=unet_cv_task
-#SBATCH --partition=sablab-gpu
-#SBATCH --account=sablab
-#SBATCH --gres=gpu:a100:1
+#SBATCH --partition=minilab-gpu
+#SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
 #SBATCH --time=12:00:00
-#SBATCH --output=/midtier/paetzollab/scratch/ads4015/compare_methods/unet/finetuned_cross_val/logs/slurm_%A_%a.out
-#SBATCH --error=/midtier/paetzollab/scratch/ads4015/compare_methods/unet/finetuned_cross_val/logs/slurm_%A_%a.err
+#SBATCH --output=/midtier/paetzollab/scratch/ads4015/compare_methods/unet_level3/finetuned_cross_val/logs/slurm_%A_%a.out
+#SBATCH --error=/midtier/paetzollab/scratch/ads4015/compare_methods/unet_level3/finetuned_cross_val/logs/slurm_%A_%a.err
 
 # unet_cv_array_job.sh
 #
@@ -49,13 +48,13 @@ export PYTHONWARNINGS="ignore"
 # Load env
 # -------------------------
 module load anaconda3/2022.10-34zllqw
-source activate monai-env1
+source activate monai-env2
 
 # -------------------------
 # Experiment configuration
 # -------------------------
 DATA_ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches"
-OUT_ROOT="/midtier/paetzollab/scratch/ads4015/compare_methods/unet/finetuned_cross_val"
+OUT_ROOT="/midtier/paetzollab/scratch/ads4015/compare_methods/unet_level3/finetuned_cross_val"
 mkdir -p "${OUT_ROOT}/logs"
 
 # W&B: keep all run files under OUT_ROOT/logs
@@ -117,6 +116,8 @@ python -u /home/ads4015/ssl_project/compare_methods/unet/unet_cv_train_one_task.
   --weight_decay "${WEIGHT_DECAY}" \
   --roi_size "${ROI_SIZE}" \
   --early_stop_patience "${EARLY_STOP_PATIENCE}" \
-  --wandb_project "selma3d_unet_cv"
+  --wandb_project "selma3d_unet_cv" \
+  --unet_channels 16,32,64 \
+  --unet_strides 2,2
 
 echo "[INFO] Done task_id=${SLURM_ARRAY_TASK_ID} at $(date)"

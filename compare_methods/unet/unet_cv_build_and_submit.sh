@@ -4,8 +4,8 @@
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=4G
 #SBATCH --time=02:00:00
-#SBATCH --output=/midtier/paetzollab/scratch/ads4015/compare_methods/unet/finetuned_cross_val/logs/build_submit_%j.out
-#SBATCH --error=/midtier/paetzollab/scratch/ads4015/compare_methods/unet/finetuned_cross_val/logs/build_submit_%j.err
+#SBATCH --output=/midtier/paetzollab/scratch/ads4015/compare_methods/unet_level3/finetuned_cross_val/logs/build_submit_%j.out
+#SBATCH --error=/midtier/paetzollab/scratch/ads4015/compare_methods/unet_level3/finetuned_cross_val/logs/build_submit_%j.err
 
 # unet_cv_build_and_submit.sh
 #
@@ -41,7 +41,7 @@ mkdir -p "$TMPDIR"
 # Paths
 # -------------------------
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches"
-OUT_ROOT="/midtier/paetzollab/scratch/ads4015/compare_methods/unet/finetuned_cross_val"
+OUT_ROOT="/midtier/paetzollab/scratch/ads4015/compare_methods/unet_level3/finetuned_cross_val"
 FOLDS_OUTDIR="${OUT_ROOT}/cv_folds"           # where folds json + tasks file live
 TASKS_FILE="${FOLDS_OUTDIR}/unetcv_tasks.txt" # one line per GPU task
 JOB_PREFIX="unetcv"                           # appears in slurm logs
@@ -79,7 +79,7 @@ COUNTS[vessels_patches]="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20"
 # Load conda env (needed for fold generator)
 # -------------------------
 module load anaconda3/2022.10-34zllqw
-source activate monai-env1
+source activate monai-env2
 
 # -------------------------
 # Build folds + tasks

@@ -126,8 +126,17 @@ def make_label_from_path(label_path: str) -> np.ndarray:
 
 
 def save_pred_nifti(pred: np.ndarray, ref_path: str, out_path: str) -> None:
-    """Save prediction NIfTI using affine/header from ref_path."""
+    """Save prediction NIfTI using affine/header from ref_path.
+
+    We want the saved volume to match GT shape (Z, Y, X) = (96, 96, 96),
+    not (1, 96, 96, 96). So this function expects a 3D array.
+    """
     ref = nib.load(ref_path)
+    # Safety: if caller accidentally passes (1, Z, Y, X), drop singleton channel.
+    if pred.ndim == 4 and pred.shape[0] == 1:
+        pred = pred[0]
+    if pred.ndim != 3:
+        raise ValueError(f"Expected 3D pred (Z,Y,X), got shape={pred.shape}")
     img = nib.Nifti1Image(pred.astype(np.float32), affine=ref.affine, header=ref.header)
     nib.save(img, out_path)
 
@@ -393,7 +402,7 @@ def run_one_task(args) -> None:
 
     # Sanity checks: must match user requirement
     if len(test_img_paths) != 2:
-        print(f"[WARN] test set size is {len(test_img_paths)} (expected 2). continuing anyway.")
+        print(f"[WARN] test set size is {len(test_img_paths)} (expected 2). continuing anyway.", flush=True)
 
     if args.pool_n is not None and args.pool_n > 0 and len(pool_img_paths) != args.pool_n:
         print(
@@ -495,13 +504,24 @@ def run_one_task(args) -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    # ---- parse UNet architecture from CLI ----
+    unet_channels = tuple(int(x) for x in args.unet_channels.split(","))
+    unet_strides = tuple(int(x) for x in args.unet_strides.split(","))
+
+    if len(unet_strides) != len(unet_channels) - 1:
+        raise ValueError(
+            f"UNet config invalid: got channels={unet_channels} "
+            f"and strides={unet_strides}. "
+            f"Expected len(strides) == len(channels) - 1."
+        )
+    
     # Model (same as your baseline)
     model = UNet(
         spatial_dims=3,
         in_channels=1,
         out_channels=1,
-        channels=(16, 32, 64, 128, 256),
-        strides=(2, 2, 2, 2),
+        channels=unet_channels,
+        strides=unet_strides,
         num_res_units=2,
         norm="INSTANCE",
         dropout=args.dropout,
@@ -725,7 +745,10 @@ def run_one_task(args) -> None:
             # save prediction
             ref_label = next(it["label"] for it in test_items if it["id"] == sid)
             out_pred_path = out_preds / f"{sid}_pred_{run_id}.nii.gz"
-            save_pred_nifti(pred[0].detach().cpu().numpy(), ref_label, str(out_pred_path))
+
+            # pred is [B, C, Z, Y, X]; save as [Z, Y, X] so it matches GT and needs no squeeze later
+            save_pred_nifti(pred[0, 0].detach().cpu().numpy(), ref_label, str(out_pred_path))
+
 
             rows.append(
                 {
@@ -787,6 +810,20 @@ def parse_args():
         type=int,
         default=-1,
         help="Optional: expected pool size K. Only used for logging/sanity warnings.",
+    )
+
+    # UNet architecture (comma-separated)
+    p.add_argument(
+        "--unet_channels",
+        type=str,
+        default="16,32,64,128,256",
+        help="UNet feature channels per level, comma-separated (default: 16,32,64,128,256)",
+    )
+    p.add_argument(
+        "--unet_strides",
+        type=str,
+        default="2,2,2,2",
+        help="UNet downsampling strides, comma-separated (default: 2,2,2,2)",
     )
 
     # training hyperparams (match your baseline)
