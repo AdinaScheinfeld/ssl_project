@@ -1,4 +1,4 @@
-# all_datasets_clip_pretrain.py - Multi-source Data Pretraining
+# all_datasets_clip_pretrain_unet.py - Multi-source Data Pretraining
 
 # --- Setup ---
 
