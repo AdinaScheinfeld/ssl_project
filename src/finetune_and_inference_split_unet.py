@@ -383,8 +383,8 @@ def run_for_subtype(subtype_dir, args, device):
     model = BinarySegmentationModuleUnet(
         pretrained_ckpt=args.pretrained_ckpt,
         lr=args.lr,
-        unet_channels=args.unet_channels,
-        unet_strides=args.unet_strides,
+        unet_channels=tuple(int(x) for x in args.unet_channels.split(',')),
+        unet_strides=tuple(int(x) for x in args.unet_strides.split(',')),
         unet_num_res_units=args.unet_num_res_units,
         unet_norm=args.unet_norm,
         freeze_encoder_epochs=args.freeze_encoder_epochs,
@@ -558,10 +558,12 @@ def parse_args():
     parser.add_argument('--num_workers', type=int, default=4, help='Number of DataLoader worker processes (default: 4)')
     parser.add_argument('--min_finetune_train', type=int, default=1, help='Minimum number of finetune training samples required to run finetuning (default: 1)')
     parser.add_argument('--min_finetune_eval', type=int, default=1, help='Minimum number of finetune eval samples required to run finetuning (default: 1)')
-    parser.add_argument('--unet_channels', type=str, default='32,64,128,256,512', help='Comma-separated list of U-Net channels (default: 32,64,128,256,512)')
-    parser.add_argument('--unet_strides', type=str, default='2,2,2,2', help='Comma-separated list of U-Net strides (default: 2,2,2,2)')
-    parser.add_argument('--unet_num_res_units', type=int, default=2, help='Number of residual units in each U-Net block (default: 2)')
-    parser.add_argument('--unet_norm', type=str, default='INSTANCE', help='Normalization method for U-Net (default: INSTANCE)')
+
+    # unet args (should match those used during pretraining)
+    parser.add_argument('--unet_channels', type=str, default='32,64,128,256,512', help='Comma-separated list of UNet feature sizes per level (default: 32,64,128,256,512)')
+    parser.add_argument('--unet_strides', type=str, default='2,2,2,2', help='Comma-separated list of UNet strides per level (default: 2,2,2,2)')
+    parser.add_argument('--unet_num_res_units', type=int, default=2, help='Number of residual units in each UNet level (default: 2)')
+    parser.add_argument('--unet_norm', type=str, default='INSTANCE', help='Normalization method for UNet (INSTANCE, BATCH, LAYER; default: INSTANCE)')
 
     # logging/output
     parser.add_argument('--wandb_project', type=str, default='finetune', help='Wandb project name for logging (default: finetune)')
@@ -579,14 +581,6 @@ def parse_args():
 
     # parse
     args = parser.parse_args()
-
-    # parse unet channels and strides
-    args.unet_channels = tuple(int(x) for x in args.unet_channels.split(','))
-    args.unet_strides = tuple(int(x) for x in args.unet_strides.split(','))
-
-    # safety check (ensure len of channels = len of strides + 1)
-    if len(args.unet_channels) != len(args.unet_strides) + 1:
-        raise ValueError(f'Unet config error: number of channels ({len(args.unet_channels)}) must be one more than number of strides ({len(args.unet_strides)})')
 
     return args
 

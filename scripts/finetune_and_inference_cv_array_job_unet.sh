@@ -50,7 +50,7 @@ source activate monai-env2
 # define constants
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches"
 CKPT_DIR="/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_copper_monkey/checkpoints" # output dir for finetune checkpoints
-CKPT="/midtier/paetzollab/scratch/ads4015/model_checkpoints/ibot_clip_pretrain_lsm_unet/all_datasets_clip_pretrained_unet_best.ckpt" # Image+CLIP unet checkpoint
+CKPT="/midtier/paetzollab/scratch/ads4015/model_checkpoints/ibot_clip_pretrain_lsm_unet/all_datasets_clip_pretrained_unet_best.ckpt" # Image+CLIP checkpoint
 PRED_ROOT="/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_copper_monkey/preds" # output dir for preds
 
 # pretty-name mapping for outputs
@@ -66,7 +66,6 @@ esac
 echo "[INFO] Starting finetune+infer for ${SUBTYPE} (K=${K}, FID=${FID})..."
 
 # run finetuning and inference
-# 32 -> 32,64,128,256,512 channels with 2x2x2x2 strides to match pretraining architecture
 python /home/ads4015/ssl_project/src/finetune_and_inference_split_unet.py \
   --root "$ROOT" \
   --subtypes "$SUBTYPE" \
@@ -75,8 +74,12 @@ python /home/ads4015/ssl_project/src/finetune_and_inference_split_unet.py \
   --val_percent 0.2 \
   --seed 100 \
   --batch_size 4 \
-  --max_epochs 500 \
-  --early_stopping_patience 45 \
+  --unet_channels 32,64,128,256,512 \
+  --unet_strides 2,2,2,2 \
+  --unet_num_res_units 2 \
+  --unet_norm INSTANCE \
+  --max_epochs 5 \
+  --early_stopping_patience 3 \
   --freeze_encoder_epochs 5 \
   --encoder_lr_mult 0.05 \
   --loss_name dicece \
@@ -88,11 +91,7 @@ python /home/ads4015/ssl_project/src/finetune_and_inference_split_unet.py \
   --folds_json "$FJSON" \
   --fold_id "$FID" \
   --train_limit "$K" \
-  --infer_ckpt last \
-  --unet_channels 32,64,128,256,512 \
-  --unet_strides 2,2,2,2 \
-  --unet_num_res_units 2 \
-  --unet_norm INSTANCE
+  --infer_ckpt best
 
 
 # optional: best-effort cleanup (ignore failure)

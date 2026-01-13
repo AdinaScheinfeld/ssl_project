@@ -24,16 +24,18 @@ class BinarySegmentationModuleUnet(pl.LightningModule):
 
     # init
     def __init__(
-            self, 
-            pretrained_ckpt=None, 
-            lr=1e-4, 
-            unet_channels=(32, 64, 128, 256, 512), 
-            unet_strides=(2, 2, 2, 2),
-            unet_num_res_units=2,
-            unet_norm='INSTANCE',
-            freeze_encoder_epochs=0, 
-            encoder_lr_mult=0.5, 
-            loss_name='dicece'):
+        self, 
+        pretrained_ckpt=None, 
+        lr=1e-4, 
+        freeze_encoder_epochs=0, 
+        encoder_lr_mult=0.5, 
+        loss_name='dicece',
+        unet_channels=(32, 64, 128, 256, 512),
+        unet_strides=(2, 2, 2, 2),
+        unet_num_res_units=2,
+        unet_norm='INSTANCE'
+        ):
+
         super().__init__()
         self.save_hyperparameters()
 
@@ -46,7 +48,7 @@ class BinarySegmentationModuleUnet(pl.LightningModule):
         self.best_val_loss = float('inf')
         self.best_ckpt = None
 
-        # define model (to match pretraining architecture)
+        # define model
         self.model = Unet(
             spatial_dims=3,
             in_channels=1,
@@ -56,8 +58,6 @@ class BinarySegmentationModuleUnet(pl.LightningModule):
             num_res_units=int(unet_num_res_units),
             norm=str(unet_norm)
         )
-
-        print(f'[INFO] Initialized UNet model with channels={unet_channels}, strides={unet_strides}, num_res_units={unet_num_res_units}, norm={unet_norm}', flush=True)
 
         # learning rate
         self.lr = lr
@@ -77,12 +77,15 @@ class BinarySegmentationModuleUnet(pl.LightningModule):
             print(f'[INFO] Using Dice + CE loss for finetuning', flush=True)
         self.val_dice = DiceMetric(include_background=False, reduction='mean')
 
-        # if within number of epochs that encoder is frozen, don't use gradients
+        # freeze encoder during warmup (freezes everything except final segmentation conv)
         if self.encoder_frozen:
+            print(f'[INFO] Freezing encoder for first {self.freeze_encoder_epochs} epochs', flush=True)
             for name, param in self.model.named_parameters():
-                if any(tok in name.lower() for tok in ['down', 'enc', 'encoder']):
+                
+                # keep segmentation head trainable (last conv layer)
+                if not name.startswith('model.2.0.conv.'):
                     param.requires_grad = False
-                    print(f'[INFO] Freezing encoder parameter: {name}', flush=True)
+                    print(f'  [DEBUG] Freezing parameter: {name}', flush=True)
 
         # load pretrained weights if provided
         if pretrained_ckpt:
@@ -91,10 +94,12 @@ class BinarySegmentationModuleUnet(pl.LightningModule):
             ckpt = torch.load(pretrained_ckpt, weights_only=False, map_location='cpu')
             state_dict = ckpt.get('state_dict', ckpt)
 
-            # normalize  prefixes commonly added by lightning
-            POSSIBLE_WRAPPERS = ['module.',  'net.', 'encoder.', 'backbone.', 
-                                 'student_model.', 'student.',  
-                                 'teacher_model.', 'teacher.']
+            print(f'[DEBUG] ckpt key samples: {list(state_dict.keys())[:5]}', flush=True)
+            print(f'[DEBUG] ckpt has model.*: {any(k.startswith("model.") for k in state_dict.keys())}', flush=True)
+            print(f'[DEBUG] ckpt has student_encoder.*: {any(k.startswith("student_encoder.") for k in state_dict.keys())}', flush=True)
+
+            # normlize  prefixes commonly added by lightning
+            POSSIBLE_WRAPPERS = ['module.', 'student_model.', 'student.', 'teacher_model.', 'net.', 'encoder.', 'backbone.']
 
             # function to strip prefix
             def strip_prefix(k):
@@ -107,27 +112,33 @@ class BinarySegmentationModuleUnet(pl.LightningModule):
                             changed = True
                 return k
 
-            # collect student encoder weights and map to current model
+            # mapping
             mapped = {}
-
-            # keep only student encoder weights from pretrained ckpt
-            prefix = 'student_encoder.'
             for k, v in state_dict.items():
-                if not k.startswith(prefix):
+                k2 = strip_prefix(k)
+
+                # if checkpoint has unet keys (like model.0.conv)
+                if k2.startswith('model.'):
+                    mapped[k2] = v
                     continue
 
-                # remove prefix ('student_encoder.')
-                k2 = k[len(prefix):]
+                # if checkpoint has student_encoder keys
+                if k2.startswith('student_encoder.'):
+                    rest = k2[len('student_encoder.'):]
+                    if rest.startswith('model.'):
+                        mapped_k = rest # already has model. prefix
+                    else:
+                        mapped_k = 'model.' + rest # add model. prefix
+                    mapped[mapped_k] = v
+                    continue
+                    
 
-                # strip other possible lightning wrappers
-                k2 = strip_prefix(k2)
-
-                # map to current model
-                mapped[k2] = v
-
-            print(f'[INFO] Pretrained ckpt contains {len(state_dict)} total keys, mapped {len(mapped)} encoder keys to model', flush=True)
-            
-
+            # look at keys that are loaded
+            if mapped:
+                sample_keys = list(mapped.keys())[:5]
+                # print(f'[DEBUG] Sample encoder keys: {sample_keys}', flush=True)
+            else:
+                print(f'[DEBUG] No encoder keys found in checkpoint.', flush=True)
 
             # filter before loading state dict
             model_sd = self.model.state_dict()
@@ -334,20 +345,23 @@ class BinarySegmentationModuleUnet(pl.LightningModule):
 
         print(f'[INFO] Configuring optimizers with encoder_lr_mult={self.encoder_lr_mult}', flush=True)
         
-        # split parameters into encoder and decoder groups
-        encoder_params = []
-        decoder_params = []
-
+        # split params into backbone and head
+        backbone_params, head_params = [], []
         for name, param in self.model.named_parameters():
-            # heuristic encoder parameter names have lower lr
-            is_enc = any(tok in name.lower() for tok in ['down', 'enc', 'encoder'])
-            (encoder_params if is_enc else decoder_params).append(param)
+            if name.startswith('model.2.0.conv.'): # final conv layer as head
+                head_params.append(param)
+            else:
+                backbone_params.append(param)
+
+        # guard against no params in head
+        if len(head_params) == 0:
+            raise RuntimeError(f'No head params match prefix "model.2.0.conv." for optimizer configuration.', flush=True)
 
         base_lr = float(self.lr)
         optimizer = torch.optim.AdamW(
             [
-                {'params': encoder_params, 'lr': base_lr * self.encoder_lr_mult}, # lower LR for encoder (learns more gently)
-                {'params': decoder_params, 'lr': base_lr} # higher LR for decoder
+                {'params': backbone_params, 'lr': base_lr * self.encoder_lr_mult}, # lower LR for backbone (learns more gently)
+                {'params': head_params, 'lr': base_lr} # higher LR for head
             ],
             weight_decay=1e-4,
             betas=(0.9, 0.999)

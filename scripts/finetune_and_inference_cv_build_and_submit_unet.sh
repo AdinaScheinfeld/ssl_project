@@ -9,7 +9,6 @@
 
 # finetune_and_inference_cv_build_and_submit_unet.sh - Script to build cross-validation folds and submit finetuning+inference array jobs using SLURM.
 
-
 # indicate starting
 echo "[INFO] Starting build and submit finetune+inference CV jobs..."
 
@@ -31,7 +30,7 @@ REPEATS=3
 SEED=100
 CHANNELS="ALL"
 TEST_SIZE=2
-JOB_PREFIX="cm"
+JOB_PREFIX="cv27"
 ARRAY_SCRIPT="/home/ads4015/ssl_project/scripts/finetune_and_inference_cv_array_job_unet.sh"
 MAX_CONCURRENT="" # array concurrency cap (set to "" for no cap, set to e.g. "3" for max 3 concurrent tasks)
 
