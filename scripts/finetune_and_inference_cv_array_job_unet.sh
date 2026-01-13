@@ -78,8 +78,8 @@ python /home/ads4015/ssl_project/src/finetune_and_inference_split_unet.py \
   --unet_strides 2,2,2,2 \
   --unet_num_res_units 2 \
   --unet_norm INSTANCE \
-  --max_epochs 5 \
-  --early_stopping_patience 3 \
+  --max_epochs 500 \
+  --early_stopping_patience 45 \
   --freeze_encoder_epochs 5 \
   --encoder_lr_mult 0.05 \
   --loss_name dicece \
