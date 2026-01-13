@@ -82,10 +82,15 @@ class BinarySegmentationModuleUnet(pl.LightningModule):
             print(f'[INFO] Freezing encoder for first {self.freeze_encoder_epochs} epochs', flush=True)
             for name, param in self.model.named_parameters():
                 
-                # keep segmentation head trainable (last conv layer)
-                if not name.startswith('model.2.0.conv.'):
+                # keep segmentation head trainable (last layer)
+                if not name.startswith('model.2.'):
                     param.requires_grad = False
                     print(f'  [DEBUG] Freezing parameter: {name}', flush=True)
+
+            trainable = [n for n, p in self.model.named_parameters() if p.requires_grad]
+            print(f'[DEBUG] Trainable parameters after freeze: {len(trainable)}', flush=True)
+            for n in trainable:
+                print(f'  [DEBUG] Trainable parameter: {n}', flush=True)
 
         # load pretrained weights if provided
         if pretrained_ckpt:
@@ -189,6 +194,12 @@ class BinarySegmentationModuleUnet(pl.LightningModule):
             for name, param in self.model.named_parameters():
                 param.requires_grad = True
             self.encoder_frozen = False
+
+            # log trainable params
+            trainable = [n for n, p in self.model.named_parameters() if p.requires_grad]
+            print(f'[DEBUG] Trainable parameters after unfreeze: {len(trainable)}', flush=True)
+            for n in trainable:
+                print(f'  [DEBUG] Trainable parameter: {n}', flush=True)
 
     
     # training step
@@ -348,14 +359,14 @@ class BinarySegmentationModuleUnet(pl.LightningModule):
         # split params into backbone and head
         backbone_params, head_params = [], []
         for name, param in self.model.named_parameters():
-            if name.startswith('model.2.0.conv.'): # final conv layer as head
+            if name.startswith('model.2.'): # final layer as head
                 head_params.append(param)
             else:
                 backbone_params.append(param)
 
         # guard against no params in head
         if len(head_params) == 0:
-            raise RuntimeError(f'No head params match prefix "model.2.0.conv." for optimizer configuration.', flush=True)
+            raise RuntimeError(f'No head params match prefix "model.2." for optimizer configuration.', flush=True)
 
         base_lr = float(self.lr)
         optimizer = torch.optim.AdamW(
