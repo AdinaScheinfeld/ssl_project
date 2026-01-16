@@ -172,11 +172,11 @@ if __name__ == '__main__':
     callbacks = [
         # callback for early stopping
         # early stopping is triggered when loss does not decrease for `patience` consecutive epochs
-        EarlyStopping(monitor='val_loss', patience=config['training']['patience'], mode='min'),
+        EarlyStopping(monitor='val_loss_report', patience=config['training']['patience'], mode='min'),
 
         # callback for checkpointing to save best model
         ModelCheckpoint(
-            monitor='val_loss',
+            monitor='val_loss_report',
             mode='min',
             save_top_k=1,
             filename=f"{config['model']['save_filename']}_best",
@@ -199,7 +199,7 @@ if __name__ == '__main__':
         callbacks.append(
             ModelCheckpoint(
                 dirpath=periodic_ckpt_dir,
-                filename='epoch-{epoch:04d}-valloss-{val_loss:.4f}',
+                filename='epoch-{epoch:04d}-vallossreport-{val_loss_report:.4f}',
                 save_top_k=-1, # save all checkpoints
                 every_n_epochs=every_n, # save every n epochs
                 save_on_train_epoch_end=True # save at the end of the epoch

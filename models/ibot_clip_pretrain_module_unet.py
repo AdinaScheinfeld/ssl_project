@@ -194,6 +194,15 @@ class IBOTCLIPPretrainModuleUnet(pl.LightningModule):
         self.align_weight = config['loss_weights']['align_weight']
         self.clip_weight = config['loss_weights']['clip_weight']
 
+        # fixed canonical report weights for comparability across runs
+        report_weights_canon = config.get('report_weights', {})
+        self.report_weights = {
+            'clip': float(report_weights_canon.get('clip', 0.30)),
+            'align': float(report_weights_canon.get('align', 0.10)),
+            'recon': float(report_weights_canon.get('recon', 0.30)),
+            'distill': float(report_weights_canon.get('distill', 0.30))
+        }
+
 
     # function to freeze all text encoder layers
     def _freeze_all_text(self):
@@ -536,6 +545,16 @@ class IBOTCLIPPretrainModuleUnet(pl.LightningModule):
         self.log(f'{log_prefix}_recon_loss_l1', recon_loss_l1, on_step=True, on_epoch=True, batch_size=x.shape[0], sync_dist=True)
         self.log(f'{log_prefix}_align_loss', align_loss, on_step=True, on_epoch=True, batch_size=x.shape[0], sync_dist=True)
         self.log(f'{log_prefix}_logit_scale', logit_scale, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+
+        # log fixed, comparable validation metric (to match Swin sweep)
+        if not is_train:
+            val_loss_report = (
+                self.report_weights['clip'] * clip_loss +
+                self.report_weights['align'] * align_loss +
+                self.report_weights['recon'] * recon_loss_l1 +
+                self.report_weights['distill'] * distill_loss
+            )
+            self.log('val_loss_report', val_loss_report, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True, batch_size=x.shape[0])
 
         # use composited reconstruction for logging (output is identical to input on unmasked regions)
         recon_for_log = F.interpolate(recon_composite, size=x.shape[2:], mode='trilinear', align_corners=False) # resize to input size for logging
