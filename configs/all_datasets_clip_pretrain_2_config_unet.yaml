@@ -100,6 +100,12 @@ loss_weights:
   align_weight: 0.05 # image-text cosine similarity per pair
   clip_weight: 0.3 # global contrastive loss between all image and text embeddings in batch
 
+# fixed weights for validation loss reporting (to compare across hyperparams)
+report_weights:
+  clip: 0.30
+  align: 0.10
+  recon: 0.30
+  distill: 0.30
 
 
 
