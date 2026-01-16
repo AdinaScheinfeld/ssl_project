@@ -1,12 +1,13 @@
 #!/bin/bash
 #SBATCH --job-name=finetune_infer_cv_array
-#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_copper_monkey/logs/finetune_infer_cv_array_%A_%a.out
-#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_copper_monkey/logs/finetune_infer_cv_array_%A_%a.err
-#SBATCH --partition=minilab-gpu
-#SBATCH --gres=gpu:1
+#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_snowy_sweep/logs/finetune_infer_cv_array_%A_%a.out
+#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_snowy_sweep/logs/finetune_infer_cv_array_%A_%a.err
+#SBATCH --partition=sablab-gpu
+#SBATCH --account=sablab
+#SBATCH --gres=gpu:a100:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
-#SBATCH --time=7-00:00:00
+#SBATCH --time=3-00:00:00
 
 # finetune_and_inference_cv_array_job_unet.sh - Script to finetune a pretrained model and perform inference on a dataset split into training and evaluation sets, using SLURM array jobs.
 # one array task = one (SUBTYPE, K, FID, FJSON) job.
@@ -49,9 +50,9 @@ source activate monai-env2
 
 # define constants
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches"
-CKPT_DIR="/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_copper_monkey/checkpoints" # output dir for finetune checkpoints
-CKPT="/midtier/paetzollab/scratch/ads4015/model_checkpoints/ibot_clip_pretrain_lsm_unet/all_datasets_clip_pretrained_unet_best.ckpt" # Image+CLIP checkpoint
-PRED_ROOT="/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_copper_monkey/preds" # output dir for preds
+CKPT_DIR="/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_snowy_sweep/checkpoints" # output dir for finetune checkpoints
+CKPT="/midtier/paetzollab/scratch/ads4015/pretrain_sweep_unet/checkpoints/qsrufm3e/all_datasets_clip_pretrained_unet_best.ckpt" # Image+CLIP checkpoint
+PRED_ROOT="/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_snowy_sweep/preds" # output dir for preds
 
 # pretty-name mapping for outputs
 case "$SUBTYPE" in
@@ -75,12 +76,12 @@ python /home/ads4015/ssl_project/src/finetune_and_inference_split_unet.py \
   --seed 100 \
   --batch_size 4 \
   --unet_channels 32,64,128,256,512 \
-  --unet_strides 2,2,2,2 \
+  --unet_strides 2,2,2,2,2 \
   --unet_num_res_units 2 \
-  --unet_norm INSTANCE \
+  --unet_norm BATCH \
   --max_epochs 500 \
   --early_stopping_patience 45 \
-  --freeze_encoder_epochs 5 \
+  --freeze_encoder_epochs 10 \
   --encoder_lr_mult 0.05 \
   --loss_name dicece \
   --wandb_project selma3d_finetune_long \

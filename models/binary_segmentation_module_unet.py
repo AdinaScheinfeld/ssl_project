@@ -59,6 +59,15 @@ class BinarySegmentationModuleUnet(pl.LightningModule):
             norm=str(unet_norm)
         )
 
+        print(
+            f"[DEBUG] Finetune UNet init: "
+            f"channels={tuple(unet_channels)}, "
+            f"strides={tuple(unet_strides)}, "
+            f"num_res_units={int(unet_num_res_units)}, "
+            f"norm={str(unet_norm)}",
+            flush=True
+        )
+
         # learning rate
         self.lr = lr
         self.encoder_lr_mult = float(encoder_lr_mult)

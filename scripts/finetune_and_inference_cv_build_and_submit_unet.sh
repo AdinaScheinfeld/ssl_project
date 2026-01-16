@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=build_submit_ft_cv
-#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_copper_monkey/logs/build_submit_ft_cv_%j.out
-#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_copper_monkey/logs/build_submit_ft_cv_%j.err
+#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_snowy_sweep/logs/build_submit_ft_cv_%j.out
+#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_snowy_sweep/logs/build_submit_ft_cv_%j.err
 #SBATCH --partition=minilab-cpu
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=4G
@@ -25,7 +25,7 @@ mkdir -p "$TMPDIR"
 
 # config
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches"
-OUTDIR="/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_copper_monkey/cv_folds" # output dir for folds jsons and tasks file
+OUTDIR="/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_snowy_sweep/cv_folds" # output dir for folds jsons and tasks file
 REPEATS=3
 SEED=100
 CHANNELS="ALL"
