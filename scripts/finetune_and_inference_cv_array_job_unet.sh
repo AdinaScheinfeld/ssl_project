@@ -76,7 +76,7 @@ python /home/ads4015/ssl_project/src/finetune_and_inference_split_unet.py \
   --seed 100 \
   --batch_size 4 \
   --unet_channels 32,64,128,256,512 \
-  --unet_strides 2,2,2,2,2 \
+  --unet_strides 2,2,2,2 \
   --unet_num_res_units 2 \
   --unet_norm BATCH \
   --max_epochs 500 \
