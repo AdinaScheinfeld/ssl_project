@@ -87,12 +87,12 @@ model:
   save_dirpath: /midtier/paetzollab/scratch/ads4015/model_checkpoints/ibot_clip_pretrain_lsm_unet
   max_log_images: 5
 
-# UNet specific parameters
-unet:
-  channels: [32, 64, 128, 256, 512] # number of channels
-  strides: [2, 2, 2, 2] # strides for each downsampling layer
-  num_res_units: 2 # number of residual units per level
-  norm: INSTANCE # normalization type (BATCH, INSTANCE, LAYER)
+  # UNet specific parameters
+  unet:
+    channels: [32, 64, 128, 256, 512] # number of channels
+    strides: [2, 2, 2, 2] # strides for each downsampling layer
+    num_res_units: 2 # number of residual units per level
+    norm: INSTANCE # normalization type (BATCH, INSTANCE, LAYER)
 
 loss_weights:
   distill_weight: 0.5 # masked voxel KL divergence
