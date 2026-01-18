@@ -1,7 +1,10 @@
+entity: adinas-wcm
+project: selma3d_finetune_unet_stratified
+
 method: bayes
 metric:
-  name: val_dice_050
-  goal: maximize
+  name: val_loss
+  goal: minimize
 
 parameters:
   lr:
@@ -38,7 +41,7 @@ command:
   - --pretrained_ckpt
   - /midtier/paetzollab/scratch/ads4015/pretrain_sweep_unet/checkpoints/aaqkna34/all_datasets_clip_pretrained_unet_best.ckpt
   - --out_dir
-  - /midtier/paetzollab/scratch/ads4015/finetune_sweep_unet/runs/${envvar:WANDB_RUN_ID}
+  - /midtier/paetzollab/scratch/ads4015/finetune_sweep_unet/runs
   - --unet_channels
   - 32,64,128,256,512
   - --unet_strides

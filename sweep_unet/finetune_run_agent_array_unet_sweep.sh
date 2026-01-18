@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=ft_unet_sweep_agent
-#SBATCH --output=/midtier/paetzollab/scratch/ads4015/finetune_unet_sweep/logs/agent_%A_%a.out
-#SBATCH --error=/midtier/paetzollab/scratch/ads4015/finetune_unet_sweep/logs/agent_%A_%a.err
+#SBATCH --output=/midtier/paetzollab/scratch/ads4015/finetune_sweep_unet/logs/agent_%A_%a.out
+#SBATCH --error=/midtier/paetzollab/scratch/ads4015/finetune_sweep_unet/logs/agent_%A_%a.err
 #SBATCH --partition=sablab-gpu
 #SBATCH --account=sablab
 #SBATCH --gres=gpu:a100:1
@@ -22,7 +22,7 @@ fi
 
 # ---- dirs ----
 export SCRATCH_ROOT="/midtier/paetzollab/scratch/ads4015"
-export SWEEP_ROOT="${SCRATCH_ROOT}/finetune_unet_sweep"
+export SWEEP_ROOT="${SCRATCH_ROOT}/finetune_sweep_unet"
 mkdir -p "${SWEEP_ROOT}/wandb" "${SWEEP_ROOT}/logs" "${SWEEP_ROOT}/tmp"
 
 # ---- temp dir (node-local preferred) ----

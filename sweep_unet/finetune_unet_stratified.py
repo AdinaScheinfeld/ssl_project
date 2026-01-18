@@ -15,6 +15,7 @@ from pathlib import Path
 import random
 import json
 import numpy as np
+import wandb
 
 import torch
 import torch.nn as nn
@@ -32,6 +33,8 @@ from monai.metrics import DiceMetric
 import sys
 sys.path.append("/home/ads4015/ssl_project/src")
 from all_datasets_transforms import get_finetune_train_transforms, get_finetune_val_transforms
+
+torch.set_float32_matmul_precision("medium")
 
 # -------------------------
 # Utils: split + dataset
@@ -362,8 +365,8 @@ def main():
     seed_all(args.seed)
 
     data_root = Path(args.data_root)
-    out_dir = Path(args.out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
+    base_out_dir = Path(args.out_dir)
+    base_out_dir.mkdir(parents=True, exist_ok=True)
 
     datatypes = [x.strip() for x in args.datatypes.split(",") if x.strip()]
     pairs = discover_pairs_by_datatype(data_root, datatypes)
@@ -405,6 +408,18 @@ def main():
     tags = [t.strip() for t in args.wandb_tags.split(",") if t.strip()]
     wandb_logger = WandbLogger(project=args.wandb_project, name=args.wandb_run_name, tags=tags)
 
+    # ---- IMPORTANT: make run-specific output directory ----
+    # In sweeps, WANDB_RUN_ID env var substitution is unreliable. Instead, use the actual run id
+    # created by the WandbLogger, then write outputs to: <base_out_dir>/<run_id>/
+    run_id = getattr(wandb_logger.experiment, "id", None) or (wandb.run.id if wandb.run is not None else None)
+    if run_id is None:
+        # very defensive fallback (should not happen)
+        run_id = "no_wandb_run_id"
+    out_dir = base_out_dir / str(run_id)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    print(f"[INFO] W&B run_id={run_id}", flush=True)
+    print(f"[INFO] Writing outputs to {out_dir}", flush=True)
+
     # model
     channels = tuple(int(x) for x in args.unet_channels.split(","))
     strides  = tuple(int(x) for x in args.unet_strides.split(","))
@@ -424,20 +439,20 @@ def main():
     )
 
     ckpt_dir = out_dir / "checkpoints"
-    ckpt_dir.mkdir(exist_ok=True)
+    ckpt_dir.mkdir(parents=True, exist_ok=True)
 
     callbacks = [
         ModelCheckpoint(
             dirpath=str(ckpt_dir),
             filename="best",
-            monitor="val_dice_050",
-            mode="max",
+            monitor="val_loss",
+            mode="min",
             save_top_k=1,
             save_last=True,
         ),
         EarlyStopping(
-            monitor="val_dice_050",
-            mode="max",
+            monitor="val_loss",
+            mode="min",
             patience=int(args.early_stopping_patience),
         ),
     ]
