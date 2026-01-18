@@ -196,6 +196,11 @@ class FinetuneUNet(pl.LightningModule):
         self._encoder_frozen = freeze_encoder_epochs > 0
         self._freeze_encoder_epochs = int(freeze_encoder_epochs)
 
+        # --- W&B val sample logging state ---
+        self._val_table = None
+        self._val_logged = 0
+        self._val_max_log = 5  # up to 5 validation samples per epoch
+
         # load pretrained
         if pretrained_ckpt:
             self._load_pretrained_backbone(pretrained_ckpt)
@@ -244,6 +249,12 @@ class FinetuneUNet(pl.LightningModule):
                     bn += 1
             print(f"[INFO] Froze BatchNorm layers: {bn}", flush=True)
 
+    def on_validation_epoch_start(self):
+        # Create a fresh table per epoch so we can log it under a unique key
+        # e.g. val_samples_epoch_0, val_samples_epoch_1, ...
+        self._val_logged = 0
+        self._val_table = wandb.Table(columns=["image_path", "image_mid", "label_mid", "pred_mid"])
+
     def on_train_epoch_start(self):
         if self._encoder_frozen and self.current_epoch < self._freeze_encoder_epochs:
             # freeze everything except final conv-ish head (MONAI UNet last block is under model.2.* often)
@@ -274,12 +285,55 @@ class FinetuneUNet(pl.LightningModule):
         probs = torch.sigmoid(logits)
         pred = (probs > 0.5).float()
         self.val_dice(pred, y)
+
+        # --- Log up to 5 validation samples per epoch to a W&B table ---
+        # NOTE: We log a center slice for quick visualization.
+        if (
+            self._val_table is not None
+            and self._val_logged < self._val_max_log
+            and isinstance(getattr(self, "logger", None), WandbLogger)
+        ):
+            # take first item in batch (val_loader uses batch_size=1 in your script)
+            img = x[0, 0].detach().float().cpu().numpy()      # (D,H,W)
+            lbl = y[0, 0].detach().float().cpu().numpy()      # (D,H,W)
+            prb = probs[0, 0].detach().float().cpu().numpy()
+            pred_bin = (prb > 0.5).astype(np.float32)
+
+            mid = img.shape[0] // 2
+            img2d = img[mid]
+            lbl2d = lbl[mid]
+            pred2d = pred_bin[mid]
+            # allow a best-effort filename/path column
+            image_path = ""
+            if isinstance(batch.get("image_path", None), (list, tuple)) and len(batch["image_path"]) > 0:
+                image_path = str(batch["image_path"][0])
+            elif isinstance(batch.get("image_path", None), str):
+                image_path = batch["image_path"]
+
+            self._val_table.add_data(
+                image_path,
+                wandb.Image(img2d),
+                wandb.Image(lbl2d),
+                wandb.Image(pred2d),
+            )
+            self._val_logged += 1
+
         return loss
 
     def on_validation_epoch_end(self):
         d = self.val_dice.aggregate().item()
         self.val_dice.reset()
         self.log("val_dice_050", float(d), prog_bar=True)
+
+        # --- Push the per-epoch table under a unique key ---
+        if (
+            self._val_table is not None
+            and self._val_logged > 0
+            and isinstance(getattr(self, "logger", None), WandbLogger)
+        ):
+            key = f"val_samples_epoch_{self.current_epoch}"
+            self.logger.experiment.log({key: self._val_table})
+        self._val_table = None
 
     def test_step(self, batch, batch_idx):
         x = batch["image"]
