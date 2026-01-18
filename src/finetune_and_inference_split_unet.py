@@ -39,6 +39,7 @@ from all_datasets_transforms import get_finetune_train_transforms, get_finetune_
 
 from monai.networks.nets import Unet
 from monai.losses import DiceCELoss, DiceFocalLoss
+from monai.metrics import DiceMetric
 
 torch.set_float32_matmul_precision("medium")
 
@@ -250,14 +251,18 @@ class FinetuneUNetModule(pl.LightningModule):
         self._encoder_frozen = self._freeze_encoder_epochs > 0
         self._freeze_bn_stats = bool(int(freeze_bn_stats))
 
+        self.val_dice = DiceMetric(include_background=False, reduction="mean")
+
         # ---- W&B per-epoch val sample table state ----
         self._val_table = None
         self._val_logged = 0
         self._val_max_log = 5  # up to 5 val samples per epoch
 
-        # load pretrained weights (student_encoder.* -> model.<rest>) like your finetune_unet_stratified
+        # load pretrained weights (student_encoder.* -> model.<rest>)
         if pretrained_ckpt is not None and str(pretrained_ckpt).strip() != "":
             self._load_pretrained(pretrained_ckpt)
+        else:
+            print("[INFO] Initializing UNet from scratch (no pretrained checkpoint).", flush=True)
 
     def _load_pretrained(self, ckpt_path: str):
         print(f"[INFO] Loading pretrained checkpoint: {ckpt_path}", flush=True)
@@ -336,6 +341,12 @@ class FinetuneUNetModule(pl.LightningModule):
         loss = self.loss_fn(logits, y)
         self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True, batch_size=x.shape[0])
 
+        # Dice@0.5 on thresholded prediction
+        probs = torch.sigmoid(logits)
+        pred = (probs >= 0.5).float()
+        self.val_dice(pred, y)
+
+
         # ---- log up to 5 val samples per epoch (thresholded pred) ----
         if self._val_table is not None and self._val_logged < self._val_max_log:
             # batch_size is 1 for your val_loader, but keep robust anyway
@@ -367,6 +378,12 @@ class FinetuneUNetModule(pl.LightningModule):
         return loss
     
     def on_validation_epoch_end(self):
+
+        # log epoch-level val dice
+        d = self.val_dice.aggregate().item()
+        self.val_dice.reset()
+        self.log("val_dice_050", float(d), on_step=False, on_epoch=True, prog_bar=True)
+
         # log the table under a unique key per epoch
         if (
             self._val_table is not None
@@ -487,7 +504,8 @@ def run_for_subtype(subtype_dir: Path, args, device) -> RunOutputs:
         f"cvfold{FID}_ntr{ntr}_nev{nev}_fttr{fttr}_ftval{ftval}_"
         f"fold{FID}_trlim{K}_seed{args.seed}"
     )
-    run_name = f"{pretty}_{tag}"
+    init_tag = "scratch" if (args.pretrained_ckpt is None or str(args.pretrained_ckpt).strip() == "") else "pretrained"
+    run_name = f"{pretty}_{tag}_{init_tag}"
 
     wandb_logger = WandbLogger(project=args.wandb_project, name=run_name) if args.wandb_project else None
 
@@ -639,7 +657,8 @@ def parse_args():
     p.add_argument("--min_finetune_val", type=int, default=1)
 
     # training (defaults set to your requested values)
-    p.add_argument("--pretrained_ckpt", type=str, required=True)
+    p.add_argument("--init", type=str, choices=["pretrained", "random"], default="pretrained", help="Initialize from pretrained checkpoint or random weights.")
+    p.add_argument("--pretrained_ckpt", type=str, default=None)
     p.add_argument("--batch_size", type=int, default=4)
     p.add_argument("--lr", type=float, default=0.0003)
     p.add_argument("--weight_decay", type=float, default=0.00001)
@@ -668,6 +687,13 @@ def parse_args():
 def main():
     args = parse_args()
     _seed_everything(args.seed)
+
+    if args.init == "pretrained":
+        if args.pretrained_ckpt is None or str(args.pretrained_ckpt).strip() == "":
+            raise ValueError("--init pretrained requires --pretrained_ckpt to be set")
+    else:
+        # scratch init: ignore ckpt even if user passes it
+        args.pretrained_ckpt = None
 
     # Expand out_root and derive ckpt_dir + preds_root
     out_root = Path(args.out_root)
