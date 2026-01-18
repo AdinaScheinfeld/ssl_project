@@ -84,9 +84,10 @@ if __name__ == "__main__":
 
     merged.setdefault("model", {})
     merged["model"]["save_dirpath"] = ckpt_dir
-    merged["model"]["save_filename"] = (
-        "all_datasets_clip_pretrained-unet-epoch{epoch:03d}-val-report{val_loss_report:.4f}-step{step}"
-    )
+    # save_filename should be a stable base name because your training script appends:
+    #   _best and _last
+    # and periodic checkpoints already include epoch/metric in their own filename.
+    merged["model"]["save_filename"] = "all_datasets_clip_pretrained_unet"
 
     merged_cfg_path = os.path.join(BASE_OUT, "configs", f"{run_id}.yaml")
     with open(merged_cfg_path, "w") as f:
@@ -102,6 +103,7 @@ if __name__ == "__main__":
         "--nproc_per_node=2",
         TRAIN_SCRIPT,
         "--config", tmp_path,
+        "--resume"
     ]
     print(f"[INFO] Launching: {' '.join(cmd)}", flush=True)
     rc = subprocess.call(cmd)
