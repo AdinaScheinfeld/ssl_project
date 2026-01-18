@@ -202,7 +202,7 @@ class FinetuneUNet(pl.LightningModule):
         self._val_max_log = 5  # up to 5 validation samples per epoch
 
         # load pretrained
-        if pretrained_ckpt:
+        if pretrained_ckpt is not None and str(pretrained_ckpt).strip() != "":
             self._load_pretrained_backbone(pretrained_ckpt)
 
     def _load_pretrained_backbone(self, ckpt_path: str):
@@ -378,8 +378,9 @@ class FinetuneUNet(pl.LightningModule):
 def parse_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data_root", type=str, required=True)
-    ap.add_argument("--pretrained_ckpt", type=str, required=True)
+    ap.add_argument("--pretrained_ckpt", type=str, default=None)
     ap.add_argument("--out_dir", type=str, required=True)
+    ap.add_argument("--init", type=str, choices=["pretrained", "random"], default="pretrained", help="Initialize from pretrained checkpoint or random/scratch")
 
     ap.add_argument("--datatypes", type=str, default=",".join(DATATYPES_DEFAULT))
     ap.add_argument("--seed", type=int, default=100)
@@ -417,6 +418,21 @@ def parse_args():
 def main():
     args = parse_args()
     seed_all(args.seed)
+
+    # -------------------------
+    # Init mode handling
+    # -------------------------
+    init_mode = str(args.init).lower()
+    if init_mode == "pretrained":
+        if args.pretrained_ckpt is None or str(args.pretrained_ckpt).strip() == "":
+            raise ValueError(
+                "--init pretrained requires --pretrained_ckpt <path/to.ckpt>"
+            )
+        ckpt_path = str(args.pretrained_ckpt).strip()
+        print(f"[INFO] Init mode: pretrained | ckpt={ckpt_path}", flush=True)
+    else:
+        ckpt_path = None
+        print("[INFO] Init mode: random (no checkpoint will be loaded)", flush=True)
 
     data_root = Path(args.data_root)
     base_out_dir = Path(args.out_dir)
@@ -476,10 +492,10 @@ def main():
 
     # model
     channels = tuple(int(x) for x in args.unet_channels.split(","))
-    strides  = tuple(int(x) for x in args.unet_strides.split(","))
+    strides = tuple(int(x) for x in args.unet_strides.split(","))
 
     model = FinetuneUNet(
-        pretrained_ckpt=args.pretrained_ckpt,
+        pretrained_ckpt=ckpt_path,
         lr=args.lr,
         weight_decay=args.weight_decay,
         loss_name=args.loss_name,

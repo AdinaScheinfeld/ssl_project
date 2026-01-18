@@ -1,0 +1,59 @@
+entity: adinas-wcm
+project: selma3d_finetune_unet_stratified_random
+
+method: bayes
+metric:
+  name: val_loss
+  goal: minimize
+
+parameters:
+  lr:
+    values: [1e-5, 3e-5, 1e-4, 3e-4]
+  loss_name:
+    values: ["dicece", "dicefocal"]
+  weight_decay:
+    values: [1e-5, 1e-4, 3e-4]
+  freeze_bn_stats:
+    values: [0, 1]
+  max_epochs:
+    values: [200, 400, 600]
+  early_stopping_patience:
+    values: [50, 100, 200]
+
+early_terminate:
+  type: hyperband
+  min_iter: 15        # minimum epochs before a run can be killed
+  eta: 3              # aggressiveness (3 is a good default)
+  s: 2                # number of brackets
+
+program: /home/ads4015/ssl_project/sweep_unet/finetune_unet_stratified.py
+
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}
+  - --data_root
+  - /midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches
+  - --init
+  - random
+  - --out_dir
+  - /midtier/paetzollab/scratch/ads4015/finetune_sweep_unet_random/runs
+  - --unet_channels
+  - 32,64,128,256,512
+  - --unet_strides
+  - 2,2,2,1
+  - --unet_norm
+  - BATCH
+  - --unet_num_res_units
+  - "2"
+  - --batch_size
+  - "4"
+  - --num_workers
+  - "4"
+  - --encoder_lr_mult
+  - "1.0"
+  - --freeze_encoder_epochs
+  - "0"
+  - ${args}
+
+
