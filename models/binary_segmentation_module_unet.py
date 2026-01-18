@@ -271,6 +271,15 @@ class BinarySegmentationModuleUnet(pl.LightningModule):
             labels = labels.detach().to(device='cpu', dtype=torch.float32, copy=True)
             preds = preds.detach().to(device='cpu', dtype=torch.float32, copy=True)
 
+            with torch.no_grad():
+                p = probs.detach()
+                frac_pos = float((p > 0.5).float().mean().cpu())
+                print(
+                    f"[DEBUG] val probs: min={float(p.min()):.4f} max={float(p.max()):.4f} "
+                    f"mean={float(p.mean()):.4f} frac>0.5={frac_pos:.4f}",
+                    flush=True
+                )
+
             num_to_log = min(5 - self.logged_images, images.shape[0])
 
             for i in range(num_to_log):
@@ -416,6 +425,17 @@ class BinarySegmentationModuleUnet(pl.LightningModule):
 
     # on train start
     def on_train_start(self):
+
+        # ---- freeze BatchNorm running stats (important for tiny batches) ----
+        bn_layers = 0
+        for m in self.model.modules():
+            if isinstance(m, torch.nn.modules.batchnorm._BatchNorm):
+                m.eval()  # use running stats, don't update them
+                bn_layers += 1
+                # Optional: also stop tracking stats entirely (can help)
+                # m.track_running_stats = False
+
+        print(f"[INFO] Froze BatchNorm layers: {bn_layers}", flush=True)
 
         # print first step lrs for encoder and decoder
         optimizer = self.trainer.optimizers[0]
