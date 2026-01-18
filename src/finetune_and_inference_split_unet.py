@@ -42,6 +42,13 @@ from monai.losses import DiceCELoss, DiceFocalLoss
 
 torch.set_float32_matmul_precision("medium")
 
+PRETTY_SUBTYPE_MAP = {
+    "amyloid_plaque_patches": "amyloid_plaque",
+    "c_fos_positive_patches": "c_fos_positive",
+    "cell_nucleus_patches": "cell_nucleus",
+    "vessels_patches": "vessels",
+}
+
 
 # -------------------------
 # utils
@@ -143,6 +150,16 @@ def dice_at_threshold_from_logits(logits, target, threshold=0.5, eps=1e-8):
 
 def save_pred_nii(mask_bin, like_path, out_path):
     vol = mask_bin.squeeze().detach().cpu().numpy().astype(np.uint8)
+    try:
+        like = nib.load(str(like_path))
+        affine, header = like.affine, like.header
+    except Exception:
+        affine, header = np.eye(4), nib.Nifti1Header()
+    nib.save(nib.Nifti1Image(vol, affine, header), str(out_path))
+
+def save_prob_nii(probs, like_path, out_path):
+    # probs: expected shape (1, 1, D, H, W) or broadcastable
+    vol = probs.squeeze().detach().cpu().numpy().astype(np.float32)
     try:
         like = nib.load(str(like_path))
         affine, header = like.affine, like.header
@@ -357,9 +374,9 @@ class FinetuneUNetModule(pl.LightningModule):
             and isinstance(getattr(self, "logger", None), WandbLogger)
         ):
             key = f"val_samples_epoch_{self.current_epoch}"
-            self.logger.experiment.log({key: self._val_table})
+            self.logger.experiment.log({key: self._val_table}, commit=False)
         self._val_table = None
-        
+
     def configure_optimizers(self):
         base_lr = float(self.hparams.lr)
         wd = float(self.hparams.weight_decay)
@@ -456,9 +473,22 @@ def run_for_subtype(subtype_dir: Path, args, device) -> RunOutputs:
     test_loader = DataLoader(NiftiPairDictDataset(eval_pairs, transform=val_tf),
                              batch_size=1, shuffle=False, **loader_kw)
 
-    # tag/run naming
-    tag = f"fold{args.fold_id}_K{len(train_pairs)}_fttr{len(train_core)}_ftval{len(val_pairs)}_seed{args.seed}"
-    run_name = f"{subtype}_{tag}"
+    # --- pretty subtype + tag naming (match your convention) ---
+    pretty = PRETTY_SUBTYPE_MAP.get(subtype, subtype)
+    ntr = len(train_pairs)          # train_pool size (train+val pool)
+    nev = len(eval_pairs)           # held-out test size
+    fttr = len(train_core)          # finetune train count
+    ftval = len(val_pairs)          # finetune val count
+    K = int(args.train_limit) if args.train_limit is not None else ntr
+    FID = int(args.fold_id)
+
+    # EXACT tag format you requested
+    tag = (
+        f"cvfold{FID}_ntr{ntr}_nev{nev}_fttr{fttr}_ftval{ftval}_"
+        f"fold{FID}_trlim{K}_seed{args.seed}"
+    )
+    run_name = f"{pretty}_{tag}"
+
     wandb_logger = WandbLogger(project=args.wandb_project, name=run_name) if args.wandb_project else None
 
     # model
@@ -477,7 +507,8 @@ def run_for_subtype(subtype_dir: Path, args, device) -> RunOutputs:
     )
 
     # outputs
-    ckpt_dir = Path(args.ckpt_dir) / subtype / tag
+    # checkpoints/<pretty>/<TAG>/
+    ckpt_dir = Path(args.ckpt_dir) / pretty / tag
     ckpt_dir.mkdir(parents=True, exist_ok=True)
 
     model_ckpt = ModelCheckpoint(
@@ -521,7 +552,8 @@ def run_for_subtype(subtype_dir: Path, args, device) -> RunOutputs:
     # inference model
     infer_model = FinetuneUNetModule.load_from_checkpoint(infer_ckpt).to(device).eval()
 
-    preds_dir = Path(args.preds_root) / (args.preds_subtype or subtype) / tag / "preds"
+    # preds/<pretty>/<TAG>/preds/
+    preds_dir = Path(args.preds_root) / pretty / tag / "preds"
     preds_dir.mkdir(parents=True, exist_ok=True)
 
     rows = []
@@ -538,7 +570,9 @@ def run_for_subtype(subtype_dir: Path, args, device) -> RunOutputs:
 
         base_stem = fname.stem.replace(".nii", "").replace(".gz", "")
         pred_path = preds_dir / f"{base_stem}_pred_{tag}.nii.gz"
+        prob_path = preds_dir / f"{base_stem}_prob_{tag}.nii.gz"
         save_pred_nii(mask_bin, like_path=fname, out_path=pred_path)
+        save_prob_nii(probs, like_path=fname, out_path=prob_path)
 
         rows.append({
             "subtype": subtype,
@@ -546,19 +580,30 @@ def run_for_subtype(subtype_dir: Path, args, device) -> RunOutputs:
             "image_path": str(fname),
             "dice_050": f"{dice_050:.6f}",
             "pred_path": str(pred_path),
+            "prob_path": str(prob_path),
         })
         print(f"[INFO] {subtype}: {fname.name} Dice@0.5={dice_050:.6f}", flush=True)
 
     metrics_csv = preds_dir / f"metrics_test_{tag}.csv"
     if rows:
         mean_dice = float(np.mean([float(r["dice_050"]) for r in rows]))
-        rows.append({"subtype": subtype, "filename": "MEAN", "image_path": "", "dice_050": f"{mean_dice:.6f}", "pred_path": ""})
+        rows.append({
+            "subtype": subtype,
+            "filename": "MEAN",
+            "image_path": "",
+            "dice_050": f"{mean_dice:.6f}",
+            "pred_path": "",
+            "prob_path": "",
+        })
         if wandb_logger:
             wandb_logger.experiment.summary[f"{subtype}/{tag}/test_mean_dice_050"] = mean_dice
         print(f"[INFO] {subtype}: mean Dice@0.5={mean_dice:.6f}", flush=True)
 
     with open(metrics_csv, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["subtype", "filename", "image_path", "dice_050", "pred_path"])
+        writer = csv.DictWriter(
+            f,
+            fieldnames=["subtype", "filename", "image_path", "dice_050", "pred_path", "prob_path"],
+        )
         writer.writeheader()
         writer.writerows(rows)
 
@@ -615,9 +660,7 @@ def parse_args():
 
     # outputs/logging
     p.add_argument("--wandb_project", type=str, default="selma3d_unet_ft_infer")
-    p.add_argument("--ckpt_dir", type=str, required=True)
-    p.add_argument("--preds_root", type=str, required=True)
-    p.add_argument("--preds_subtype", type=str, default=None)
+    p.add_argument("--out_root", type=str, required=True, help="Root output dir containing subfolders: checkpoints/, preds/, logs/, cv_folds/")
     p.add_argument("--infer_ckpt", type=str, choices=["best", "last"], default="best")
 
     return p.parse_args()
@@ -625,6 +668,18 @@ def parse_args():
 def main():
     args = parse_args()
     _seed_everything(args.seed)
+
+    # Expand out_root and derive ckpt_dir + preds_root
+    out_root = Path(args.out_root)
+    out_root.mkdir(parents=True, exist_ok=True)
+    (out_root / "checkpoints").mkdir(parents=True, exist_ok=True)
+    (out_root / "preds").mkdir(parents=True, exist_ok=True)
+    (out_root / "logs").mkdir(parents=True, exist_ok=True)
+    (out_root / "cv_folds").mkdir(parents=True, exist_ok=True)
+
+    # set derived dirs
+    args.ckpt_dir = str(out_root / "checkpoints")
+    args.preds_root = str(out_root / "preds")
 
     root = Path(args.root)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -657,3 +712,11 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
+
+

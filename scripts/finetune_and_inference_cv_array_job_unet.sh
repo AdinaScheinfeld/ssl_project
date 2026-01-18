@@ -39,30 +39,17 @@ ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches"
 PRETRAIN_CKPT="/midtier/paetzollab/scratch/ads4015/pretrain_sweep_unet/checkpoints/aaqkna34/all_datasets_clip_pretrained_unet_best.ckpt"
 
 OUTROOT="/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_super_sweep"
-CKPT_DIR="${OUTROOT}/checkpoints"
-PRED_ROOT="${OUTROOT}/preds"
-mkdir -p "${OUTROOT}/logs" "${CKPT_DIR}" "${PRED_ROOT}"
-
-# pretty-name mapping (optional)
-case "$SUBTYPE" in
-  amyloid_plaque_patches) PRETTY_SUBTYPE="amyloid_plaque" ;;
-  c_fos_positive_patches) PRETTY_SUBTYPE="c_fos_positive" ;;
-  cell_nucleus_patches)   PRETTY_SUBTYPE="cell_nucleus" ;;
-  vessels_patches)        PRETTY_SUBTYPE="vessels" ;;
-  *) PRETTY_SUBTYPE="$SUBTYPE" ;;
-esac
-
+mkdir -p "${OUTROOT}/logs" "${OUTROOT}/checkpoints" "${OUTROOT}/preds" "${OUTROOT}/cv_folds"
+    
 python /home/ads4015/ssl_project/src/finetune_and_inference_split_unet.py \
   --root "$ROOT" \
   --subtypes "$SUBTYPE" \
+  --out_root "$OUTROOT" \
   --channel_substr ALL \
   --folds_json "$FJSON" \
   --fold_id "$FID" \
   --train_limit "$K" \
   --pretrained_ckpt "$PRETRAIN_CKPT" \
-  --ckpt_dir "$CKPT_DIR" \
-  --preds_root "$PRED_ROOT" \
-  --preds_subtype "$PRETTY_SUBTYPE" \
   --wandb_project selma3d_unet_ft_infer_sizes \
   --seed 100 \
   --batch_size 4 \
@@ -72,3 +59,8 @@ python /home/ads4015/ssl_project/src/finetune_and_inference_split_unet.py \
 
 rm -rf "$TMPDIR" || true
 echo "[INFO] Done."
+
+
+
+
+

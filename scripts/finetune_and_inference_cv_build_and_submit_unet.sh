@@ -81,3 +81,8 @@ ARRAY_JOBID=$(sbatch --parsable \
   "$ARRAY_SCRIPT" "$TASKS" "$JOB_PREFIX")
 
 echo "[INFO] Submitted array job: ${ARRAY_JOBID}"
+
+
+
+
+
