@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=ft_infer_unet_array
-#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_unet_random/logs/ft_infer_unet_%A_%a.out
-#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_unet_random/logs/ft_infer_unet_%A_%a.err
+#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_unet_random2/logs/ft_infer_unet_%A_%a.out
+#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_unet_random2/logs/ft_infer_unet_%A_%a.err
 #SBATCH --partition=sablab-gpu
 #SBATCH --account=sablab
 #SBATCH --gres=gpu:a100:1
@@ -38,7 +38,7 @@ source activate monai-env2
 
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches"
 
-OUTROOT="/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_unet_random"
+OUTROOT="/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_unet_random2"
 mkdir -p "${OUTROOT}/logs" "${OUTROOT}/checkpoints" "${OUTROOT}/preds" "${OUTROOT}/cv_folds"
     
 python /home/ads4015/ssl_project/src/finetune_and_inference_split_unet.py \

@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=build_submit_unet_sizes
-#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_super_sweep/logs/build_submit_%j.out
-#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_super_sweep/logs/build_submit_%j.err
+#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_super_sweep2/logs/build_submit_%j.out
+#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_super_sweep2/logs/build_submit_%j.err
 #SBATCH --partition=minilab-cpu
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=6G
@@ -12,7 +12,7 @@ set -euo pipefail
 export SCRATCH_ROOT=/midtier/paetzollab/scratch/ads4015
 
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches"
-OUTROOT="${SCRATCH_ROOT}/temp_selma_segmentation_preds_super_sweep"
+OUTROOT="${SCRATCH_ROOT}/temp_selma_segmentation_preds_super_sweep2"
 OUTDIR="${OUTROOT}/cv_folds"
 ARRAY_SCRIPT="/home/ads4015/ssl_project/scripts/finetune_and_inference_cv_array_job_unet.sh"
 
@@ -32,10 +32,14 @@ source activate monai-env2
 
 # ---- choose K values per subtype (edit as you like) ----
 declare -A COUNTS
-COUNTS[amyloid_plaque_patches]="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19"
+# COUNTS[amyloid_plaque_patches]="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19"
+# COUNTS[c_fos_positive_patches]="1 2 3 4"
+# COUNTS[cell_nucleus_patches]="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25"
+# COUNTS[vessels_patches]="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20"
+COUNTS[amyloid_plaque_patches]="5 6 7 8 9 10"
 COUNTS[c_fos_positive_patches]="1 2 3 4"
-COUNTS[cell_nucleus_patches]="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25"
-COUNTS[vessels_patches]="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20"
+COUNTS[cell_nucleus_patches]="5 6 7 8 9 10"
+COUNTS[vessels_patches]="5 6 7 8 9 10"
 
 echo "[INFO] Building folds + tasks at $(date)..."
 for SUBTYPE in "${!COUNTS[@]}"; do

@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=ft_infer_unet_array
-#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_super_sweep/logs/ft_infer_unet_%A_%a.out
-#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_super_sweep/logs/ft_infer_unet_%A_%a.err
+#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_super_sweep2/logs/ft_infer_unet_%A_%a.out
+#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_super_sweep2/logs/ft_infer_unet_%A_%a.err
 #SBATCH --partition=minilab-gpu
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
@@ -38,7 +38,7 @@ source activate monai-env2
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches"
 PRETRAIN_CKPT="/midtier/paetzollab/scratch/ads4015/pretrain_sweep_unet/checkpoints/aaqkna34/all_datasets_clip_pretrained_unet_best.ckpt"
 
-OUTROOT="/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_super_sweep"
+OUTROOT="/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_super_sweep2"
 mkdir -p "${OUTROOT}/logs" "${OUTROOT}/checkpoints" "${OUTROOT}/preds" "${OUTROOT}/cv_folds"
     
 python /home/ads4015/ssl_project/src/finetune_and_inference_split_unet.py \
