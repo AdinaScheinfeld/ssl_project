@@ -52,10 +52,23 @@ python /home/ads4015/ssl_project/src/finetune_and_inference_split_unet.py \
   --pretrained_ckpt "$PRETRAIN_CKPT" \
   --wandb_project selma3d_unet_ft_infer_sizes \
   --seed 100 \
-  --batch_size 4 \
+  --batch_size 2 \
   --num_workers 4 \
   --val_percent 0.2 \
-  --infer_ckpt best
+  --infer_ckpt best \
+  --init pretrained \
+  --lr 0.0003 \
+  --weight_decay 0.00001 \
+  --max_epochs 600 \
+  --early_stopping_patience 200 \
+  --freeze_encoder_epochs 10 \
+  --encoder_lr_mult 0.2 \
+  --freeze_bn_stats 1 \
+  --loss_name dicefocal \
+  --unet_channels "32,64,128,256" \
+  --unet_strides "2,2,2,1" \
+  --unet_num_res_units "2" \
+  --unet_norm "BATCH"
 
 rm -rf "$TMPDIR" || true
 echo "[INFO] Done."

@@ -36,10 +36,9 @@ declare -A COUNTS
 # COUNTS[c_fos_positive_patches]="1 2 3 4"
 # COUNTS[cell_nucleus_patches]="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25"
 # COUNTS[vessels_patches]="1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20"
-COUNTS[amyloid_plaque_patches]="5 6 7 8 9 10"
-COUNTS[c_fos_positive_patches]="1 2 3 4"
-COUNTS[cell_nucleus_patches]="5 6 7 8 9 10"
-COUNTS[vessels_patches]="5 6 7 8 9 10"
+COUNTS[amyloid_plaque_patches]="2 3 4 11 12 13 14 15 16 17 18 19"
+COUNTS[cell_nucleus_patches]="2 3 4 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25"
+COUNTS[vessels_patches]="2 3 4 11 12 13 14 15 16 17 18 19 20"
 
 echo "[INFO] Building folds + tasks at $(date)..."
 for SUBTYPE in "${!COUNTS[@]}"; do
