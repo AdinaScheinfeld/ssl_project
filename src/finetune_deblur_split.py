@@ -23,6 +23,8 @@ from pytorch_lightning.loggers import WandbLogger
 import torch
 from torch.utils.data import DataLoader, get_worker_info
 
+from monai.losses import SSIMLoss
+
 # project imports
 sys.path.append('/home/ads4015/ssl_project/models')
 from deblur_module import DeblurModule
@@ -74,6 +76,23 @@ def _save_nifti(vol, ref_nifti_path, output_path):
 def _calculate_psnr(pred, target, eps=1e-8):
     mse = float(np.mean((pred - target) ** 2)) + eps
     return 10.0 * np.log10(1.0 / mse)
+
+def _calculate_ssim_3d(pred_t: torch.Tensor, target_t: torch.Tensor) -> float:
+    """
+    pred_t / target_t: torch tensors on CPU or GPU, shape (D,H,W) or (1,1,D,H,W)
+    Values assumed in [0,1]. Returns scalar SSIM in [0,1].
+    Uses MONAI SSIMLoss: SSIM = 1 - SSIMLoss
+    """
+    if pred_t.ndim == 3:
+        pred_t = pred_t[None, None, ...]
+    if target_t.ndim == 3:
+        target_t = target_t[None, None, ...]
+    pred_t = pred_t.float()
+    target_t = target_t.float()
+    ssim_loss_fn = SSIMLoss(spatial_dims=3, data_range=1.0)
+    ssim_loss = ssim_loss_fn(pred_t, target_t)
+    ssim = 1.0 - ssim_loss
+    return float(ssim.detach().cpu().item())
 
 
 # --- Dataclass ---
@@ -279,20 +298,26 @@ def run_one_subtype(subtype_dir, blurred_root, args, device):
                 target=sharp_img[0, 0].detach().cpu().numpy()
             )
 
+            ssim = _calculate_ssim_3d(
+                pred_t=output_deblurred_pred[0, 0],
+                target_t=sharp_img[0, 0],
+            )
+
             # append metrics row
             rows.append(
                 {
-                    'subtype': subtype,
-                    'filename': fname.name,
-                    'psnr': f'{psnr:.4f}',
-                    'pred_path': str(output_pred_path)
+                    "subtype": subtype,
+                    "filename": fname.name,
+                    "psnr": f"{psnr:.4f}",
+                    "ssim": f"{ssim:.4f}",
+                    "pred_path": str(output_pred_path),
                 }
             )
 
     # save metrics to csv
     metrics_csv_path = preds_dir / 'metrics_test.csv'
     with open(metrics_csv_path, 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=['subtype', 'filename', 'psnr', 'pred_path'])
+        writer = csv.DictWriter(f, fieldnames=["subtype", "filename", "psnr", "ssim", "pred_path"])
         writer.writeheader()
         writer.writerows(rows)
 
