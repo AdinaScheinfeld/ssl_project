@@ -8,6 +8,8 @@
 #SBATCH --mem=128G
 #SBATCH --time=24:00:00
 
+# *** USE THIS FILE FOR UNET IMAGE+CLIP ONLY ***
+
 set -euo pipefail
 
 # indicate starting
