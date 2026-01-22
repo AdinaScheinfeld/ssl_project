@@ -165,6 +165,8 @@ class InpaintModuleUNet(pl.LightningModule):
         # load pretrained encoder weights
         if pretrained_ckpt_path:
             self._load_pretrained_unet_encoder(pretrained_ckpt_path)
+        else:
+            print("[INFO] No pretrained UNet checkpoint path provided; training from scratch", flush=True)
 
     # -------------------------
     # Pretrained loader (robust, shape-safe, fixes in_channels=1 -> 2 for first conv)
