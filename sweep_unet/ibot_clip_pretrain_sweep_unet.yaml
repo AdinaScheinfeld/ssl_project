@@ -1,7 +1,7 @@
 # sweep_unet/ibot_clip_pretrain_sweep_unet.yaml
 # Mirrors your Swin sweep, but adds UNet-architecture knobs.
 
-program: sweep_unet/run_pretrain_wandb_unet.py
+program: /home/ads4015/ssl_project/sweep_unet/run_pretrain_wandb_unet.py
 name: ibot-clip-pretrain-lsm-sweep-unet
 project: ibot-clip-pretrain-lsm-all-unet
 
@@ -20,7 +20,7 @@ parameters:
     values: [1, 4, 8]
 
   data.global_batch_size:
-    values: [8, 16, 32]
+    values: [2, 4, 8]
   data.num_workers:
     values: [0, 1]
   data.downsample.enabled:
@@ -46,18 +46,23 @@ parameters:
   # --- UNet architecture sweep knobs ---
   model.unet.channels:
     values:
-      - [16, 32, 64, 128, 256]
-      - [32, 64, 128, 256, 512]
+      - [16, 32, 64, 128]
+      # - [16, 32, 64, 128, 256]
+      # - [32, 64, 128, 256, 512]
   model.unet.num_res_units:
-    values: [1, 2, 3]
+    values: [2]
+    # values: [1, 2, 3]
   model.unet.norm:
-    values: ["INSTANCE", "BATCH"]
+    values: ["INSTANCE"]
+    # values: ["INSTANCE", "BATCH"]
+
 
   # For channels length 5, strides must be length 4 (monai Unet)
   model.unet.strides:
     values:
-      - [2, 2, 2, 2]
-      - [2, 2, 2, 1]
+      - [2, 2, 2]
+      # - [2, 2, 2, 2]
+      # - [2, 2, 2, 1]
 
   # loss weights (match your Swin sweep ranges)
   loss_weights.clip_weight:
