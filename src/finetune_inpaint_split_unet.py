@@ -23,6 +23,8 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 
+from monai.losses import SSIMLoss
+
 sys.path.append("/home/ads4015/ssl_project/models")
 from inpaint_module_unet import InpaintModuleUNet
 
@@ -75,6 +77,21 @@ def _save_nifti(vol, ref_nifti_path, out_path):
 def _calc_psnr(pred, target, eps=1e-8):
     mse = np.mean((pred - target) ** 2) + eps
     return 10.0 * np.log10(1.0 / mse)
+
+
+def _calc_ssim_torch(pred_t: torch.Tensor, target_t: torch.Tensor) -> float:
+    """
+    pred_t, target_t: torch tensors shaped (B,1,D,H,W), values in [0,1]
+    Returns scalar SSIM in [0,1] (higher is better).
+    """
+    # SSIMLoss returns a loss (lower is better). In your LightningModule you log:
+    #   ssim = 1 - loss_ssim
+    # We mirror that convention here.
+    ssim_loss_fn = SSIMLoss(spatial_dims=3, data_range=1.0)
+    with torch.no_grad():
+        loss = ssim_loss_fn(pred_t, target_t)
+        ssim = (1.0 - loss).detach().float().cpu().item()
+    return float(ssim)
 
 
 def _feather_mask(mask, radius=1):
@@ -290,15 +307,22 @@ def run_one_subtype(subdir, args, device):
             comp_path = preds_dir / (fname.stem.replace(".nii", "") + "_inpaint_composite.nii.gz")
             _save_nifti(composite[0, 0], ref_nifti_path=(subdir / fname), out_path=comp_path)
 
-            pred_mask = (pred * mask).detach().cpu().numpy()
-            target_mask = (target_vol * mask).detach().cpu().numpy()
-            psnr = _calc_psnr(pred_mask, target_mask)
+            # ---- metrics in masked region ----
+            pred_mask_t = (pred * mask).clamp(0, 1)
+            target_mask_t = (target_vol * mask).clamp(0, 1)
+
+            psnr = _calc_psnr(
+                pred_mask_t.detach().cpu().numpy(),
+                target_mask_t.detach().cpu().numpy(),
+            )
+            ssim = _calc_ssim_torch(pred_mask_t, target_mask_t)
 
             rows.append(
                 dict(
                     subtype=subtype,
                     filename=fname.name,
                     psnr_masked=f"{psnr:.4f}",
+                    ssim_masked=f"{ssim:.4f}",
                     mask_path=str(mask_path),
                     masked_input_path=str(masked_input_path),
                     pred_path=str(pred_path),
@@ -314,6 +338,7 @@ def run_one_subtype(subdir, args, device):
                 "subtype",
                 "filename",
                 "psnr_masked",
+                "ssim_masked",
                 "mask_path",
                 "masked_input_path",
                 "pred_path",
@@ -324,8 +349,10 @@ def run_one_subtype(subdir, args, device):
         w.writerows(rows)
 
     if wandb_logger and rows:
-        metric = float(np.mean([float(r["psnr_masked"]) for r in rows]))
-        wandb_logger.experiment.summary[f"{subtype}/{tag}/test_mean_psnr_masked"] = metric
+        mean_psnr = float(np.mean([float(r["psnr_masked"]) for r in rows]))
+        mean_ssim = float(np.mean([float(r["ssim_masked"]) for r in rows]))
+        wandb_logger.experiment.summary[f"{subtype}/{tag}/test_mean_psnr_masked"] = mean_psnr
+        wandb_logger.experiment.summary[f"{subtype}/{tag}/test_mean_ssim_masked"] = mean_ssim
 
     del dl_train, dl_val, dl_test
     del ds_train, ds_val, ds_test
