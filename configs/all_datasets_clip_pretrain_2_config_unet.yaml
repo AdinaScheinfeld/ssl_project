@@ -75,7 +75,7 @@ model:
   mask_ratio_warmup: 0.05 # fraction of masked patches per volume for first few epochs
   warmup_epochs: 30
   mask_ratio: 0.3 # fraction of masked patches per volume
-  lr: 0.0001
+  lr: 0.001
   ema_decay: 0.994
   mask_patch_size: 8 # base patch size for masking (use: 16x16x16 for 96x96x96 base patches, or 8x8x8 for 64x64x64 sub_patches) ***
   temp_student: 0.025 # temperature for student logits
