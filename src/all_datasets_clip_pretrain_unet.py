@@ -106,6 +106,8 @@ if __name__ == '__main__':
     # load config
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, required=True, help='Path to config yaml file')
+    parser.add_argument('--resume', action='store_true', help='If set, resume from <save_dirpath>/<save_filename>_last.ckpt when it exists')
+    parser.add_argument('--ckpt_path', type=str, default=None, help='Explicit checkpoint path to resume from (overrides --resume)')
     args = parser.parse_args()
     config = load_config(args.config)
 
@@ -225,8 +227,24 @@ if __name__ == '__main__':
 
     print(f'[DEBUG] GPUs visible={torch.cuda.device_count()}, devices={devices}, num_nodes={num_nodes}, strategy={strategy}', flush=True)
 
+    # ---- resume logic ----
+    ckpt_path = None
+    if args.ckpt_path:
+        ckpt_path = args.ckpt_path
+        print(f"[INFO] Resuming from explicit checkpoint: {ckpt_path}", flush=True)
+    elif args.resume:
+        candidate = os.path.join(
+            config['model']['save_dirpath'],
+            f"{config['model']['save_filename']}_last.ckpt"
+        )
+        if os.path.exists(candidate):
+            ckpt_path = candidate
+            print(f"[INFO] Auto-resuming from last checkpoint: {ckpt_path}", flush=True)
+        else:
+            print(f"[INFO] --resume set but no last checkpoint found at: {candidate}", flush=True)
+
     # start training
-    trainer.fit(model, datamodule=datamodule)
+    trainer.fit(model, datamodule=datamodule, ckpt_path=ckpt_path)
 
     # log best results
     best_model_path = trainer.checkpoint_callback.best_model_path

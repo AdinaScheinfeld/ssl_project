@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# /home/ads4015/ssl_project/sweep_unet/run_pretrain_wandb_unet.py
 # PURPOSE: Merge sweep params into UNet base YAML, pin 2×GPU per run,
 # and direct all outputs under /ministorage/adina/pretrain_sweep_unet.
 
