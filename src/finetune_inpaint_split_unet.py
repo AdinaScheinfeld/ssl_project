@@ -232,6 +232,16 @@ def run_one_subtype(subdir, args, device):
         unet_norm=args.unet_norm,
     )
 
+    # ---- log text conditioning status ----
+    if args.disable_text_cond:
+        print("[INFO] Text conditioning: DISABLED", flush=True)
+    else:
+        print(
+            f"[INFO] Text conditioning: ENABLED | backend={args.text_backend} | "
+            f"text_dim={args.text_dim} | clip_ckpt={args.clip_ckpt}",
+            flush=True,
+        )
+
     # NOTE: we no longer rebuild the backbone here.
     # The architecture is created inside InpaintModuleUNet.__init__ from the args above,
     # so load_from_checkpoint() reconstructs the exact same UNet later.
@@ -274,6 +284,12 @@ def run_one_subtype(subdir, args, device):
 
     rows = []
     best_model = InpaintModuleUNet.load_from_checkpoint(best_ckpt).to(device).eval()
+
+    print(
+        f"[INFO] Loaded model text_cond={best_model.text_cond} "
+        f"text_backend={getattr(best_model, '_text_backend', None)}",
+        flush=True,
+    )
 
     with torch.no_grad():
         for batch in dl_test:
