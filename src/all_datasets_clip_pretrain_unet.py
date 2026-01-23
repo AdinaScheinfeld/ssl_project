@@ -21,9 +21,11 @@ from pytorch_lightning.strategies import DDPStrategy
 sys.path.append('/home/ads4015/ssl_project/models')
 from ibot_clip_pretrain_module_unet import IBOTCLIPPretrainModuleUnet
 
-# get data module
+# get data modules
 sys.path.append('/home/ads4015/ssl_project/data/')
 from all_datasets_clip_data_module import AllDatasetsClipDataModule
+sys.path.append('/home/ads4015/ssl_project/no_clip/')
+from all_datasets_data_module_no_clip import AllDatasetsDataModuleNoClip
 
 
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
@@ -63,7 +65,7 @@ def compute_per_device_batch_size(cfg, world_override=None):
 
     # ensure correct dimensions and divisibility
     if per_dev < 1:
-        raise ValueError(f'Global batch size {global_batch_size} is too small for {world} devices with accumulate_grad_batches={accumulate_grad_batches}. Set a larger global batch size.', flush=True)
+        raise ValueError(f'Global batch size {global_batch_size} is too small for {world} devices with accumulate_grad_batches={accumulate_grad_batches}. Set a larger global batch size.')
     if global_batch_size % (world * accumulate_grad_batches) != 0:
         print(f'[WARNING] global_batch_size={global_batch_size} not divisible by world*accumulate_grad_batches={world*accumulate_grad_batches}.'
               f'Using per-device batch_size={per_dev} and effective global={per_dev*world*accumulate_grad_batches}.', flush=True)
@@ -140,22 +142,46 @@ if __name__ == '__main__':
     roots = datacfg.get('roots', {})
     enable = datacfg.get('enable', {})
 
-    datamodule = AllDatasetsClipDataModule(
-        roots=roots,
-        enable=enable,
-        prompt_jsons=datacfg['prompt_jsons'],
-        batch_size=per_device_batch_size,
-        train_frac=datacfg['train_frac'],
-        seed=config['training']['seed'],
-        data_subset_frac=datacfg.get('data_subset_frac', 1.0),
-        per_source_frac=datacfg.get('per_source_frac', {}),
-        per_source_max=datacfg.get('per_source_max', {}),
-        use_sub_patches=datacfg.get('use_sub_patches', False),
-        base_patch_size=datacfg.get('base_patch_size', 96),
-        sub_patch_size=datacfg.get('sub_patch_size', 64),
-        downsample_to=downsample_to,
-        num_workers=datacfg.get('num_workers', 1)
-    )
+    use_text = bool(config.get('model', {}).get('use_text', True))
+
+    if use_text:
+        datamodule = AllDatasetsClipDataModule(
+            roots=roots,
+            enable=enable,
+            prompt_jsons=datacfg.get('prompt_jsons', None),
+            batch_size=per_device_batch_size,
+            train_frac=datacfg['train_frac'],
+            seed=config['training']['seed'],
+            data_subset_frac=datacfg.get('data_subset_frac', 1.0),
+            per_source_frac=datacfg.get('per_source_frac', {}),
+            per_source_max=datacfg.get('per_source_max', {}),
+            use_sub_patches=datacfg.get('use_sub_patches', False),
+            base_patch_size=datacfg.get('base_patch_size', 96),
+            sub_patch_size=datacfg.get('sub_patch_size', 64),
+            downsample_to=downsample_to,
+            num_workers=datacfg.get('num_workers', 1)
+        )
+        print(f'[INFO] Using AllDatasetsClipDataModule with text prompts', flush=True)
+    else:
+        datamodule = AllDatasetsDataModuleNoClip(
+            roots=roots,
+            enable=enable,
+            prompt_jsons=None, # no text prompts
+            use_text=False,
+            batch_size=per_device_batch_size,
+            train_frac=datacfg['train_frac'],
+            seed=config['training']['seed'],
+            data_subset_frac=datacfg.get('data_subset_frac', 1.0),
+            per_source_frac=datacfg.get('per_source_frac', {}),
+            per_source_max=datacfg.get('per_source_max', {}),
+            use_sub_patches=datacfg.get('use_sub_patches', False),
+            base_patch_size=datacfg.get('base_patch_size', 96),
+            sub_patch_size=datacfg.get('sub_patch_size', 64),
+            downsample_to=downsample_to,
+            num_workers=datacfg.get('num_workers', 1)
+        )
+        print(f'[INFO] Using AllDatasetsDataModuleNoClip without text prompts', flush=True)
+
     datamodule.setup()
 
     # adaptive logging interval

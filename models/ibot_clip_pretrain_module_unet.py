@@ -12,8 +12,8 @@ import sys
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
-import seaborn as sns
-import umap
+# import seaborn as sns
+# import umap
 import wandb
 
 from sklearn.preprocessing import normalize as sklearn_normalize
@@ -62,6 +62,8 @@ class IBOTCLIPPretrainModuleUnet(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters(config)  # save all hyperparameters to self.hparams
 
+        self.use_text = bool(config.get("model", {}).get("use_text", True))
+
         # base mask ratio to use after warmup
         self.base_mask_ratio = config["model"]["mask_ratio"]
 
@@ -91,19 +93,33 @@ class IBOTCLIPPretrainModuleUnet(pl.LightningModule):
         self.temp_student = config["model"]["temp_student"]  # temperature for student softmax
         self.temp_teacher = config["model"]["temp_teacher"]  # temperature for teacher softmax
 
-        self.text_model_name = config["model"]["text_model_name"]
+        # self.text_model_name = config["model"]["text_model_name"]
         self.embed_dim = config["model"]["embed_dim"]
 
-        self.clip_temperature = config["model"]["clip_temperature"]
-        init_temp = float(config["model"].get("clip_temperature", 0.07))
-        # learnable logit scale for CLIP loss (instead of fixed temperature)
-        self.logit_scale = nn.Parameter(torch.tensor(np.log(1.0 / init_temp), dtype=torch.float))
+        # self.clip_temperature = config["model"]["clip_temperature"]
+        # init_temp = float(config["model"].get("clip_temperature", 0.07))
+        # # learnable logit scale for CLIP loss (instead of fixed temperature)
+        # self.logit_scale = nn.Parameter(torch.tensor(np.log(1.0 / init_temp), dtype=torch.float))
+
+        if self.use_text:
+            self.text_model_name = config["model"]["text_model_name"]
+            self.clip_temperature = config["model"]["clip_temperature"]
+            init_temp = float(config["model"].get("clip_temperature", 0.07))
+            # learnable logit scale for CLIP loss (instead of fixed temperature)
+            self.logit_scale = nn.Parameter(torch.tensor(np.log(1.0 / init_temp), dtype=torch.float))
+        else:
+            self.text_model_name = None
+            self.clip_temperature = None
+            self.logit_scale = None
 
         self.reconstruction_head = LightDecoder(self.embed_dim)
 
-        self.finetune_text = config["model"].get("finetune_text", True)
-        self.text_top_k_layers = int(config["model"].get("text_top_k_layers", 4))
-        self.text_finetune_start_epoch = int(config["model"].get("text_finetune_start_epoch", self.warmup_epochs))
+        # self.finetune_text = config["model"].get("finetune_text", True)
+        # self.text_top_k_layers = int(config["model"].get("text_top_k_layers", 4))
+        # self.text_finetune_start_epoch = int(config["model"].get("text_finetune_start_epoch", self.warmup_epochs))
+        self.finetune_text = bool(config["model"].get("finetune_text", True)) if self.use_text else False
+        self.text_top_k_layers = int(config["model"].get("text_top_k_layers", 4)) if self.use_text else 0
+        self.text_finetune_start_epoch = int(config["model"].get("text_finetune_start_epoch", self.warmup_epochs)) if self.use_text else 10**9
 
         # track best metrics across the run
         self.best_metrics = {
@@ -152,34 +168,35 @@ class IBOTCLIPPretrainModuleUnet(pl.LightningModule):
 
         self.register_buffer("ema_decay", torch.tensor(config["model"]["ema_decay"]))
 
-        # *** text encoder ***
-        self.text_tokenizer = AutoTokenizer.from_pretrained(self.text_model_name)
-        self.text_encoder = AutoModel.from_pretrained(self.text_model_name)
+        # *** text encoder (optional) ***
+        if self.use_text:
+            self.text_tokenizer = AutoTokenizer.from_pretrained(self.text_model_name)
+            self.text_encoder = AutoModel.from_pretrained(self.text_model_name)
+            self.text_encoder.gradient_checkpointing_enable()
 
-        # keep checkpointing while frozen (saves memory), will disable when unfreezing
-        self.text_encoder.gradient_checkpointing_enable()
+            self.text_proj = nn.Sequential(
+                nn.Linear(self.text_encoder.config.hidden_size, self.embed_dim),
+                nn.ReLU(),
+                nn.Linear(self.embed_dim, self.embed_dim),
+                nn.LayerNorm(self.embed_dim),
+            )
 
-        # projection head (always trainable)
-        self.text_proj = nn.Sequential(
-            nn.Linear(self.text_encoder.config.hidden_size, self.embed_dim),
-            nn.ReLU(),
-            nn.Linear(self.embed_dim, self.embed_dim),
-            nn.LayerNorm(self.embed_dim),
-        )
-
-        # start fully frozen
-        self._freeze_all_text()
-        self.text_encoder.eval()
-
-        # image projection head for CLIP loss
-        self.image_proj = nn.Sequential(
-            nn.AdaptiveAvgPool3d(1),
-            nn.Flatten(),
-            nn.Linear(self.embed_dim, self.embed_dim),
-            nn.ReLU(),
-            nn.Linear(self.embed_dim, self.embed_dim),
-            nn.LayerNorm(self.embed_dim),
-        )
+            self._freeze_all_text()
+            self.text_encoder.eval()
+            
+            self.image_proj = nn.Sequential(
+                nn.AdaptiveAvgPool3d(1),
+                nn.Flatten(),
+                nn.Linear(self.embed_dim, self.embed_dim),
+                nn.ReLU(),
+                nn.Linear(self.embed_dim, self.embed_dim),
+                nn.LayerNorm(self.embed_dim),
+            )
+        else:
+            self.text_tokenizer = None
+            self.text_encoder = None
+            self.text_proj = None
+            self.image_proj = None
 
         # lists and count for logging to wandb
         self.train_batches_for_logging = []
@@ -191,8 +208,8 @@ class IBOTCLIPPretrainModuleUnet(pl.LightningModule):
         # loss weights
         self.distill_weight = config["loss_weights"]["distill_weight"]
         self.reconstruction_weight = config["loss_weights"]["reconstruction_weight"]
-        self.align_weight = config["loss_weights"]["align_weight"]
-        self.clip_weight = config["loss_weights"]["clip_weight"]
+        self.align_weight = float(config["loss_weights"].get("align_weight", 0.0)) if self.use_text else 0.0
+        self.clip_weight  = float(config["loss_weights"].get("clip_weight", 0.0)) if self.use_text else 0.0
 
         # fixed canonical report weights for comparability across runs
         report_weights_canon = config.get("report_weights", {})
@@ -202,16 +219,24 @@ class IBOTCLIPPretrainModuleUnet(pl.LightningModule):
             "recon": float(report_weights_canon.get("recon", 0.30)),
             "distill": float(report_weights_canon.get("distill", 0.30)),
         }
+        if not self.use_text:
+            # ensure report metric is meaningful and comparable for image-only runs
+            self.report_weights["clip"] = 0.0
+            self.report_weights["align"] = 0.0
 
     # -------------------------
     # Text freezing utilities
     # -------------------------
 
     def _freeze_all_text(self):
+        if not self.use_text or self.text_encoder is None:
+            return
         for p in self.text_encoder.parameters():
             p.requires_grad = False
 
     def _unfreeze_top_k_text_layers(self, k: int):
+        if not self.use_text or self.text_encoder is None:
+            return
         # freeze everything first
         self._freeze_all_text()
 
@@ -273,6 +298,8 @@ class IBOTCLIPPretrainModuleUnet(pl.LightningModule):
     # -------------------------
 
     def encode_text(self, texts):
+        if not self.use_text:
+            raise RuntimeError("encode_text called but model.use_text is False")
         tokens = self.text_tokenizer(texts, padding=True, truncation=True, return_tensors="pt").to(self.device)
 
         # only build grads for text when it's trainable
@@ -294,6 +321,8 @@ class IBOTCLIPPretrainModuleUnet(pl.LightningModule):
     # -------------------------
 
     def compute_clip_loss(self, image_embeds: torch.Tensor, text_embeds: torch.Tensor):
+        if not self.use_text:
+            return torch.tensor(0.0, device=self.device), torch.tensor(1.0, device=self.device)
         logit_scale = self.logit_scale.exp().clamp(1e-3, 100.0)
         logits = (image_embeds @ text_embeds.T) * logit_scale
         targets = torch.arange(logits.shape[0], device=self.device)
@@ -304,6 +333,8 @@ class IBOTCLIPPretrainModuleUnet(pl.LightningModule):
         return self.student_encoder(x)
 
     def compute_alignment_loss(self, image_embeds, text_embeds, detach_text: bool = True):
+        if not self.use_text:
+            return torch.tensor(0.0, device=self.device)
         if detach_text:
             text_embeds = text_embeds.detach()
         image_embeds = F.normalize(image_embeds, dim=-1)
@@ -379,6 +410,10 @@ class IBOTCLIPPretrainModuleUnet(pl.LightningModule):
         if student_recon is None:
             student_recon = self.reconstruction_head(student_out)
 
+        # for image only runs, skip logging embeddings
+        if not self.use_text:
+            return
+
         recon_image = student_recon.clamp(0, 1)
 
         masked_input = x.clone()
@@ -412,14 +447,15 @@ class IBOTCLIPPretrainModuleUnet(pl.LightningModule):
         else:
             student_image_embed = student_image_embed.detach().cpu()
 
-        if text_embed is None:
-            text_embed = self.encode_text(texts).detach().cpu()
-        else:
-            text_embed = text_embed.detach().cpu()
+        if self.use_text:
+            if text_embed is None:
+                text_embed = self.encode_text(texts).detach().cpu()
+            else:
+                text_embed = text_embed.detach().cpu()
 
-        embed_dict["image"].append(student_image_embed)
-        embed_dict["text"].append(text_embed)
-        embed_dict["label"].extend(texts)
+            embed_dict["image"].append(student_image_embed)
+            embed_dict["text"].append(text_embed)
+            embed_dict["label"].extend(texts)
 
     # -------------------------
     # Lightning hooks
@@ -431,11 +467,13 @@ class IBOTCLIPPretrainModuleUnet(pl.LightningModule):
     def on_train_epoch_start(self):
         if self.current_epoch < self.warmup_epochs:
             self.mask_ratio = self.mask_ratio_warmup
-            self._freeze_all_text()
-            self.text_encoder.eval()
+
+            if self.use_text:
+                self._freeze_all_text()
+                self.text_encoder.eval()
         else:
             self.mask_ratio = self.base_mask_ratio
-            if self.finetune_text and self.current_epoch >= self.text_finetune_start_epoch:
+            if self.use_text and self.finetune_text and self.current_epoch >= self.text_finetune_start_epoch:
                 self._unfreeze_top_k_text_layers(self.text_top_k_layers)
                 self.text_encoder.train()
                 try:
@@ -443,12 +481,16 @@ class IBOTCLIPPretrainModuleUnet(pl.LightningModule):
                 except AttributeError:
                     pass
             else:
-                self._freeze_all_text()
-                self.text_encoder.eval()
+                if self.use_text:
+                    self._freeze_all_text()
+                    self.text_encoder.eval()
 
     def shared_step(self, batch, batch_idx, is_train: bool = True):
         x = batch["image"]
-        texts = batch["text"]
+        texts = batch.get("text", None)
+
+        if self.use_text and texts is None:
+            raise RuntimeError("use_text=True but batch has no 'text' field. Check datamodule/dataset.")
 
         # squeeze stray trailing singleton dimension if present: (B,C,D,H,W,1) -> (B,C,D,H,W)
         if x.ndim == 6 and x.shape[-1] == 1:
@@ -468,10 +510,13 @@ class IBOTCLIPPretrainModuleUnet(pl.LightningModule):
         with torch.no_grad():
             _, teacher_out_norm = self.encode_image(x, torch.zeros_like(mask, dtype=torch.bool), self.teacher_encoder)
 
-        student_image_embed = F.normalize(self.image_proj(student_out_norm), dim=-1)
-        text_embed = self.encode_text(texts)
-
-        clip_loss, logit_scale = self.compute_clip_loss(student_image_embed, text_embed)
+        if self.use_text:
+            student_image_embed = F.normalize(self.image_proj(student_out_norm), dim=-1)
+            text_embed = self.encode_text(texts)
+            clip_loss, logit_scale = self.compute_clip_loss(student_image_embed, text_embed)
+        else:
+            student_image_embed, text_embed = None, None
+            clip_loss, logit_scale = torch.tensor(0.0, device=self.device), torch.tensor(1.0, device=self.device)
 
         ibot_loss, recon_composite, distill_loss, recon_loss_l1, align_loss = self.compute_ibot_loss(
             student_out_norm,
@@ -567,7 +612,7 @@ class IBOTCLIPPretrainModuleUnet(pl.LightningModule):
             x,
             mask,
             student_out_norm,
-            texts,
+            texts if self.use_text else None,
             is_train=is_train,
             student_image_embed=student_image_embed,
             text_embed=text_embed,
@@ -661,20 +706,35 @@ class IBOTCLIPPretrainModuleUnet(pl.LightningModule):
                 columns=[
                     "best_train_loss",
                     "best_val_loss",
-                    "best_train_clip_loss",
-                    "best_val_clip_loss",
                     "best_train_ibot_loss",
                     "best_val_ibot_loss",
                 ]
             )
-            table.add_data(
-                self.best_metrics["train_loss"],
-                self.best_metrics["val_loss"],
-                self.best_metrics["train_clip_loss"],
-                self.best_metrics["val_clip_loss"],
-                self.best_metrics["train_ibot_loss"],
-                self.best_metrics["val_ibot_loss"],
-            )
+            if self.use_text:
+                table = wandb.Table(columns=[
+                    "best_train_loss",
+                    "best_val_loss",
+                    "best_train_clip_loss",
+                    "best_val_clip_loss",
+                    "best_train_ibot_loss",
+                    "best_val_ibot_loss",
+                ])
+                table.add_data(
+                    self.best_metrics["train_loss"],
+                    self.best_metrics["val_loss"],
+                    self.best_metrics["train_clip_loss"],
+                    self.best_metrics["val_clip_loss"],
+                    self.best_metrics["train_ibot_loss"],
+                    self.best_metrics["val_ibot_loss"],
+                )
+            else:
+                table.add_data(
+                    self.best_metrics["train_loss"],
+                    self.best_metrics["val_loss"],
+                    self.best_metrics["train_ibot_loss"],
+                    self.best_metrics["val_ibot_loss"],
+                )
+
             exp.log({"best_metrics_table": table})
             for k, v in self.best_metrics.items():
                 exp.summary[f"best_{k}"] = v

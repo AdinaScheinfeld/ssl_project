@@ -2,8 +2,8 @@
 # Mirrors your Swin sweep, but adds UNet-architecture knobs.
 
 program: /home/ads4015/ssl_project/sweep_unet/run_pretrain_wandb_unet.py
-name: ibot-clip-pretrain-lsm-sweep-unet-with-text
-project: ibot-clip-pretrain-lsm-all-unet-with-text
+name: ibot-clip-pretrain-lsm-sweep-unet-no-text
+project: ibot-clip-pretrain-lsm-all-unet-no-text
 
 method: bayes
 metric:
@@ -17,7 +17,7 @@ parameters:
     values: [50, 100, 200]
 
   dist.accumulate_grad_batches:
-    values: [1, 4, 8]
+    values: [1, 2, 4]
 
   data.global_batch_size:
     values: [2, 4, 8]
@@ -40,39 +40,29 @@ parameters:
     values: [0.025, 0.05, 0.1]
   model.embed_dim:
     values: [128, 256, 512]
-  model.clip_temperature:
-    values: [0.04, 0.07, 0.1]
 
   # --- UNet architecture sweep knobs ---
   model.unet.channels:
     values:
-      - [16, 32, 64, 128]
+      # - [16, 32, 64, 128]
       # - [16, 32, 64, 128, 256]
-      # - [32, 64, 128, 256, 512]
+      - [32, 64, 128, 256, 512]
   model.unet.num_res_units:
     values: [2]
     # values: [1, 2, 3]
   model.unet.norm:
-    values: ["INSTANCE"]
-    # values: ["INSTANCE", "BATCH"]
+    # values: ["INSTANCE"]
+    values: ["INSTANCE", "BATCH"]
 
 
   # For channels length 5, strides must be length 4 (monai Unet)
   model.unet.strides:
     values:
-      - [2, 2, 2]
-      # - [2, 2, 2, 2]
-      # - [2, 2, 2, 1]
+      # - [2, 2, 2]
+      - [2, 2, 2, 2]
+      - [2, 2, 2, 1]
 
   # loss weights (match your Swin sweep ranges)
-  loss_weights.clip_weight:
-    distribution: uniform
-    min: 0.15
-    max: 0.60
-  loss_weights.align_weight:
-    distribution: uniform
-    min: 0.02
-    max: 0.12
   loss_weights.reconstruction_weight:
     distribution: uniform
     min: 0.15
@@ -85,7 +75,4 @@ parameters:
 early_terminate:
   type: hyperband
   min_iter: 15
-
-
-
 
