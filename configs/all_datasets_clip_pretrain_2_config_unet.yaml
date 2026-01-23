@@ -2,7 +2,7 @@
 
 training:
   seed: 100
-  project_name: ibot-clip-pretrain-lsm-all
+  project_name: ibot-clip-pretrain-lsm-all-unet
   max_epochs: 1000
   patience: 45 # use early stopping with patience (set to a high value to effectively disable)
   log_every_n_steps: 5
@@ -72,6 +72,7 @@ data:
 
 
 model:
+  use_text: true # if false, will run image-only iBOT (no BERT, no CLIP loss, no align loss, no text embedding logging)
   mask_ratio_warmup: 0.05 # fraction of masked patches per volume for first few epochs
   warmup_epochs: 30
   mask_ratio: 0.3 # fraction of masked patches per volume
