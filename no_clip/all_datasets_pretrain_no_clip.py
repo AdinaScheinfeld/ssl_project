@@ -142,7 +142,7 @@ if __name__ == '__main__':
         roots=roots,
         enable=enable,
         prompt_jsons=datacfg.get('prompt_jsons', None),
-        use_text=bool(config['model'].get('use_text', True)),
+        use_text=bool(config['model'].get('use_text', False)),
         batch_size=per_device_batch_size,
         train_frac=datacfg['train_frac'],
         seed=config['training']['seed'],
@@ -153,7 +153,7 @@ if __name__ == '__main__':
         base_patch_size=datacfg.get('base_patch_size', 96),
         sub_patch_size=datacfg.get('sub_patch_size', 64),
         downsample_to=downsample_to,
-        num_workers=datacfg.get('num_workers', 4),
+        num_workers=datacfg.get('num_workers', 1),
     )
     datamodule.setup()
 
@@ -164,6 +164,10 @@ if __name__ == '__main__':
 
     # initialize model
     model = IBOTCLIPPretrainModuleNoClip(config)
+
+    # create periodic checkpoint directory if enabled
+    periodic_ckpt_dir = os.path.join(config['model']['save_dirpath'], 'periodic_checkpoints')
+    os.makedirs(periodic_ckpt_dir, exist_ok=True)
 
     # callbacks
     callbacks = [
@@ -176,11 +180,33 @@ if __name__ == '__main__':
             monitor='val_loss',
             mode='min',
             save_top_k=1,
-            filename=config['model']['save_filename'],
+            filename=f"{config['model']['save_filename']}_best",
             dirpath=config['model']['save_dirpath'],
             verbose=True
+        ),
+
+        # callback to save last checkpoint in addition to best
+        ModelCheckpoint(
+            dirpath=config['model']['save_dirpath'],
+            filename=f"{config['model']['save_filename']}_last",
+            save_top_k=0, 
+            save_last=True
         )
     ]
+
+        # add periodic checkpointing callback if enabled
+    every_n = config['training'].get('checkpoint_every_n_epochs', 0)
+    if every_n > 0:
+        callbacks.append(
+            ModelCheckpoint(
+                dirpath=periodic_ckpt_dir,
+                filename='epoch-{epoch:04d}-valloss-{val_loss:.4f}',
+                save_top_k=-1, # save all checkpoints
+                every_n_epochs=every_n, # save every n epochs
+                save_on_train_epoch_end=True # save at the end of the epoch
+            )
+        )
+        print(f'[INFO] Enabled periodic checkpointing every {every_n} epochs to {periodic_ckpt_dir}', flush=True)
 
     # pytorch lightning trainer
     trainer = pl.Trainer(
