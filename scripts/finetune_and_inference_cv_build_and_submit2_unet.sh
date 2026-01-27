@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=build_submit_unet_sizes
-#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_peach_sweep_25/logs/build_submit_%j.out
-#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_peach_sweep_25/logs/build_submit_%j.err
+#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_bright_sweep_26/logs/build_submit_%j.out
+#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_segmentation_preds_bright_sweep_26/logs/build_submit_%j.err
 #SBATCH --partition=minilab-cpu
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=6G
@@ -12,7 +12,7 @@ set -euo pipefail
 export SCRATCH_ROOT=/midtier/paetzollab/scratch/ads4015
 
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches"
-OUTROOT="${SCRATCH_ROOT}/temp_selma_segmentation_preds_peach_sweep_25"
+OUTROOT="${SCRATCH_ROOT}/temp_selma_segmentation_preds_bright_sweep_26"
 OUTDIR="${OUTROOT}/cv_folds"
 ARRAY_SCRIPT="/home/ads4015/ssl_project/scripts/finetune_and_inference_cv_array_job2_unet.sh"
 
