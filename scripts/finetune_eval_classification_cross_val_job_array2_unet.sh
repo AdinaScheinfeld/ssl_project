@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=cls_unet_arr
-#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_classification_preds_peach_sweep_25/logs/cls_unet_%A_%a.out
-#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_classification_preds_peach_sweep_25/logs/cls_unet_%A_%a.err
+#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_classification_bright_sweep_26/logs/cls_unet_%A_%a.out
+#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_classification_bright_sweep_26/logs/cls_unet_%A_%a.err
 #SBATCH --partition=minilab-gpu
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
@@ -32,7 +32,7 @@ source activate monai-env2
 # -----------------------
 # outputs (your requested structure)
 # -----------------------
-OUTROOT="/midtier/paetzollab/scratch/ads4015/temp_selma_classification_preds_peach_sweep_25"
+OUTROOT="/midtier/paetzollab/scratch/ads4015/temp_selma_classification_bright_sweep_26"
 CKPT_DIR="${OUTROOT}/checkpoints/finetune_cls"
 METRICS_ROOT="${OUTROOT}/cls_metrics"
 mkdir -p "$CKPT_DIR" "$METRICS_ROOT" "${OUTROOT}/logs"

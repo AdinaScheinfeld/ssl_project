@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=build_submit_cls_unet
-#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_classification_preds_peach_sweep_25/logs/build_submit_cls_unet_%j.out
-#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_classification_preds_peach_sweep_25/logs/build_submit_cls_unet_%j.err
+#SBATCH --output=/midtier/paetzollab/scratch/ads4015/temp_selma_classification_bright_sweep_26/logs/build_submit_cls_unet_%j.out
+#SBATCH --error=/midtier/paetzollab/scratch/ads4015/temp_selma_classification_bright_sweep_26/logs/build_submit_cls_unet_%j.err
 #SBATCH --partition=minilab-cpu
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
@@ -11,7 +11,7 @@
 
 set -euo pipefail
 
-echo "[INFO] Starting build+submit UNet classification peach_sweep_25 on $(date)..."
+echo "[INFO] Starting build+submit UNet classification bright_sweep_26 on $(date)..."
 
 module load anaconda3/2022.10-34zllqw
 source activate monai-env2
@@ -20,7 +20,7 @@ source activate monai-env2
 # paths
 # -----------------------
 ROOT="/midtier/paetzollab/scratch/ads4015/data_selma3d/selma3d_finetune_patches"
-OUTROOT="/midtier/paetzollab/scratch/ads4015/temp_selma_classification_preds_peach_sweep_25"
+OUTROOT="/midtier/paetzollab/scratch/ads4015/temp_selma_classification_bright_sweep_26"
 
 LOGDIR="${OUTROOT}/logs"
 FOLDDIR="${OUTROOT}/cv_folds"
@@ -30,7 +30,7 @@ METRICSROOT="${OUTROOT}/cls_metrics"
 mkdir -p "$LOGDIR" "$FOLDDIR" "$CKPTDIR" "$METRICSROOT"
 
 # tasks file (for the GPU array)
-JOB_PREFIX="cls_unet_peach_sweep_25"
+JOB_PREFIX="cls_unet_bright_sweep_26"
 TASKS="${FOLDDIR}/${JOB_PREFIX}_tasks.txt"
 : > "$TASKS"
 
